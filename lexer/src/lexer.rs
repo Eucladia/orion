@@ -35,21 +35,22 @@ impl<'a> Lexer<'a> {
     self.bytes.get(self.curr).map(|x| *x)
   }
 
+  /// Advances the cursor
+  fn advance(&mut self) {
+    if !self.is_eof {
+      self.curr += 1;
+    }
+  }
+
+  /// Advances the cursor and returns that underlying byte
+  fn next_byte(&mut self) -> Option<u8> {
+    self.curr += 1;
+    self.bytes.get(self.curr).map(|x| *x)
+  }
+
   /// Lexes a [Token]
-  pub fn lex_token(&mut self) -> Option<Token> {
-    if self.is_eof {
-      return None;
-    }
-
-    let byte = self.bytes.get(self.curr);
-
-    if byte.is_none() {
-      self.is_eof = true;
-
-      return Some(create_token!(EndOfFile, 0));
-    }
-
-    let byte = *byte.unwrap();
+  fn lex_token(&mut self) -> Option<Token> {
+    let byte = *self.bytes.get(self.curr).unwrap();
     let start = self.curr;
 
     if byte.is_ascii_whitespace() {
@@ -97,30 +98,17 @@ impl<'a> Lexer<'a> {
       None
     }
   }
-
-  /// Advances the cursor
-  fn advance(&mut self) {
-    if !self.is_eof {
-      self.curr += 1;
-    }
-  }
-
-  /// Advances the cursor and returns that underlying byte
-  fn next(&mut self) -> Option<u8> {
-    self.curr += 1;
-    self.bytes.get(self.curr).map(|x| *x)
-  }
 }
 
 // Eats a numerical literal. The suffix, if present is not included
 fn eat_numerical_literal(lexer: &mut Lexer) {
-  while lexer.next().map_or(false, |b| b.is_ascii_digit()) {}
+  while lexer.next_byte().map_or(false, |b| b.is_ascii_digit()) {}
 }
 
 // Eats whitespace
 fn eat_whitespace(lexer: &mut Lexer) {
   while lexer
-    .next()
+    .next_byte()
     .map_or(false, |byte| byte.is_ascii_whitespace())
   {}
 }
@@ -129,7 +117,7 @@ fn eat_whitespace(lexer: &mut Lexer) {
 fn eat_identifier(lexer: &mut Lexer) {
   // The first character must be a letter, but the rest can include `_` and `.`
   while lexer
-    .next()
+    .next_byte()
     .map_or(false, |b| b.is_ascii_alphabetic() || b == b'.' || b == b'_')
   {}
 }
@@ -138,7 +126,13 @@ impl<'a> Iterator for Lexer<'a> {
   type Item = Token;
 
   fn next(&mut self) -> Option<Token> {
-    if self.is_eof {
+    if self.curr >= self.bytes.len() {
+      if !self.is_eof {
+        self.is_eof = true;
+
+        return Some(create_token!(EndOfFile, 0));
+      }
+
       return None;
     }
 
@@ -154,6 +148,6 @@ mod tests {
   fn empty_input() {
     let mut lexer = Lexer::from_str("");
 
-    assert_eq!(lexer.lex_token().unwrap(), create_token!(EndOfFile, 0));
+    assert_eq!(lexer.next().unwrap(), create_token!(EndOfFile, 0));
   }
 }
