@@ -52,7 +52,7 @@ impl<'a> Lexer<'a> {
     let byte = *byte.unwrap();
     let start = self.curr;
 
-    let token = if byte.is_ascii_whitespace() {
+    if byte.is_ascii_whitespace() {
       eat_whitespace(self);
 
       Some(create_token!(Whitespace, self.curr - start))
@@ -95,9 +95,7 @@ impl<'a> Lexer<'a> {
       Some(create_token!(Comma, 1))
     } else {
       None
-    };
-
-    token
+    }
   }
 
   /// Advances the cursor
