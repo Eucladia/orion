@@ -147,7 +147,7 @@ impl<'a> Iterator for Lexer<'a> {
 
 // Array where the index corresponds to the byte received by the Lexer.
 //
-// The value is the action needed to be done based on the received byte.
+// The value is the type of token for that byte.
 const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
   let mut default = [ByteTokenType::INVALID; 256];
 
@@ -189,11 +189,11 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
 enum ByteTokenType {
-  COMMA,      // 44 (index)
-  NUMERIC,    // 48-57
-  WHITESPACE, // 9, 10, 12, 13, 32
-  ALPHABETIC, // 97-122 (a-z), 65-90
-  INVALID,    // rest
+  COMMA,
+  NUMERIC,
+  WHITESPACE,
+  ALPHABETIC,
+  INVALID,
 }
 
 #[cfg(test)]
