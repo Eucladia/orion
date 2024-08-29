@@ -13,7 +13,11 @@ pub enum Register {
 }
 
 impl Register {
-  pub fn is_register_pair(r1: Self, r2: Self) -> bool {
+  pub fn is_matching_pair(&self, other: Self) -> bool {
+    Self::are_pairs(self, other)
+  }
+
+  pub fn are_register_pairs(r1: Self, r2: Self) -> bool {
     match (r1, r2) {
       // The order matters, I think
       (Register::B, Register::C) | (Register::D, Register::E) | (Register::H, Register::L) => true,
