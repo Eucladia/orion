@@ -95,6 +95,11 @@ impl<'a> Lexer<'a> {
 
         Some(create_token!(Literal, self.curr - start))
       }
+      ByteTokenType::COMMENT => {
+        eat_comment(self);
+
+        Some(create_token!(Comment, self.curr - start))
+      }
       ByteTokenType::COMMA => {
         self.advance();
 
@@ -108,6 +113,14 @@ impl<'a> Lexer<'a> {
       ByteTokenType::INVALID => None,
     }
   }
+}
+
+// Eats a comment until it finds a linebreak
+fn eat_comment(lexer: &mut Lexer) {
+  while lexer
+    .next_byte()
+    .map_or(false, |b| b != b'\n' && b != b'\r')
+  {}
 }
 
 // Eats a numerical literal. The suffix, if present is not included
@@ -166,6 +179,8 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
   default[b' ' as usize] = ByteTokenType::WHITESPACE;
   // Colon
   default[b':' as usize] = ByteTokenType::COLON;
+  // Comment
+  default[b';' as usize] = ByteTokenType::COMMENT;
 
   // Numbers
   let mut i = b'0';
@@ -198,6 +213,7 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
 enum ByteTokenType {
   COMMA,
   COLON,
+  COMMENT,
   NUMERIC,
   WHITESPACE,
   ALPHABETIC,

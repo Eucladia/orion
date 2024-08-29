@@ -1,0 +1,13 @@
+LXI H, 0040H
+MVI C, 07H
+MVI B, 00H
+LDA 0060H ;number we are searching for
+YY: CMP M
+INX H
+JNZ XX
+INR B
+XX: DCR C
+JNZ YY
+MOV A, B
+STA 0070H
+HLT
