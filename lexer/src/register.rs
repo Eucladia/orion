@@ -13,8 +13,8 @@ pub enum Register {
 }
 
 impl Register {
-  pub fn is_matching_pair(&self, other: Self) -> bool {
-    Self::are_pairs(self, other)
+  pub fn is_matching_pair(self, other: Self) -> bool {
+    Self::are_register_pairs(self, other)
   }
 
   pub fn are_register_pairs(r1: Self, r2: Self) -> bool {

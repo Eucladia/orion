@@ -26,6 +26,7 @@ pub enum TokenKind {
   // Do I want to include comments?
   Comment,
   Comma,
+  Colon,
   Identifier,
   // I think the only literals are integers?
   Literal,

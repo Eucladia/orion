@@ -100,6 +100,11 @@ impl<'a> Lexer<'a> {
 
         Some(create_token!(Comma, 1))
       }
+      ByteTokenType::COLON => {
+        self.advance();
+
+        Some(create_token!(Colon, 1))
+      }
       ByteTokenType::INVALID => None,
     }
   }
@@ -159,6 +164,8 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
   default[b'\x0C' as usize] = ByteTokenType::WHITESPACE;
   default[b'\r' as usize] = ByteTokenType::WHITESPACE;
   default[b' ' as usize] = ByteTokenType::WHITESPACE;
+  // Colon
+  default[b':' as usize] = ByteTokenType::COLON;
 
   // Numbers
   let mut i = b'0';
@@ -190,6 +197,7 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
 #[repr(u8)]
 enum ByteTokenType {
   COMMA,
+  COLON,
   NUMERIC,
   WHITESPACE,
   ALPHABETIC,
