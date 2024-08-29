@@ -105,7 +105,7 @@ impl<'a> Lexer<'a> {
 
         Some(create_token!(Comma, 1))
       }
-      ByteTokenType::COLON => {
+      ByteTokenType::LABEL => {
         self.advance();
 
         Some(create_token!(Colon, 1))
@@ -178,7 +178,7 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
   default[b'\r' as usize] = ByteTokenType::WHITESPACE;
   default[b' ' as usize] = ByteTokenType::WHITESPACE;
   // Colon
-  default[b':' as usize] = ByteTokenType::COLON;
+  default[b':' as usize] = ByteTokenType::LABEL;
   // Comment
   default[b';' as usize] = ByteTokenType::COMMENT;
 
@@ -212,7 +212,7 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
 #[repr(u8)]
 enum ByteTokenType {
   COMMA,
-  COLON,
+  LABEL,
   COMMENT,
   NUMERIC,
   WHITESPACE,

@@ -23,7 +23,6 @@ impl Token {
 pub enum TokenKind {
   Whitespace,
   EndOfFile,
-  // Do I want to include comments?
   Comment,
   Comma,
   Colon,
