@@ -50,52 +50,57 @@ impl<'a> Lexer<'a> {
 
   /// Lexes a [Token]
   fn lex_token(&mut self) -> Option<Token> {
-    let byte = *self.bytes.get(self.curr).unwrap();
+    // SAFETY: This method isn't called directly and we check that the index is within bounds
+    let byte = unsafe { self.current_byte().unwrap_unchecked() };
     let start = self.curr;
 
-    if byte.is_ascii_whitespace() {
-      eat_whitespace(self);
+    // Use a lookup table that maps a byte to its type of token.
+    // This is faster than traditional braching and checking for each condition.
+    //
+    // SAFETY: We have a byte and the lookup table has 256 entries
+    let byte_type = unsafe { *BYTE_TOKEN_LOOKUP.get_unchecked(byte as usize) };
 
-      Some(create_token!(Whitespace, self.curr - start))
-    } else if byte.is_ascii_alphabetic() {
-      eat_identifier(self);
+    match byte_type {
+      ByteTokenType::WHITESPACE => {
+        eat_whitespace(self);
 
-      let string = self
-        .bytes
-        .get(start..self.curr)
-        .and_then(|bytes| std::str::from_utf8(bytes).ok())?;
-
-      if Instruction::is_opcode(string) {
-        Some(create_token!(Instruction, self.curr - start))
-      } else if Register::is_register(string) {
-        Some(create_token!(Register, self.curr - start))
-      } else {
-        Some(create_token!(Identifier, self.curr - start))
+        Some(create_token!(Whitespace, self.curr - start))
       }
-    } else if byte.is_ascii_digit() {
-      eat_numerical_literal(self);
+      ByteTokenType::ALPHABETIC => {
+        eat_identifier(self);
 
-      // Check to see if there's a hex, octal, binary, or decimal suffix
-      if matches!(
-        self.current_byte(),
-        Some(b'H')
-          | Some(b'h')
-          | Some(b'O')
-          | Some(b'o')
-          | Some(b'B')
-          | Some(b'b')
-          | Some(b'D')
-          | Some(b'd')
-      ) {
+        let identifier = self
+          .bytes
+          .get(start..self.curr)
+          .and_then(|bytes| std::str::from_utf8(bytes).ok())?;
+
+        if Instruction::is_opcode(identifier) {
+          Some(create_token!(Instruction, self.curr - start))
+        } else if Register::is_register(identifier) {
+          Some(create_token!(Register, self.curr - start))
+        } else {
+          Some(create_token!(Identifier, self.curr - start))
+        }
+      }
+      ByteTokenType::NUMERIC => {
+        eat_numerical_literal(self);
+
+        // Check to see if there's a hex, octal, binary, or decimal suffix
+        if matches!(
+          self.current_byte(),
+          Some(b'H' | b'h' | b'O' | b'o' | b'B' | b'b' | b'D' | b'd')
+        ) {
+          self.advance();
+        }
+
+        Some(create_token!(Literal, self.curr - start))
+      }
+      ByteTokenType::COMMA => {
         self.advance();
-      }
 
-      Some(create_token!(Literal, self.curr - start))
-    } else if byte == b',' {
-      self.advance();
-      Some(create_token!(Comma, 1))
-    } else {
-      None
+        Some(create_token!(Comma, 1))
+      }
+      ByteTokenType::INVALID => None,
     }
   }
 }
@@ -138,6 +143,57 @@ impl<'a> Iterator for Lexer<'a> {
 
     self.lex_token()
   }
+}
+
+// Array where the index corresponds to the byte received by the Lexer.
+//
+// The value is the action needed to be done based on the received byte.
+const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
+  let mut default = [ByteTokenType::INVALID; 256];
+
+  // Comma
+  default[b',' as usize] = ByteTokenType::COMMA;
+  // Whitespace characters, taken from `u8::is_ascii_whitespace`;
+  default[b'\t' as usize] = ByteTokenType::WHITESPACE;
+  default[b'\n' as usize] = ByteTokenType::WHITESPACE;
+  default[b'\x0C' as usize] = ByteTokenType::WHITESPACE;
+  default[b'\r' as usize] = ByteTokenType::WHITESPACE;
+  default[b' ' as usize] = ByteTokenType::WHITESPACE;
+
+  // Numbers
+  let mut i = b'0';
+
+  while i <= b'9' {
+    default[i as usize] = ByteTokenType::NUMERIC;
+    i += 1;
+  }
+
+  // Alphabet
+  i = b'a';
+
+  while i <= b'z' {
+    default[i as usize] = ByteTokenType::ALPHABETIC;
+    i += 1;
+  }
+
+  i = b'A';
+
+  while i <= b'Z' {
+    default[i as usize] = ByteTokenType::ALPHABETIC;
+    i += 1;
+  }
+
+  default
+};
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+enum ByteTokenType {
+  COMMA,      // 44 (index)
+  NUMERIC,    // 48-57
+  WHITESPACE, // 9, 10, 12, 13, 32
+  ALPHABETIC, // 97-122 (a-z), 65-90
+  INVALID,    // rest
 }
 
 #[cfg(test)]
