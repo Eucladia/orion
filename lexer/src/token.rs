@@ -29,7 +29,7 @@ pub enum TokenKind {
   Identifier,
   // I think the only literals are integers?
   Literal,
-  // Separate these from `Literal` to make life easier when parsing
+  // Separate these from `Identifier` to make life easier when parsing
   Instruction,
   Register,
 }
