@@ -45,12 +45,15 @@ impl<'a> Lexer<'a> {
 
   /// Lexes a [Token]
   fn lex_token(&mut self) -> Option<Token> {
-    // SAFETY: This method isn't called directly and we check that the index is within bounds
+    // SAFETY: `lex_token` isn't called directly and we check that the index is within bounds in
+    // the `Iterator`` interface
     let byte = unsafe { self.current_byte().unwrap_unchecked() };
     let start = self.curr;
 
     // Use a lookup table that maps a byte to its type of token.
-    // This is faster than traditional braching and checking for each condition.
+    //
+    // This is faster than traditional braching and checking if the byte
+    // is a whitespace/alphabet/comma/etc character.
     //
     // SAFETY: We have a byte and the lookup table has 256 entries
     let byte_type = unsafe { *BYTE_TOKEN_LOOKUP.get_unchecked(byte as usize) };
@@ -118,7 +121,7 @@ fn eat_comment(lexer: &mut Lexer) {
   {}
 }
 
-// Eats a numerical literal. The suffix, if present is not included
+// Eats a numerical literal. The suffix, if present, is not included
 fn eat_numerical_literal(lexer: &mut Lexer) {
   while lexer.next_byte().map_or(false, |b| b.is_ascii_digit()) {}
 }
@@ -166,7 +169,7 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
 
   // Comma
   default[b',' as usize] = ByteTokenType::COMMA;
-  // Whitespace characters, taken from `u8::is_ascii_whitespace`;
+  // Whitespace characters, taken from `u8::is_ascii_whitespace`
   default[b'\t' as usize] = ByteTokenType::WHITESPACE;
   default[b'\n' as usize] = ByteTokenType::WHITESPACE;
   default[b'\x0C' as usize] = ByteTokenType::WHITESPACE;
