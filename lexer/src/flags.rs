@@ -1,11 +1,10 @@
-#[repr(u8)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Flags {
-  Zero,
-  Carry,
-  Sign,
-  Parity,
-  AuxiliaryCarry,
+  Zero = 1 << 0,
+  Carry = 1 << 1,
+  Sign = 1 << 2,
+  Parity = 1 << 3,
+  AuxiliaryCarry = 1 << 4,
 }
 
 impl Flags {
