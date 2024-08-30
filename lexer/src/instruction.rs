@@ -1,5 +1,6 @@
 #[allow(clippy::upper_case_acronyms)]
 #[repr(u8)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Instruction {
   // Data movement
   MOV,
