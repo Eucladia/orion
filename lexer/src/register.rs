@@ -26,10 +26,10 @@ impl Register {
   }
 
   pub fn is_register(string: &str) -> bool {
-    Self::from_str(string).is_some()
+    Self::from_string(string).is_some()
   }
 
-  pub fn from_str(string: &str) -> Option<Self> {
+  pub fn from_string(string: &str) -> Option<Self> {
     match string {
       "a" | "A" => Some(Register::A),
       "b" | "B" => Some(Register::B),

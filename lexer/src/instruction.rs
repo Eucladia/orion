@@ -1,3 +1,4 @@
+#[allow(clippy::upper_case_acronyms)]
 #[repr(u8)]
 pub enum Instruction {
   // Data movement

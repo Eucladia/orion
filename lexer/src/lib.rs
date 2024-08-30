@@ -8,7 +8,7 @@ mod token;
 #[macro_export]
 macro_rules! create_token {
   ($token:tt, $len:expr) => {
-    crate::token::Token::new(crate::token::TokenKind::$token, $len)
+    $crate::token::Token::new($crate::token::TokenKind::$token, $len)
   };
 }
 

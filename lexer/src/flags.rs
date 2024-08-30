@@ -10,10 +10,10 @@ pub enum Flags {
 
 impl Flags {
   pub fn is_flag(string: &str) -> bool {
-    Self::from_str(string).is_some()
+    Self::from_string(string).is_some()
   }
 
-  pub fn from_str(string: &str) -> Option<Self> {
+  pub fn from_string(string: &str) -> Option<Self> {
     match string {
       string if string.eq_ignore_ascii_case("zero") => Some(Flags::Zero),
       string if string.eq_ignore_ascii_case("carry") => Some(Flags::Carry),

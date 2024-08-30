@@ -17,7 +17,7 @@ impl<'a> Lexer<'a> {
   }
 
   /// Creates a [Lexer] from a a [str]
-  pub fn from_str(content: &'a str) -> Self {
+  pub fn from_string(content: &'a str) -> Self {
     Self {
       bytes: content.as_bytes(),
       curr: 0,
@@ -32,7 +32,7 @@ impl<'a> Lexer<'a> {
 
   // Returns the current byte
   pub fn current_byte(&self) -> Option<u8> {
-    self.bytes.get(self.curr).map(|x| *x)
+    self.bytes.get(self.curr).copied()
   }
 
   /// Advances the cursor
@@ -45,7 +45,7 @@ impl<'a> Lexer<'a> {
   /// Advances the cursor and returns that underlying byte
   fn next_byte(&mut self) -> Option<u8> {
     self.curr += 1;
-    self.bytes.get(self.curr).map(|x| *x)
+    self.bytes.get(self.curr).copied()
   }
 
   /// Lexes a [Token]
@@ -208,6 +208,7 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
   default
 };
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
 enum ByteTokenType {
