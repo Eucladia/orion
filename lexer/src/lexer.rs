@@ -25,13 +25,8 @@ impl<'a> Lexer<'a> {
     }
   }
 
-  /// Returns the current index
-  pub fn index(&self) -> usize {
-    self.curr
-  }
-
   // Returns the current byte
-  pub fn current_byte(&self) -> Option<u8> {
+  fn current_byte(&self) -> Option<u8> {
     self.bytes.get(self.curr).copied()
   }
 
