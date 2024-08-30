@@ -32,7 +32,7 @@ impl<'a> Lexer<'a> {
 
   /// Advances the cursor
   fn advance(&mut self) {
-    if !self.is_eof {
+    if self.curr < self.bytes.len() {
       self.curr += 1;
     }
   }
