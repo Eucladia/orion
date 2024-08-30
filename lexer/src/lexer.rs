@@ -222,7 +222,7 @@ mod tests {
 
   #[test]
   fn empty_input() {
-    let mut lexer = Lexer::from_str("");
+    let mut lexer = Lexer::from_string("");
 
     assert_eq!(lexer.next().unwrap(), create_token!(EndOfFile, 0));
   }
