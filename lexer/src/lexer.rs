@@ -37,13 +37,13 @@ impl<'a> Lexer<'a> {
     }
   }
 
-  /// Advances the cursor and returns that underlying byte
+  // Advances the cursor and returns that underlying byte
   fn next_byte(&mut self) -> Option<u8> {
     self.curr += 1;
     self.bytes.get(self.curr).copied()
   }
 
-  /// Lexes a [Token]
+  // Lexes a [Token]
   fn lex_token(&mut self) -> Option<Token> {
     // SAFETY: `lex_token` isn't called directly and we check that the index is within bounds in
     // the `Iterator`` interface

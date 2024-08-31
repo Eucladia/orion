@@ -38,7 +38,7 @@ pub enum Instruction {
   ORI,
   XRA,
   XRI,
-  // Program flow
+  /// Program flow
   JMP,
   JZ,
   JNZ,
@@ -71,10 +71,12 @@ pub enum Instruction {
 }
 
 impl Instruction {
+  /// Whether the given string is an instruction.
   pub fn is_opcode(string: &str) -> bool {
     Self::from_str(string).is_some()
   }
 
+  /// Parses an [Instruction] from a string.
   pub fn from_str(string: &str) -> Option<Self> {
     match string {
       string if string.eq_ignore_ascii_case("mov") => Some(Instruction::MOV),
