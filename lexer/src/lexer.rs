@@ -136,11 +136,10 @@ fn eat_whitespace(lexer: &mut Lexer) {
 
 // Eats any kind of identifier
 fn eat_identifier(lexer: &mut Lexer) {
-  // The first character must be a letter, but the rest can include `_` and `.`
-  while lexer
-    .next_byte()
-    .map_or(false, |b| b.is_ascii_alphabetic() || b == b'.' || b == b'_')
-  {}
+  // The first character must be a letter, but the rest can be a number, `$`, or` `_`
+  while lexer.next_byte().map_or(false, |b| {
+    b.is_ascii_alphanumeric() || b == b'$' || b == b'_'
+  }) {}
 }
 
 impl<'a> Iterator for Lexer<'a> {
