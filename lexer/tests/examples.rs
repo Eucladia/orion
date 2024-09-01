@@ -1,37 +1,34 @@
 use lexer::{Lexer, TokenKind};
 
-macro_rules! create_tokens {
-  ($($token:tt),*) => {
-    vec![$(TokenKind::$token),*]
+macro_rules! tokens_equal {
+  ($src:literal, $($token:tt),*) => {
+    let lexer = Lexer::from_bytes(include_bytes!(concat!("files/", $src, ".asm")));
+    let tokens = lexer.into_iter().map(|tok| tok.kind()).collect::<Vec<_>>();
+    let expected = vec![$(TokenKind::$token),*];
+
+
+    assert_eq!(tokens, expected);
   };
 }
 
 #[test]
 fn ones_complement() {
-  let lexer = Lexer::from_bytes(include_bytes!("files/ones_complement.asm"));
-
-  let tokens = lexer.into_iter().map(|tok| tok.kind()).collect::<Vec<_>>();
-
   #[rustfmt::skip]
-  let expected = create_tokens!(
+  tokens_equal!(
+    "ones_complement",
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
     Instruction, Whitespace,
     Instruction, Whitespace, Literal, Whitespace,
     Instruction,
     EndOfFile
   );
-
-  assert_eq!(tokens, expected);
 }
 
 #[test]
 fn twos_compliment() {
-  let lexer = Lexer::from_bytes(include_bytes!("files/twos_complement.asm"));
-
-  let tokens = lexer.into_iter().map(|tok| tok.kind()).collect::<Vec<_>>();
-
   #[rustfmt::skip]
-  let expected = create_tokens!(
+  tokens_equal!(
+    "twos_complement",
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
     Instruction, Whitespace,
     Instruction, Whitespace, Register, Whitespace,
@@ -39,18 +36,13 @@ fn twos_compliment() {
     Instruction,
     EndOfFile
   );
-
-  assert_eq!(tokens, expected);
 }
 
 #[test]
 fn add_two_bytes() {
-  let lexer = Lexer::from_bytes(include_bytes!("files/add_two_bytes.asm"));
-
-  let tokens = lexer.into_iter().map(|tok| tok.kind()).collect::<Vec<_>>();
-
   #[rustfmt::skip]
-  let expected = create_tokens!(
+   tokens_equal!(
+    "add_two_bytes",
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
     Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
     Instruction, Whitespace, Register, Whitespace,
@@ -59,18 +51,13 @@ fn add_two_bytes() {
     Instruction,
     EndOfFile
   );
-
-  assert_eq!(tokens, expected);
 }
 
 #[test]
 fn num_zeros_in_byte() {
-  let lexer = Lexer::from_bytes(include_bytes!("files/num_zeros_in_byte.asm"));
-
-  let tokens = lexer.into_iter().map(|tok| tok.kind()).collect::<Vec<_>>();
-
   #[rustfmt::skip]
-  let expected = create_tokens!(
+  tokens_equal!(
+    "num_zeros_in_byte",
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
     Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
@@ -85,18 +72,13 @@ fn num_zeros_in_byte() {
     Instruction,
     EndOfFile
   );
-
-  assert_eq!(tokens, expected);
 }
 
 #[test]
 fn occurrences_of_number() {
-  let lexer = Lexer::from_bytes(include_bytes!("files/occurrences_of_num.asm"));
-
-  let tokens = lexer.into_iter().map(|tok| tok.kind()).collect::<Vec<_>>();
-
   #[rustfmt::skip]
-  let expected = create_tokens!(
+  tokens_equal!(
+    "occurrences_of_num",
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
@@ -112,18 +94,13 @@ fn occurrences_of_number() {
     Instruction,
     EndOfFile
   );
-
-  assert_eq!(tokens, expected);
 }
 
 #[test]
 fn max_array_value() {
-  let lexer = Lexer::from_bytes(include_bytes!("files/max_array_value.asm"));
-
-  let tokens = lexer.into_iter().map(|tok| tok.kind()).collect::<Vec<_>>();
-
   #[rustfmt::skip]
-  let expected = create_tokens!(
+  tokens_equal!(
+    "max_array_value",
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
     Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
     Instruction, Whitespace, Register, Whitespace,
@@ -134,18 +111,13 @@ fn max_array_value() {
     Instruction,
     EndOfFile
   );
-
-  assert_eq!(tokens, expected);
 }
 
 #[test]
 fn min_num_in_n_array() {
-  let lexer = Lexer::from_bytes(include_bytes!("files/min_num_in_n_array.asm"));
-
-  let tokens = lexer.into_iter().map(|tok| tok.kind()).collect::<Vec<_>>();
-
   #[rustfmt::skip]
-  let expected = create_tokens!(
+  tokens_equal!(
+    "min_num_in_n_array",
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
     Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
     Instruction, Whitespace, Register, Whitespace,
@@ -161,18 +133,13 @@ fn min_num_in_n_array() {
     Instruction,
     EndOfFile
   );
-
-  assert_eq!(tokens, expected);
 }
 
 #[test]
 fn even_numbers_in_array() {
-  let lexer = Lexer::from_bytes(include_bytes!("files/even_numbers_in_array.asm"));
-
-  let tokens = lexer.into_iter().map(|tok| tok.kind()).collect::<Vec<_>>();
-
   #[rustfmt::skip]
-  let expected = create_tokens!(
+  tokens_equal!(
+    "even_numbers_in_array",
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Whitespace,
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Whitespace,
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Whitespace,
@@ -188,18 +155,13 @@ fn even_numbers_in_array() {
     Instruction,
     EndOfFile
   );
-
-  assert_eq!(tokens, expected);
 }
 
 #[test]
 fn pos_or_neg() {
-  let lexer = Lexer::from_bytes(include_bytes!("files/pos_or_neg.asm"));
-
-  let tokens = lexer.into_iter().map(|tok| tok.kind()).collect::<Vec<_>>();
-
   #[rustfmt::skip]
-  let expected = create_tokens!(
+  tokens_equal!(
+    "pos_or_neg",
     Instruction, Whitespace, Literal, Whitespace,
     Instruction, Whitespace,
     Instruction, Whitespace, Identifier, Whitespace,
@@ -211,18 +173,13 @@ fn pos_or_neg() {
     Identifier, Colon, Whitespace, Instruction,
     EndOfFile
   );
-
-  assert_eq!(tokens, expected);
 }
 
 #[test]
 fn sum_of_array() {
-  let lexer = Lexer::from_bytes(include_bytes!("files/sum_of_array.asm"));
-
-  let tokens = lexer.into_iter().map(|tok| tok.kind()).collect::<Vec<_>>();
-
   #[rustfmt::skip]
-  let expected = create_tokens!(
+  tokens_equal!(
+    "sum_of_array",
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Whitespace,
     Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
     Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
@@ -239,6 +196,4 @@ fn sum_of_array() {
     Instruction,
     EndOfFile
   );
-
-  assert_eq!(tokens, expected);
 }
