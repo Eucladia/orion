@@ -47,4 +47,8 @@ pub enum TokenKind {
   ///
   /// The registers are `A`, `B`, `C`, `D`, `E`, `H`, `L`, and a psuedo-register `M`.
   Register,
+  /// An unknown token.
+  ///
+  /// This is just here for the purposes of being loseless.
+  Unknown,
 }

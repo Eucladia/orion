@@ -108,7 +108,13 @@ impl<'a> Lexer<'a> {
 
         Some(create_token!(Colon, 1))
       }
-      ByteTokenType::INVALID => None,
+      ByteTokenType::INVALID => {
+        // TODO: Think about whether I want to eat all invalid tokens at once
+        // or go one-by-one? Maybe look at what famous lossless lexers do?
+        self.advance();
+
+        Some(create_token!(Unknown, 1))
+      }
     }
   }
 }
@@ -222,10 +228,56 @@ enum ByteTokenType {
 mod tests {
   use super::*;
 
+  macro_rules! get_tokens {
+    ($src:expr) => {{
+      let mut tokens = Lexer::from_string($src).into_iter().collect::<Vec<_>>();
+
+      // Remove the `EndOfFile`` token
+      tokens.pop();
+
+      tokens
+    }};
+  }
+
   #[test]
   fn empty_input() {
-    let mut lexer = Lexer::from_string("");
+    assert_eq!(get_tokens!(""), vec![]);
+  }
 
-    assert_eq!(lexer.next().unwrap(), create_token!(EndOfFile, 0));
+  #[test]
+  fn gibberish() {
+    assert_eq!(
+      // Underscore is only a valid token if its preceded by an actual valid token
+      get_tokens!("`~~~_+="),
+      vec![
+        create_token!(Unknown, 1),
+        create_token!(Unknown, 1),
+        create_token!(Unknown, 1),
+        create_token!(Unknown, 1),
+        create_token!(Unknown, 1),
+        create_token!(Unknown, 1),
+        create_token!(Unknown, 1),
+      ]
+    )
+  }
+
+  #[test]
+  fn loseless() {
+    // Check to see if we can reconstruct a program from its tokens
+    let string = include_str!("../tests/files/sum_of_array.asm");
+    let tokens = get_tokens!(string);
+    let mut new_string = String::with_capacity(string.len());
+    let mut token_index = 0;
+
+    for token in tokens.iter() {
+      new_string.push_str(
+        string
+          .get(token_index..token_index + token.length())
+          .unwrap(),
+      );
+      token_index += token.length();
+    }
+
+    assert_eq!(string, new_string);
   }
 }
