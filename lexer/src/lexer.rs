@@ -232,7 +232,7 @@ mod tests {
     ($src:expr) => {{
       let mut tokens = Lexer::from_string($src).into_iter().collect::<Vec<_>>();
 
-      // Remove the `EndOfFile`` token
+      // Remove the `EndOfFile` token
       tokens.pop();
 
       tokens

@@ -38,7 +38,7 @@ pub enum Instruction {
   ORI,
   XRA,
   XRI,
-  /// Program flow
+  // Program flow
   JMP,
   JZ,
   JNZ,
