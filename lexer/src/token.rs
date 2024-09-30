@@ -1,13 +1,15 @@
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+use std::ops::Range;
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Token {
   kind: TokenKind,
-  len: usize,
+  range: Range<usize>,
 }
 
 impl Token {
   /// Creates a new [Token] with the given [TokenKind] and length.
-  pub fn new(kind: TokenKind, len: usize) -> Self {
-    Self { kind, len }
+  pub fn new(kind: TokenKind, range: Range<usize>) -> Self {
+    Self { kind, range }
   }
 
   /// Returns the [TokenKind] of this token.
@@ -15,9 +17,9 @@ impl Token {
     self.kind
   }
 
-  /// Returns the length of this token.
-  pub fn length(&self) -> usize {
-    self.len
+  /// Returns the range of this token.
+  pub fn span(&self) -> &Range<usize> {
+    &self.range
   }
 }
 

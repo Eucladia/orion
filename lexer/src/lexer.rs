@@ -62,22 +62,23 @@ impl<'a> Lexer<'a> {
       ByteTokenType::WHITESPACE => {
         eat_whitespace(self);
 
-        Some(create_token!(Whitespace, self.curr - start))
+        Some(create_token!(Whitespace, start..self.curr))
       }
       ByteTokenType::ALPHABETIC => {
         eat_identifier(self);
 
+        let span = start..self.curr;
         let identifier = self
           .bytes
-          .get(start..self.curr)
+          .get(span.clone())
           .and_then(|bytes| std::str::from_utf8(bytes).ok())?;
 
         if Instruction::is_opcode(identifier) {
-          Some(create_token!(Instruction, self.curr - start))
+          Some(create_token!(Instruction, span))
         } else if Register::is_register(identifier) {
-          Some(create_token!(Register, self.curr - start))
+          Some(create_token!(Register, span))
         } else {
-          Some(create_token!(Identifier, self.curr - start))
+          Some(create_token!(Identifier, span))
         }
       }
       ByteTokenType::NUMERIC => {
@@ -91,29 +92,29 @@ impl<'a> Lexer<'a> {
           self.advance();
         }
 
-        Some(create_token!(Literal, self.curr - start))
+        Some(create_token!(Literal, start..self.curr))
       }
       ByteTokenType::COMMENT => {
         eat_comment(self);
 
-        Some(create_token!(Comment, self.curr - start))
+        Some(create_token!(Comment, start..self.curr))
       }
       ByteTokenType::COMMA => {
         self.advance();
 
-        Some(create_token!(Comma, 1))
+        Some(create_token!(Comma, start..start + 1))
       }
       ByteTokenType::LABEL => {
         self.advance();
 
-        Some(create_token!(Colon, 1))
+        Some(create_token!(Colon, start..start + 1))
       }
       ByteTokenType::INVALID => {
         // TODO: Think about whether I want to eat all invalid tokens at once
         // or go one-by-one? Maybe look at what famous lossless lexers do?
         self.advance();
 
-        Some(create_token!(Unknown, 1))
+        Some(create_token!(Unknown, start..start + 1))
       }
     }
   }
@@ -156,7 +157,7 @@ impl<'a> Iterator for Lexer<'a> {
       if !self.is_eof {
         self.is_eof = true;
 
-        return Some(create_token!(EndOfFile, 0));
+        return Some(create_token!(EndOfFile, self.curr..self.curr));
       }
 
       return None;
@@ -164,6 +165,14 @@ impl<'a> Iterator for Lexer<'a> {
 
     self.lex_token()
   }
+}
+
+/// Creates a [Token] with the following [TokenKind] and length
+#[macro_export]
+macro_rules! create_token {
+  ($token:tt, $range:expr) => {
+    $crate::token::Token::new($crate::token::TokenKind::$token, $range)
+  };
 }
 
 // Array where the index corresponds to the byte received by the Lexer.
@@ -250,13 +259,13 @@ mod tests {
       // Underscore is only a valid token if its preceded by an actual valid token
       get_tokens!("`~~~_+="),
       vec![
-        create_token!(Unknown, 1),
-        create_token!(Unknown, 1),
-        create_token!(Unknown, 1),
-        create_token!(Unknown, 1),
-        create_token!(Unknown, 1),
-        create_token!(Unknown, 1),
-        create_token!(Unknown, 1),
+        create_token!(Unknown, 0..1),
+        create_token!(Unknown, 1..2),
+        create_token!(Unknown, 2..3),
+        create_token!(Unknown, 3..4),
+        create_token!(Unknown, 4..5),
+        create_token!(Unknown, 5..6),
+        create_token!(Unknown, 6..7),
       ]
     )
   }
@@ -267,15 +276,9 @@ mod tests {
     let string = include_str!("../../test_files/sum_of_array.asm");
     let tokens = get_tokens!(string);
     let mut new_string = String::with_capacity(string.len());
-    let mut token_index = 0;
 
     for token in tokens.iter() {
-      new_string.push_str(
-        string
-          .get(token_index..token_index + token.length())
-          .unwrap(),
-      );
-      token_index += token.length();
+      new_string.push_str(string.get(token.span().clone()).unwrap());
     }
 
     assert_eq!(string, new_string);

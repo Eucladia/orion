@@ -10,7 +10,6 @@ pub struct Parser<'a> {
   source: &'a str,
   tokens: Vec<Token>,
   token_index: usize,
-  source_index: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -19,7 +18,6 @@ impl<'a> Parser<'a> {
       source,
       tokens,
       token_index: 0,
-      source_index: 0,
     }
   }
 
@@ -30,7 +28,6 @@ impl<'a> Parser<'a> {
       source,
       tokens: lexer.into_iter().collect::<Vec<_>>(),
       token_index: 0,
-      source_index: 0,
     }
   }
 
@@ -56,7 +53,6 @@ impl<'a> Parser<'a> {
         if let Some(node) = label_node {
           Ok(Node::Label(node))
         } else {
-          self.source_index += token.length();
           todo!("other non label idents")
         }
       }
@@ -70,14 +66,10 @@ impl<'a> Parser<'a> {
       }
       TokenKind::EndOfFile => return None,
 
-      kind => {
-        self.source_index += token.length();
-
-        Err(ParseError {
-          location: self.source_index..self.source_index + token.length(),
-          error_message: format!("invalid token, `{}`", kind),
-        })
-      }
+      kind => Err(ParseError {
+        location: token.span().clone(),
+        error_message: format!("invalid token, `{}`", kind),
+      }),
     })
   }
 
@@ -86,8 +78,8 @@ impl<'a> Parser<'a> {
     self.source.get(range)
   }
 
-  fn next_token(&mut self) -> Option<Token> {
-    let token = self.tokens.get(self.token_index).copied();
+  fn next_token(&mut self) -> Option<&Token> {
+    let token = self.tokens.get(self.token_index);
 
     self.token_index += 1;
 
@@ -98,17 +90,11 @@ impl<'a> Parser<'a> {
     let next_token = self.next_non_whitespace_token();
 
     match next_token {
-      Some(token) if matches!(token.kind(), TokenKind::Colon) => {
+      Some(colon_token) if matches!(colon_token.kind(), TokenKind::Colon) => {
         let label_name = self
-          .get_source_content(
-            self.source_index..self.source_index + ident_token.length() + token.length(),
-          )
+          .get_source_content(ident_token.span().start..colon_token.span().end)
           .expect("label name")
           .to_string();
-
-        self.source_index += ident_token.length();
-        // Add the prior whitespace and colon length
-        self.source_index += token.length();
 
         Some(LabelNode::new(label_name))
       }
@@ -118,12 +104,9 @@ impl<'a> Parser<'a> {
 
   fn parse_instruction(&mut self, instruction_token: &Token) -> ParseResult<InstructionNode> {
     let instruction_str = self
-      .get_source_content(self.source_index..self.source_index + instruction_token.length())
+      .get_source_content(instruction_token.span().clone())
       .expect("instruction from source string");
     let instruction = Instruction::from_string(instruction_str).unwrap();
-
-    // We saw the instruction successfully
-    self.source_index += instruction_token.length();
 
     let num_operands = instruction.num_operands();
     let mut operands = Vec::with_capacity(num_operands);
@@ -134,7 +117,7 @@ impl<'a> Parser<'a> {
 
       if token.is_none() {
         return Err(ParseError {
-          location: self.source_index..self.source_index,
+          location: self.source.len()..self.source.len(),
           error_message: format!(
             "expected `{}` operand(s) for the `{}` instruction",
             num_operands, instruction
@@ -145,21 +128,16 @@ impl<'a> Parser<'a> {
       let token = token.unwrap();
 
       match token.kind() {
-        //separate function for these
+        // TODO: separate function for these
         TokenKind::Register => {
-          let reg_str = self
-            .get_source_content(self.source_index..self.source_index + token.length())
-            .unwrap();
+          let reg_str = self.get_source_content(token.span().clone()).unwrap();
           let reg = Register::from_string(reg_str).unwrap();
 
           operands.push(OperandNode::Register(reg));
           last_token_operand = true;
-          self.source_index += token.length();
         }
         TokenKind::Literal => {
-          let mut num_str = self
-            .get_source_content(self.source_index..self.source_index + token.length())
-            .unwrap();
+          let mut num_str = self.get_source_content(token.span().clone()).unwrap();
           let last_char = (*num_str.as_bytes().last().unwrap() as char).to_ascii_lowercase();
           let mut base = None;
 
@@ -170,11 +148,11 @@ impl<'a> Parser<'a> {
 
           let number = parse_number(num_str, base).map_err(|err| match err.kind() {
             IntErrorKind::InvalidDigit => ParseError {
-              location: self.source_index..self.source_index + token.length(),
+              location: token.span().clone(),
               error_message: format!("invalid number, `{}`", num_str),
             },
             IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => ParseError {
-              location: self.source_index..self.source_index + token.length(),
+              location: token.span().clone(),
               error_message: format!(
                 "number `{}` is too large to fit in 16 bits (`{}`)",
                 num_str,
@@ -186,32 +164,27 @@ impl<'a> Parser<'a> {
 
           operands.push(OperandNode::Literal(number));
           last_token_operand = true;
-          self.source_index += token.length();
         }
         TokenKind::Identifier => {
-          let ident = self
-            .get_source_content(self.source_index..self.source_index + token.length())
-            .unwrap();
+          let ident = self.get_source_content(token.span().clone()).unwrap();
 
           operands.push(OperandNode::Identifier(ident.to_string()));
           last_token_operand = true;
-          self.source_index += token.length();
         }
         TokenKind::Comma => {
           if !last_token_operand {
             return Err(ParseError {
-              location: self.source_index..self.source_index + token.length(),
+              location: token.span().clone(),
               error_message: format!("unexpected `{}`", token.kind()),
             });
           }
 
           last_token_operand = false;
-          self.source_index += token.length();
         }
 
         _ => {
           return Err(ParseError {
-            location: self.source_index..self.source_index + token.length(),
+            location: token.span().clone(),
             error_message: format!("expected an operand, but found `{}`", token.kind()),
           });
         }
@@ -225,10 +198,8 @@ impl<'a> Parser<'a> {
     loop {
       let token = self.next_token()?;
 
-      if matches!(token.kind(), TokenKind::Whitespace | TokenKind::Comment) {
-        self.source_index += token.length();
-      } else {
-        return Some(token);
+      if !matches!(token.kind(), TokenKind::Whitespace | TokenKind::Comment) {
+        return Some(token.clone());
       }
     }
   }
