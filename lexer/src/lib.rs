@@ -1,8 +1,8 @@
 mod flags;
-mod instruction;
+pub mod instruction;
 mod lexer;
 mod register;
-mod token;
+pub mod token;
 
 /// Creates a [Token] with the following [TokenKind] and length
 #[macro_export]
@@ -15,4 +15,3 @@ macro_rules! create_token {
 pub use flags::Flags;
 pub use lexer::Lexer;
 pub use register::Register;
-pub use token::*;

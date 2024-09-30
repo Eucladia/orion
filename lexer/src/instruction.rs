@@ -73,11 +73,26 @@ pub enum Instruction {
 impl Instruction {
   /// Whether the given string is an instruction.
   pub fn is_opcode(string: &str) -> bool {
-    Self::from_str(string).is_some()
+    Self::from_string(string).is_some()
+  }
+
+  /// The number of operands that this instruction has.
+  pub const fn num_operands(self) -> usize {
+    use Instruction::*;
+
+    match self {
+      MOV | MVI | LXI => 2,
+      LDA | STA | PUSH | POP | ADD | ADC | ADI | ACI | SUB | SBB | SUI | SBI | INR | DCR | INX
+      | DCX | DAD | CMP | CPI | ANA | ANI | ORA | ORI | XRA | XRI | JMP | JZ | JNZ | JC | JNC
+      | JP | JM | JPE | JPO | CALL | CZ | CNZ | CC | CNC | CP | CM | CPE | CPO => 1,
+      CMA | CMC | RAL | RAR | RLC | RRC | RET | RZ | RNZ | RC | RNC | RP | RM | RPE | RPO | HLT => {
+        0
+      }
+    }
   }
 
   /// Parses an [Instruction] from a string.
-  pub fn from_str(string: &str) -> Option<Self> {
+  pub fn from_string(string: &str) -> Option<Self> {
     match string {
       string if string.eq_ignore_ascii_case("mov") => Some(Instruction::MOV),
       string if string.eq_ignore_ascii_case("mvi") => Some(Instruction::MVI),
@@ -143,5 +158,11 @@ impl Instruction {
       string if string.eq_ignore_ascii_case("hlt") => Some(Instruction::HLT),
       _ => None,
     }
+  }
+}
+
+impl std::fmt::Display for Instruction {
+  fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+    write!(fmt, "{:?}", self)
   }
 }

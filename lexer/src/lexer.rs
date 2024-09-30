@@ -85,8 +85,8 @@ impl<'a> Lexer<'a> {
 
         // Check to see if there's a hex, octal, binary, or decimal suffix
         if matches!(
-          self.current_byte(),
-          Some(b'H' | b'h' | b'O' | b'o' | b'B' | b'b' | b'D' | b'd')
+          self.current_byte().map(|x| x.to_ascii_lowercase()),
+          Some(b'h' | b'o' | b'b' | b'd')
         ) {
           self.advance();
         }
@@ -264,7 +264,7 @@ mod tests {
   #[test]
   fn loseless() {
     // Check to see if we can reconstruct a program from its tokens
-    let string = include_str!("../tests/files/sum_of_array.asm");
+    let string = include_str!("../../test_files/sum_of_array.asm");
     let tokens = get_tokens!(string);
     let mut new_string = String::with_capacity(string.len());
     let mut token_index = 0;

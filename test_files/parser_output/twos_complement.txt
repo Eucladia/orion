@@ -1,0 +1,5 @@
+MVI A, 101
+CMA
+INR A
+STA 0
+HLT

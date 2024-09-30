@@ -52,3 +52,9 @@ pub enum TokenKind {
   /// This is just here for the purposes of being loseless.
   Unknown,
 }
+
+impl std::fmt::Display for TokenKind {
+  fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+    write!(fmt, "{:?}", self)
+  }
+}

@@ -1,0 +1,9 @@
+LXI H, 80
+MOV A, M
+INX H
+CMP M
+JNC XX
+MOV A, M
+XX:
+STA 96
+HLT
