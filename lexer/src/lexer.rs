@@ -110,8 +110,6 @@ impl<'a> Lexer<'a> {
         Some(create_token!(Colon, start..start + 1))
       }
       ByteTokenType::INVALID => {
-        // TODO: Think about whether I want to eat all invalid tokens at once
-        // or go one-by-one? Maybe look at what famous lossless lexers do?
         self.advance();
 
         Some(create_token!(Unknown, start..start + 1))
