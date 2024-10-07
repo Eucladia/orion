@@ -278,7 +278,7 @@ mod tests {
     let mut new_string = String::with_capacity(string.len());
 
     for token in tokens.iter() {
-      new_string.push_str(string.get(token.span().clone()).unwrap());
+      new_string.push_str(string.get(token.span()).unwrap());
     }
 
     assert_eq!(string, new_string);

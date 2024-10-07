@@ -1,5 +1,7 @@
 use crate::error::{ParseError, ParseResult};
 use crate::nodes::{InstructionNode, LabelNode, Node, OperandNode, ProgramNode};
+use crate::unwrap;
+
 use lexer::instruction::Instruction;
 use lexer::token::{Token, TokenKind};
 use lexer::{Lexer, Register};
@@ -31,6 +33,19 @@ impl<'a> Parser<'a> {
     }
   }
 
+  /// Gets a [str] from the selected range.
+  pub fn get_source_content(&self, range: Range<usize>) -> Option<&str> {
+    self.source.get(range)
+  }
+
+  fn next_token(&mut self) -> Option<&Token> {
+    let token = self.tokens.get(self.token_index);
+
+    self.token_index += 1;
+
+    token
+  }
+
   pub fn parse(&mut self) -> ParseResult<ProgramNode> {
     let mut nodes = Vec::new();
 
@@ -42,7 +57,6 @@ impl<'a> Parser<'a> {
   }
 
   pub fn parse_next(&mut self) -> Option<ParseResult<Node>> {
-    // TODO: Next non-whitespace/comment fn
     let token = self.next_non_whitespace_token()?;
 
     Some(match token.kind() {
@@ -67,23 +81,10 @@ impl<'a> Parser<'a> {
       TokenKind::EndOfFile => return None,
 
       kind => Err(ParseError {
-        location: token.span().clone(),
+        location: token.span(),
         error_message: format!("invalid token, `{}`", kind),
       }),
     })
-  }
-
-  /// Gets a [str] from the selected range.
-  pub fn get_source_content(&self, range: Range<usize>) -> Option<&str> {
-    self.source.get(range)
-  }
-
-  fn next_token(&mut self) -> Option<&Token> {
-    let token = self.tokens.get(self.token_index);
-
-    self.token_index += 1;
-
-    token
   }
 
   fn try_parse_label(&mut self, ident_token: &Token) -> Option<LabelNode> {
@@ -91,10 +92,11 @@ impl<'a> Parser<'a> {
 
     match next_token {
       Some(colon_token) if matches!(colon_token.kind(), TokenKind::Colon) => {
-        let label_name = self
-          .get_source_content(ident_token.span().start..colon_token.span().end)
-          .expect("label name")
-          .to_string();
+        // SAFETY: We have a valid identifier token and we just checked for a colon, given
+        // the immutable source str
+        let label_name =
+          unwrap!(self.get_source_content(ident_token.span().start..colon_token.span().end))
+            .to_string();
 
         Some(LabelNode::new(label_name))
       }
@@ -103,10 +105,9 @@ impl<'a> Parser<'a> {
   }
 
   fn parse_instruction(&mut self, instruction_token: &Token) -> ParseResult<InstructionNode> {
-    let instruction_str = self
-      .get_source_content(instruction_token.span().clone())
-      .expect("instruction from source string");
-    let instruction = Instruction::from_string(instruction_str).unwrap();
+    // SAFETY: We have an immutable str and the lexer produced this `Instruction` token, so this str is still valid
+    let instruction_str = unwrap!(self.get_source_content(instruction_token.span()));
+    let instruction = unwrap!(Instruction::from_string(instruction_str));
 
     let num_operands = instruction.num_operands();
     let mut operands = Vec::with_capacity(num_operands);
@@ -125,48 +126,40 @@ impl<'a> Parser<'a> {
         });
       }
 
-      let token = token.unwrap();
+      // SAFETY: We check if it's `None` above
+      let token = unwrap!(token);
 
       match token.kind() {
         // TODO: separate function for these
         TokenKind::Register => {
-          let reg_str = self.get_source_content(token.span().clone()).unwrap();
-          let reg = Register::from_string(reg_str).unwrap();
+          // SAFETY: We have a valid `Register` token produced from the lexer and an immutable str
+          let reg_str = unwrap!(self.get_source_content(token.span()));
+          let reg = unwrap!(Register::from_string(reg_str));
 
           operands.push(OperandNode::Register(reg));
           last_token_operand = true;
         }
         TokenKind::Literal => {
-          let mut num_str = self.get_source_content(token.span().clone()).unwrap();
-          let last_char = (*num_str.as_bytes().last().unwrap() as char).to_ascii_lowercase();
+          // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
+          let mut num_str = unwrap!(self.get_source_content(token.span()));
+          // SAFETY: We're guaranteed at least one byte for `Literal`s.
+          let last_byte = unwrap!(num_str.as_bytes().last()).to_ascii_lowercase();
           let mut base = None;
 
-          if matches!(last_char, 'h' | 'o' | 'b' | 'd') {
-            num_str = num_str.get(..num_str.len() - 1).unwrap();
-            base = Some(last_char);
+          if matches!(last_byte, b'h' | b'o' | b'b' | b'd') {
+            // SAFETY: We have at least one byte in this token
+            num_str = unwrap!(num_str.get(..num_str.len() - 1));
+            base = Some(last_byte);
           }
 
-          let number = parse_number(num_str, base).map_err(|err| match err.kind() {
-            IntErrorKind::InvalidDigit => ParseError {
-              location: token.span().clone(),
-              error_message: format!("invalid number, `{}`", num_str),
-            },
-            IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => ParseError {
-              location: token.span().clone(),
-              error_message: format!(
-                "number `{}` is too large to fit in 16 bits (`{}`)",
-                num_str,
-                u16::MAX
-              ),
-            },
-            _ => panic!("unhandled string int conversion"),
-          })?;
+          let number = parse_number(num_str, base, token.span())?;
 
           operands.push(OperandNode::Literal(number));
           last_token_operand = true;
         }
         TokenKind::Identifier => {
-          let ident = self.get_source_content(token.span().clone()).unwrap();
+          // SAFETY: We have a valid `Identifier` token produced by the lexer and an immutable str
+          let ident = unwrap!(self.get_source_content(token.span()));
 
           operands.push(OperandNode::Identifier(ident.to_string()));
           last_token_operand = true;
@@ -174,7 +167,7 @@ impl<'a> Parser<'a> {
         TokenKind::Comma => {
           if !last_token_operand {
             return Err(ParseError {
-              location: token.span().clone(),
+              location: token.span(),
               error_message: format!("unexpected `{}`", token.kind()),
             });
           }
@@ -184,7 +177,7 @@ impl<'a> Parser<'a> {
 
         _ => {
           return Err(ParseError {
-            location: token.span().clone(),
+            location: token.span(),
             error_message: format!("expected an operand, but found `{}`", token.kind()),
           });
         }
@@ -205,21 +198,39 @@ impl<'a> Parser<'a> {
   }
 }
 
-fn parse_number(num: &str, base: Option<char>) -> Result<u16, std::num::ParseIntError> {
-  debug_assert!(matches!(
-    base,
-    None | Some('b') | Some('h') | Some('o') | Some('d')
-  ));
-
+fn parse_number(num: &str, base: Option<u8>, token_span: Range<usize>) -> ParseResult<u16> {
   let radix = match base {
-    Some('b') => 2,
-    Some('o') => 8,
-    Some('d') | None => 10,
-    Some('h') => 16,
-    _ => panic!("invalid radix"),
+    Some(b'b') => 2,
+    Some(b'o') => 8,
+    Some(b'd') | None => 10,
+    Some(b'h') => 16,
+    Some(x) => {
+      return Err(ParseError {
+        location: token_span.end - 1..token_span.end,
+        error_message: format!("invalid radix `{}`", x),
+      });
+    }
   };
 
-  u16::from_str_radix(num, radix)
+  u16::from_str_radix(num, radix).map_err(|err| match err.kind() {
+    IntErrorKind::InvalidDigit => ParseError {
+      location: token_span,
+      error_message: format!("invalid number, `{}`", num),
+    },
+    IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => ParseError {
+      location: token_span,
+      error_message: format!(
+        "number `{}` is too large to fit in 16 bits (`{}`)",
+        num,
+        u16::MAX
+      ),
+    },
+    // These cases wouldn't happen
+    _ => ParseError {
+      location: token_span,
+      error_message: format!("unhandled int conversion, `{}`", num),
+    },
+  })
 }
 
 #[cfg(test)]

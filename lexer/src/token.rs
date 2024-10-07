@@ -18,8 +18,8 @@ impl Token {
   }
 
   /// Returns the range of this token.
-  pub fn span(&self) -> &Range<usize> {
-    &self.range
+  pub fn span(&self) -> Range<usize> {
+    self.range.clone()
   }
 }
 
