@@ -6,7 +6,11 @@ pub enum Instruction {
   MOV,
   MVI,
   LDA,
+  LDAX,
+  LHLD,
   STA,
+  STAX,
+  SHLD,
   LXI,
   PUSH,
   POP,
@@ -68,6 +72,8 @@ pub enum Instruction {
   RPO,
   // Processor control
   HLT,
+  // No op
+  NOP,
 }
 
 impl Instruction {
@@ -82,12 +88,14 @@ impl Instruction {
 
     match self {
       MOV | MVI | LXI => 2,
-      LDA | STA | PUSH | POP | ADD | ADC | ADI | ACI | SUB | SBB | SUI | SBI | INR | DCR | INX
-      | DCX | DAD | CMP | CPI | ANA | ANI | ORA | ORI | XRA | XRI | JMP | JZ | JNZ | JC | JNC
-      | JP | JM | JPE | JPO | CALL | CZ | CNZ | CC | CNC | CP | CM | CPE | CPO => 1,
-      CMA | CMC | RAL | RAR | RLC | RRC | RET | RZ | RNZ | RC | RNC | RP | RM | RPE | RPO | HLT => {
-        0
-      }
+
+      LDA | LDAX | LHLD | STA | STAX | SHLD | PUSH | POP | ADD | ADC | ADI | ACI | SUB | SBB
+      | SUI | SBI | INR | DCR | INX | DCX | DAD | CMP | CPI | ANA | ANI | ORA | ORI | XRA | XRI
+      | JMP | JZ | JNZ | JC | JNC | JP | JM | JPE | JPO | CALL | CZ | CNZ | CC | CNC | CP | CM
+      | CPE | CPO => 1,
+
+      CMA | CMC | RAL | RAR | RLC | RRC | RET | RZ | RNZ | RC | RNC | RP | RM | RPE | RPO | HLT
+      | NOP => 0,
     }
   }
 
@@ -98,6 +106,7 @@ impl Instruction {
       string if string.eq_ignore_ascii_case("mvi") => Some(Instruction::MVI),
       string if string.eq_ignore_ascii_case("lda") => Some(Instruction::LDA),
       string if string.eq_ignore_ascii_case("sta") => Some(Instruction::STA),
+      string if string.eq_ignore_ascii_case("stax") => Some(Instruction::STAX),
       string if string.eq_ignore_ascii_case("lxi") => Some(Instruction::LXI),
       string if string.eq_ignore_ascii_case("push") => Some(Instruction::PUSH),
       string if string.eq_ignore_ascii_case("pop") => Some(Instruction::POP),
@@ -156,6 +165,7 @@ impl Instruction {
       string if string.eq_ignore_ascii_case("rpe") => Some(Instruction::RPE),
       string if string.eq_ignore_ascii_case("rpo") => Some(Instruction::RPO),
       string if string.eq_ignore_ascii_case("hlt") => Some(Instruction::HLT),
+      string if string.eq_ignore_ascii_case("nop") => Some(Instruction::NOP),
       _ => None,
     }
   }

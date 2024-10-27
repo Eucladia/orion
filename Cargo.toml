@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["lexer", "parser"]
+members = ["lexer", "parser", "interpreter"]
 
 [profile]
 release = { lto = true, codegen-units = 1, incremental = false }
-bench = { codegen-units = 1 }
+bench = { codegen-units = 1, debug = true }

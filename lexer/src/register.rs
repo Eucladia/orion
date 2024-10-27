@@ -27,6 +27,15 @@ pub enum Register {
   ///
   /// This register points to the H-L register pair.
   M,
+  /// Stack Pointer.
+  ///
+  /// Not a real register but it can be used as one in certain instructions.
+  SP,
+  /// Program Status Word.
+  ///
+  /// Not a real register but it can be used as one in certain instructions, to
+  /// store the accumulator and flags
+  PSW,
 }
 
 impl Register {
@@ -60,6 +69,8 @@ impl Register {
       "h" | "H" => Some(Register::H),
       "l" | "L" => Some(Register::L),
       "m" | "M" => Some(Register::M),
+      "psw" | "psW" | "pSw" | "pSW" | "Psw" | "PsW" | "PSw" | "PSW" => Some(Register::PSW),
+      "sp" | "sP" | "Sp" | "SP" => Some(Register::SP),
       _ => None,
     }
   }
