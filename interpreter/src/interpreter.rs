@@ -1,15 +1,17 @@
-use crate::Environment;
+// TODO: Make arithmetic ops wrapping
+// TODO: Bounds checking for memory and return a result
+use crate::{instruction_bytes_occupied, Environment};
 use lexer::{Flags, Register};
 use parser::nodes::{Node, ProgramNode};
 
 #[derive(Debug)]
-pub struct Interpreter<'a> {
+pub struct Interpreter {
   node: ProgramNode,
   assemble_index: u16,
-  env: Environment<'a>,
+  env: Environment,
 }
 
-impl<'a> Interpreter<'a> {
+impl Interpreter {
   pub fn new(ast: ProgramNode) -> Self {
     Self {
       node: ast,
@@ -19,7 +21,7 @@ impl<'a> Interpreter<'a> {
   }
 
   /// Assmebles the assembly, encoding the instructions into memory.
-  pub fn assemble(&'a mut self) -> crate::InterpreterResult<()> {
+  pub fn assemble(&mut self) -> crate::InterpreterResult<()> {
     let mut unassembled = Vec::new();
 
     for node in self.node.children() {
@@ -29,8 +31,7 @@ impl<'a> Interpreter<'a> {
             .env
             .encode_instruction(self.assemble_index, insn, &mut unassembled);
 
-          // This is safe because we validate the number of operands in the parser
-          self.assemble_index += 1 + insn.operands().len() as u16;
+          self.assemble_index += instruction_bytes_occupied(&insn.instruction()) as u16;
         }
         Node::Label(label) => {
           // The label is to be inserted at the current address will be the address to go to
@@ -45,9 +46,7 @@ impl<'a> Interpreter<'a> {
           self.assemble_index += 2;
 
           // Point this label to the instruction's that should be executed
-          self
-            .env
-            .add_label(label.label_name(), (self.assemble_index & 0xFFFF) as u16);
+          self.env.add_label(label.label_name(), self.assemble_index);
         }
       };
     }
@@ -69,26 +68,21 @@ impl<'a> Interpreter<'a> {
     Ok(())
   }
 
-  fn fetch_next_instruction(&mut self) -> Option<u8> {
+  fn fetch_instruction(&mut self) -> Option<u8> {
     if self.env.registers.pc >= self.assemble_index {
       return None;
     }
 
-    let instruction = self.env.memory_at(self.env.registers.pc)?;
-
-    // Increment the program counter register
-    self.env.registers.pc += 1;
-
-    Some(instruction)
+    Some(self.env.memory_at(self.env.registers.pc)?)
   }
 
   /// Execute's the next instruction in memory.
-  pub fn execute(&mut self) -> Option<crate::InterpreterError> {
-    let fetched = self.fetch_next_instruction()?;
+  pub fn execute(&mut self) -> Option<()> {
+    let fetched = self.fetch_instruction()?;
 
     self.execute_instruction(fetched);
 
-    None
+    Some(())
   }
 
   /// Decodes a byte into an [lexer::instruction::Instruction].
@@ -252,7 +246,7 @@ impl<'a> Interpreter<'a> {
       b if b == 0xCE => execute_aci(&mut self.env, b),
 
       // NOP
-      0x00 => {}
+      0x00 => self.env.registers.pc += 1,
 
       // RLC
       b if b == 0x07 => execute_rlc(&mut self.env, b),
@@ -270,7 +264,7 @@ impl<'a> Interpreter<'a> {
       b if b == 0x3F => execute_cmc(&mut self.env, b),
 
       // HLT
-      0x76 => {}
+      0x76 => self.env.registers.pc += 1,
 
       // RNZ
       b if b == 0xC0 => execute_rnz(&mut self.env, b),
@@ -301,8 +295,6 @@ impl<'a> Interpreter<'a> {
 
       b => panic!("invalid instruction received: {b}"),
     }
-
-    self.env.registers.pc += 1;
   }
 }
 
@@ -317,12 +309,12 @@ fn execute_mov(env: &mut Environment, instruction_byte: u8) {
     (decode_register(base / 8), decode_register(base % 8))
   };
 
-  // No-op this.
-  if dest == src {
-    return;
-  }
+  let reg_value = get_register_value(env, src).unwrap();
 
-  set_register_value(env, dest, get_register_value(env, src).unwrap());
+  set_register_value(env, dest, reg_value);
+
+  env.registers.dr = reg_value as u16;
+  env.registers.pc += 1;
 }
 
 fn execute_mvi(env: &mut Environment, b: u8) {
@@ -346,6 +338,7 @@ fn execute_mvi(env: &mut Environment, b: u8) {
   set_register_value(env, dest, value);
 
   env.registers.dr = (value as u16) << 8;
+  env.registers.pc += 3;
 }
 
 fn execute_lxi(env: &mut Environment, byte: u8) {
@@ -375,7 +368,7 @@ fn execute_lxi(env: &mut Environment, byte: u8) {
     _ => unreachable!(),
   }
 
-  env.registers.pc += 2;
+  env.registers.pc += 3;
 }
 
 fn execute_call(env: &mut Environment, instruction_byte: u8) {
@@ -385,7 +378,7 @@ fn execute_call(env: &mut Environment, instruction_byte: u8) {
   let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
   let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-  env.registers.pc += 2;
+  env.registers.pc += 3;
 
   env.add_to_call_stack(env.registers.pc);
 
@@ -400,11 +393,13 @@ fn execute_cm(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
 
     env.add_to_call_stack(env.registers.pc);
 
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -416,11 +411,13 @@ fn execute_cpe(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
 
     env.add_to_call_stack(env.registers.pc);
 
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -432,11 +429,13 @@ fn execute_cc(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
 
     env.add_to_call_stack(env.registers.pc);
 
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -448,11 +447,13 @@ fn execute_cz(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
 
     env.add_to_call_stack(env.registers.pc);
 
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -464,11 +465,13 @@ fn execute_cp(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
 
     env.add_to_call_stack(env.registers.pc);
 
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -480,11 +483,13 @@ fn execute_cpo(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
 
     env.add_to_call_stack(env.registers.pc);
 
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -496,11 +501,13 @@ fn execute_cnc(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
 
     env.add_to_call_stack(env.registers.pc);
 
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -512,11 +519,13 @@ fn execute_cnz(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
 
     env.add_to_call_stack(env.registers.pc);
 
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -528,8 +537,10 @@ fn execute_jm(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -541,8 +552,10 @@ fn execute_jpe(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -554,8 +567,10 @@ fn execute_jc(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -567,8 +582,10 @@ fn execute_jz(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -579,7 +596,7 @@ fn execute_jmp(env: &mut Environment, instruction_byte: u8) {
   let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
   let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-  env.registers.pc += 2;
+  env.registers.pc += 3;
   env.registers.pc = jump_to;
 }
 
@@ -591,7 +608,7 @@ fn execute_jp(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
     env.registers.pc = jump_to;
   }
 }
@@ -604,8 +621,10 @@ fn execute_jpo(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -617,8 +636,10 @@ fn execute_jnc(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -630,8 +651,10 @@ fn execute_jnz(env: &mut Environment, instruction_byte: u8) {
     let label_upper = env.memory_at(env.registers.pc + 2).unwrap();
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.registers.pc += 2;
+    env.registers.pc += 3;
     env.registers.pc = jump_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -641,7 +664,7 @@ fn execute_lhld(env: &mut Environment, instruction_byte: u8) {
   env.registers.h = env.memory_at(env.registers.pc + 1).unwrap();
   env.registers.l = env.memory_at(env.registers.pc + 2).unwrap();
 
-  env.registers.pc += 2;
+  env.registers.pc += 3;
 }
 
 fn execute_ldax(env: &mut Environment, instruction_byte: u8) {
@@ -656,6 +679,8 @@ fn execute_ldax(env: &mut Environment, instruction_byte: u8) {
 
     env.registers.a = env.memory_at(address).unwrap();
   }
+
+  env.registers.pc += 1;
 }
 
 fn execute_lda(env: &mut Environment, instruction_byte: u8) {
@@ -663,10 +688,11 @@ fn execute_lda(env: &mut Environment, instruction_byte: u8) {
 
   let lower = env.memory_at(env.registers.pc + 1).unwrap();
   let upper = env.memory_at(env.registers.pc + 2).unwrap();
-  let value = env.memory_at((lower as u16) << 8 | upper as u16).unwrap();
+  let value = env.memory_at((upper as u16) << 8 | lower as u16).unwrap();
 
   env.registers.a = value;
-  env.registers.pc += 2;
+  env.registers.dr = (lower as u16) << 8 | upper as u16;
+  env.registers.pc += 3;
 }
 
 fn execute_stax(env: &mut Environment, instruction_byte: u8) {
@@ -681,6 +707,8 @@ fn execute_stax(env: &mut Environment, instruction_byte: u8) {
 
     env.set_memory_at(address, env.registers.a);
   }
+
+  env.registers.pc += 1;
 }
 
 fn execute_sta(env: &mut Environment, instruction_byte: u8) {
@@ -692,7 +720,8 @@ fn execute_sta(env: &mut Environment, instruction_byte: u8) {
 
   env.set_memory_at(address, env.registers.a);
 
-  env.registers.pc += 2;
+  env.registers.dr = (lower as u16) << 8 | (upper as u16);
+  env.registers.pc += 3;
 }
 
 fn execute_shld(env: &mut Environment, instruction_byte: u8) {
@@ -702,51 +731,66 @@ fn execute_shld(env: &mut Environment, instruction_byte: u8) {
   let upper = env.memory_at(env.registers.pc + 2).unwrap();
   let address = (upper as u16) << 8 | lower as u16;
 
-  // Gets set in inverse order
+  // SHLD set in inverse order
   env.set_memory_at(address, env.registers.l);
   env.set_memory_at(address + 1, env.registers.h);
 
-  env.registers.pc += 2;
+  env.registers.pc += 3;
 }
 
 fn execute_push(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   if instruction_byte == 0xC5 {
+    env.registers.dr = (env.registers.c as u16) << 8 | env.registers.b as u16;
+
     env.set_memory_at(env.registers.sp, env.registers.b);
     env.set_memory_at(env.registers.sp - 1, env.registers.c);
   } else if instruction_byte == 0xD5 {
+    env.registers.dr = (env.registers.e as u16) << 8 | env.registers.d as u16;
+
     env.set_memory_at(env.registers.sp, env.registers.d);
     env.set_memory_at(env.registers.sp - 1, env.registers.e);
   } else if instruction_byte == 0xE5 {
+    env.registers.dr = (env.registers.l as u16) << 8 | env.registers.h as u16;
+
     env.set_memory_at(env.registers.sp, env.registers.h);
     env.set_memory_at(env.registers.sp - 1, env.registers.l);
   } else if instruction_byte == 0xF5 {
+    env.registers.dr = (env.flags as u16) << 8 | env.registers.a as u16;
+
     env.set_memory_at(env.registers.sp, env.registers.a);
     env.set_memory_at(env.registers.sp - 1, env.flags);
   }
 
   env.registers.sp -= 2;
+  env.registers.pc += 1;
 }
 
 fn execute_pop(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
+  let lower = env.memory_at(env.registers.sp + 1).unwrap();
+  let upper = env.memory_at(env.registers.sp).unwrap();
+
+  env.registers.dr = (lower as u16) << 8 | upper as u16;
+
   if instruction_byte == 0xC1 {
-    env.registers.b = env.memory_at(env.registers.sp + 1).unwrap();
-    env.registers.c = env.memory_at(env.registers.sp).unwrap();
+    env.registers.b = lower;
+    env.registers.c = upper;
   } else if instruction_byte == 0xD1 {
-    env.registers.d = env.memory_at(env.registers.sp + 1).unwrap();
-    env.registers.e = env.memory_at(env.registers.sp).unwrap();
+    env.registers.d = lower;
+    env.registers.e = upper;
   } else if instruction_byte == 0xE1 {
-    env.registers.h = env.memory_at(env.registers.sp + 1).unwrap();
-    env.registers.l = env.memory_at(env.registers.sp).unwrap();
+    env.registers.h = lower;
+    env.registers.l = upper;
   } else if instruction_byte == 0xF1 {
-    env.registers.a = env.memory_at(env.registers.sp + 1).unwrap();
-    env.flags = env.memory_at(env.registers.sp).unwrap();
+    env.registers.a = lower;
+    env.flags = upper;
   }
 
   env.registers.sp += 2;
+  env.registers.pc += 1;
 }
 
 fn execute_dcx(env: &mut Environment, instruction_byte: u8) {
@@ -776,6 +820,8 @@ fn execute_dcx(env: &mut Environment, instruction_byte: u8) {
     env.registers.b = (updated_value >> 8) as u8;
     env.registers.c = (updated_value & 0xFF) as u8;
   }
+
+  env.registers.pc += 1;
 }
 
 fn execute_dad(env: &mut Environment, instruction_byte: u8) {
@@ -808,6 +854,8 @@ fn execute_dad(env: &mut Environment, instruction_byte: u8) {
     env.registers.h = (sum >> 8) as u8;
     env.registers.l = (sum & 0xFF) as u8;
   }
+
+  env.registers.pc += 1;
 }
 
 fn execute_dcr(env: &mut Environment, instruction_byte: u8) {
@@ -833,6 +881,8 @@ fn execute_dcr(env: &mut Environment, instruction_byte: u8) {
   } else if instruction_byte == 0x3D {
     env.registers.a -= 1;
   }
+
+  env.registers.pc += 1;
 }
 
 fn execute_inr(env: &mut Environment, instruction_byte: u8) {
@@ -858,6 +908,8 @@ fn execute_inr(env: &mut Environment, instruction_byte: u8) {
   } else if instruction_byte == 0x3C {
     env.registers.a += 1;
   }
+
+  env.registers.pc += 1;
 }
 
 fn execute_inx(env: &mut Environment, instruction_byte: u8) {
@@ -887,6 +939,8 @@ fn execute_inx(env: &mut Environment, instruction_byte: u8) {
     env.registers.b = (updated_value >> 8) as u8;
     env.registers.c = (updated_value & 0xFF) as u8;
   }
+
+  env.registers.pc += 1;
 }
 
 fn execute_cmp(env: &mut Environment, instruction_byte: u8) {
@@ -902,6 +956,8 @@ fn execute_cmp(env: &mut Environment, instruction_byte: u8) {
   // Compare the lower nibbles
   env.set_flag(Flags::AuxiliaryCarry, (a & 0x0F) < (r & 0x0F));
   env.set_flag(Flags::Carry, a < r);
+
+  env.registers.pc += 1;
 }
 
 fn execute_ora(env: &mut Environment, instruction_byte: u8) {
@@ -919,6 +975,7 @@ fn execute_ora(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, false);
 
   env.registers.a = res;
+  env.registers.pc += 1;
 }
 
 fn execute_xra(env: &mut Environment, instruction_byte: u8) {
@@ -936,6 +993,7 @@ fn execute_xra(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, false);
 
   env.registers.a = res;
+  env.registers.pc += 1;
 }
 
 fn execute_ana(env: &mut Environment, instruction_byte: u8) {
@@ -953,6 +1011,7 @@ fn execute_ana(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, false);
 
   env.registers.a = res;
+  env.registers.pc += 1;
 }
 
 fn execute_sbb(env: &mut Environment, instruction_byte: u8) {
@@ -974,6 +1033,7 @@ fn execute_sbb(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, a < r + carry_value);
 
   env.registers.a = res;
+  env.registers.pc += 1;
 }
 
 fn execute_sub(env: &mut Environment, instruction_byte: u8) {
@@ -991,6 +1051,7 @@ fn execute_sub(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, a < r);
 
   env.registers.a = res;
+  env.registers.pc += 1;
 }
 
 fn execute_adc(env: &mut Environment, instruction_byte: u8) {
@@ -1016,6 +1077,7 @@ fn execute_adc(env: &mut Environment, instruction_byte: u8) {
   );
 
   env.registers.a = res;
+  env.registers.pc += 1;
 }
 
 fn execute_ori(env: &mut Environment, instruction_byte: u8) {
@@ -1032,7 +1094,7 @@ fn execute_ori(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, false);
 
   env.registers.a = res;
-  env.registers.pc += 1;
+  env.registers.pc += 2;
 }
 
 fn execute_ani(env: &mut Environment, instruction_byte: u8) {
@@ -1052,7 +1114,7 @@ fn execute_ani(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, false);
 
   env.registers.a = res;
-  env.registers.pc += 1;
+  env.registers.pc += 2;
 }
 
 fn execute_sui(env: &mut Environment, instruction_byte: u8) {
@@ -1069,7 +1131,7 @@ fn execute_sui(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, a < imm8);
 
   env.registers.a = res;
-  env.registers.pc += 1;
+  env.registers.pc += 2;
 }
 
 fn execute_adi(env: &mut Environment, instruction_byte: u8) {
@@ -1086,13 +1148,13 @@ fn execute_adi(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, (a as u16 + imm8 as u16) > 0xFF);
 
   env.registers.a = res;
-  env.registers.pc += 1;
+  env.registers.pc += 2;
 }
 
 fn execute_add(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let register = decode_register(env.memory_at(env.registers.pc + 1).unwrap());
+  let register = decode_register(instruction_byte - 0x80);
   let a = get_register_value(env, Register::A).unwrap();
   let r = get_register_value(env, register).unwrap();
   let res = a + r;
@@ -1119,7 +1181,7 @@ fn execute_cpi(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::AuxiliaryCarry, (a & 0x0F) < (imm8 & 0x0F));
   env.set_flag(Flags::Carry, a < imm8);
 
-  env.registers.pc += 1;
+  env.registers.pc += 2;
 }
 
 fn execute_xri(env: &mut Environment, instruction_byte: u8) {
@@ -1136,7 +1198,7 @@ fn execute_xri(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, false);
 
   env.registers.a = res;
-  env.registers.pc += 1;
+  env.registers.pc += 2;
 }
 
 fn execute_sbi(env: &mut Environment, instruction_byte: u8) {
@@ -1153,7 +1215,7 @@ fn execute_sbi(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, a < imm8);
 
   env.registers.a = res;
-  env.registers.pc += 1;
+  env.registers.pc += 2;
 }
 
 fn execute_aci(env: &mut Environment, instruction_byte: u8) {
@@ -1177,7 +1239,7 @@ fn execute_aci(env: &mut Environment, instruction_byte: u8) {
   );
 
   env.registers.a = res;
-  env.registers.pc += 1;
+  env.registers.pc += 2;
 }
 
 fn execute_rlc(env: &mut Environment, instruction_byte: u8) {
@@ -1190,7 +1252,7 @@ fn execute_rlc(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, msb != 0);
 
   env.registers.a = rotated;
-  env.registers.pc += 1;
+  env.registers.pc += 2;
 }
 
 fn execute_rrc(env: &mut Environment, instruction_byte: u8) {
@@ -1203,7 +1265,7 @@ fn execute_rrc(env: &mut Environment, instruction_byte: u8) {
   env.set_flag(Flags::Carry, lsb != 0);
 
   env.registers.a = rotated;
-  env.registers.pc += 1;
+  env.registers.pc += 2;
 }
 
 fn execute_rar(env: &mut Environment, instruction_byte: u8) {
@@ -1223,12 +1285,15 @@ fn execute_rar(env: &mut Environment, instruction_byte: u8) {
 fn execute_cma(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
   env.registers.a = !env.registers.a;
+
+  env.registers.pc += 1;
 }
 
 fn execute_cmc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
-
   env.set_flag(Flags::Carry, !env.is_flag_set(Flags::Carry));
+
+  env.registers.pc += 1;
 }
 
 fn execute_rnz(env: &mut Environment, instruction_byte: u8) {
@@ -1238,6 +1303,8 @@ fn execute_rnz(env: &mut Environment, instruction_byte: u8) {
     let go_to = env.return_from_call().unwrap();
 
     env.registers.pc = go_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -1248,6 +1315,8 @@ fn execute_rnc(env: &mut Environment, instruction_byte: u8) {
     let go_to = env.return_from_call().unwrap();
 
     env.registers.pc = go_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -1258,6 +1327,8 @@ fn execute_rpo(env: &mut Environment, instruction_byte: u8) {
     let go_to = env.return_from_call().unwrap();
 
     env.registers.pc = go_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -1268,6 +1339,8 @@ fn execute_rp(env: &mut Environment, instruction_byte: u8) {
     let go_to = env.return_from_call().unwrap();
 
     env.registers.pc = go_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -1278,6 +1351,8 @@ fn execute_rz(env: &mut Environment, instruction_byte: u8) {
     let go_to = env.return_from_call().unwrap();
 
     env.registers.pc = go_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -1288,6 +1363,8 @@ fn execute_rc(env: &mut Environment, instruction_byte: u8) {
     let go_to = env.return_from_call().unwrap();
 
     env.registers.pc = go_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -1298,6 +1375,8 @@ fn execute_rpe(env: &mut Environment, instruction_byte: u8) {
     let go_to = env.return_from_call().unwrap();
 
     env.registers.pc = go_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -1308,6 +1387,8 @@ fn execute_rm(env: &mut Environment, instruction_byte: u8) {
     let go_to = env.return_from_call().unwrap();
 
     env.registers.pc = go_to;
+  } else {
+    env.registers.pc += 1;
   }
 }
 
@@ -1364,5 +1445,25 @@ const fn decode_register(byte: u8) -> Register {
     6 => Register::M,
     7 => Register::A,
     _ => panic!("got invalid byte register"),
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use parser::parser::Parser;
+
+  use super::Interpreter;
+
+  #[test]
+  fn doesnt_panic() {
+    let src = include_str!("../../test_files/add_two_bytes.asm");
+    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
+
+    int.assemble();
+    int.env.set_memory_at(0x2000, 0x56);
+
+    while int.execute().is_some() {}
+
+    assert_eq!(int.env.memory_at(0x2002), Some(0x56));
   }
 }

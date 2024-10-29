@@ -6,3 +6,4 @@ resolver = "2"
 
 [dependencies]
 lexer = { path = "../lexer/", version = "0.1.0" }
+smol_str = { version = "0.3.2" }

@@ -2,19 +2,20 @@ use crate::registers::Registers;
 use lexer::{instruction::Instruction, Flags, Register};
 use parser::nodes::{InstructionNode, OperandNode};
 
+use smol_str::SmolStr;
 use std::collections::HashMap;
 
 #[derive(Debug)]
-pub struct Environment<'a> {
+pub struct Environment {
   pub flags: u8,
   pub registers: Registers,
-  labels: HashMap<&'a str, u16>,
+  labels: HashMap<SmolStr, u16>,
   memory: Box<[u8; Environment::MEMORY_SIZE as usize]>,
   // Stores the previous addresses to go to.
   call_stack: Vec<u16>,
 }
 
-impl<'a> Environment<'a> {
+impl Environment {
   pub const INSTRUCTION_STARTING_ADDRESS: u16 = 0x0000;
   pub const MEMORY_SIZE: u16 = u16::MAX;
 
@@ -55,7 +56,7 @@ impl<'a> Environment<'a> {
   }
 
   /// Encodes an [InstructionNode] into the specified `address` in memory, or the current internal address.
-  pub fn encode_instruction(
+  pub fn encode_instruction<'a>(
     &mut self,
     assemble_index: u16,
     instruction_node: &'a InstructionNode,
@@ -68,6 +69,7 @@ impl<'a> Environment<'a> {
     match (instruction_node.instruction(), instruction_node.operands()) {
       // No operands
       (NOP, &[]) => self.assemble_instruction_unchecked(addr, 0x0),
+      (RAL, &[]) => self.assemble_instruction_unchecked(addr, 0x17),
       (RLC, &[]) => self.assemble_instruction_unchecked(addr, 0x07),
       (RRC, &[]) => self.assemble_instruction_unchecked(addr, 0x0F),
       (RAR, &[]) => self.assemble_instruction_unchecked(addr, 0x1F),
@@ -190,227 +192,172 @@ impl<'a> Environment<'a> {
         self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
         self.assemble_instruction_unchecked(addr + 2, (data >> 8) as u8);
       }
-      // TODO: Use assemble_index instead of string names for hashmap
       (JNZ, &[OperandNode::Identifier(ref label)]) => {
         match self.get_label_address(label.as_str()) {
           Some(addr) => {
             self.assemble_instruction_unchecked(addr, 0xC2);
-            // Encode the lower byte first
             self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
             self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
           }
-          None => {
-            unassembled.push((instruction_node, addr));
-          }
+          None => unassembled.push((instruction_node, addr)),
         }
       }
       (JNC, &[OperandNode::Identifier(ref label)]) => {
         match self.get_label_address(label.as_str()) {
           Some(addr) => {
             self.assemble_instruction_unchecked(addr, 0xD2);
-            // Encode the lower byte first
             self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
             self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
           }
-          None => {
-            unassembled.push((instruction_node, addr));
-          }
+          None => unassembled.push((instruction_node, addr)),
         }
       }
       (JPO, &[OperandNode::Identifier(ref label)]) => {
         match self.get_label_address(label.as_str()) {
           Some(addr) => {
             self.assemble_instruction_unchecked(addr, 0xE2);
-            // Encode the lower byte first
             self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
             self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
           }
-          None => {
-            unassembled.push((instruction_node, addr));
-          }
+          None => unassembled.push((instruction_node, addr)),
         }
       }
       (JP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
         Some(addr) => {
           self.assemble_instruction_unchecked(addr, 0xF2);
-          // Encode the lower byte first
           self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
           self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
         }
-        None => {
-          unassembled.push((instruction_node, addr));
-        }
+        None => unassembled.push((instruction_node, addr)),
       },
       (JMP, &[OperandNode::Identifier(ref label)]) => {
         match self.get_label_address(label.as_str()) {
           Some(addr) => {
             self.assemble_instruction_unchecked(addr, 0xC3);
-            // Encode the lower byte first
             self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
             self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
           }
-          None => {
-            unassembled.push((instruction_node, addr));
-          }
+          None => unassembled.push((instruction_node, addr)),
         }
       }
 
       (JZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
         Some(addr) => {
           self.assemble_instruction_unchecked(addr, 0xCA);
-          // Encode the lower byte first
           self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
           self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
         }
-        None => {
-          unassembled.push((instruction_node, addr));
-        }
+        None => unassembled.push((instruction_node, addr)),
       },
       (JC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
         Some(addr) => {
           self.assemble_instruction_unchecked(addr, 0xDA);
-          // Encode the lower byte first
           self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
           self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
         }
-        None => {
-          unassembled.push((instruction_node, addr));
-        }
+        None => unassembled.push((instruction_node, addr)),
       },
       (JPE, &[OperandNode::Identifier(ref label)]) => {
         match self.get_label_address(label.as_str()) {
           Some(addr) => {
             self.assemble_instruction_unchecked(addr, 0xEA);
-            // Encode the lower byte first
             self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
             self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
           }
-          None => {
-            unassembled.push((instruction_node, addr));
-          }
+          None => unassembled.push((instruction_node, addr)),
         }
       }
       (JM, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
         Some(addr) => {
           self.assemble_instruction_unchecked(addr, 0xFA);
-          // Encode the lower byte first
           self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
           self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
         }
-        None => {
-          unassembled.push((instruction_node, addr));
-        }
+        None => unassembled.push((instruction_node, addr)),
       },
 
       (CNZ, &[OperandNode::Identifier(ref label)]) => {
         match self.get_label_address(label.as_str()) {
           Some(addr) => {
             self.assemble_instruction_unchecked(addr, 0xC4);
-            // Encode the lower byte first
             self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
             self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
           }
-          None => {
-            unassembled.push((instruction_node, addr));
-          }
+          None => unassembled.push((instruction_node, addr)),
         }
       }
       (CNC, &[OperandNode::Identifier(ref label)]) => {
         match self.get_label_address(label.as_str()) {
           Some(addr) => {
             self.assemble_instruction_unchecked(addr, 0xD4);
-            // Encode the lower byte first
             self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
             self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
           }
-          None => {
-            unassembled.push((instruction_node, addr));
-          }
+          None => unassembled.push((instruction_node, addr)),
         }
       }
       (CPO, &[OperandNode::Identifier(ref label)]) => {
         match self.get_label_address(label.as_str()) {
           Some(addr) => {
             self.assemble_instruction_unchecked(addr, 0xE4);
-            // Encode the lower byte first
             self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
             self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
           }
-          None => {
-            unassembled.push((instruction_node, addr));
-          }
+          None => unassembled.push((instruction_node, addr)),
         }
       }
       (CP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
         Some(addr) => {
           self.assemble_instruction_unchecked(addr, 0xF4);
-          // Encode the lower byte first
           self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
           self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
         }
-        None => {
-          unassembled.push((instruction_node, addr));
-        }
+        None => unassembled.push((instruction_node, addr)),
       },
 
       (CZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
         Some(addr) => {
           self.assemble_instruction_unchecked(addr, 0xCC);
-          // Encode the lower byte first
           self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
           self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
         }
-        None => {
-          unassembled.push((instruction_node, addr));
-        }
+        None => unassembled.push((instruction_node, addr)),
       },
       (CC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
         Some(addr) => {
           self.assemble_instruction_unchecked(addr, 0xDC);
-          // Encode the lower byte first
           self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
           self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
         }
-        None => {
-          unassembled.push((instruction_node, addr));
-        }
+        None => unassembled.push((instruction_node, addr)),
       },
       (CPE, &[OperandNode::Identifier(ref label)]) => {
         match self.get_label_address(label.as_str()) {
           Some(addr) => {
             self.assemble_instruction_unchecked(addr, 0xEC);
-            // Encode the lower byte first
             self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
             self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
           }
-          None => {
-            unassembled.push((instruction_node, addr));
-          }
+          None => unassembled.push((instruction_node, addr)),
         }
       }
       (CM, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
         Some(addr) => {
           self.assemble_instruction_unchecked(addr, 0xFC);
-          // Encode the lower byte first
           self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
           self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
         }
-        None => {
-          unassembled.push((instruction_node, addr));
-        }
+        None => unassembled.push((instruction_node, addr)),
       },
 
       (CALL, &[OperandNode::Identifier(ref label)]) => {
         match self.get_label_address(label.as_str()) {
           Some(addr) => {
             self.assemble_instruction_unchecked(addr, 0xCD);
-            // Encode the lower byte first
             self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
             self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
           }
-          None => {
-            unassembled.push((instruction_node, addr));
-          }
+          None => unassembled.push((instruction_node, addr)),
         }
       }
 
@@ -419,7 +366,6 @@ impl<'a> Environment<'a> {
         let data = encode_lxi(r1, data);
 
         self.assemble_instruction_unchecked(addr, data.0);
-        // 8085 uses little endian, so store the lower byte first
         self.assemble_instruction_unchecked(addr + 1, data.2);
         self.assemble_instruction_unchecked(addr + 2, data.1);
       }
@@ -431,7 +377,7 @@ impl<'a> Environment<'a> {
         self.assemble_instruction_unchecked(addr + 1, data.1);
       }
       (MOV, &[OperandNode::Register(r1), OperandNode::Register(r2)]) => {
-        self.assemble_instruction_unchecked(addr, encode_mov(r1, r2))
+        self.assemble_instruction_unchecked(addr, encode_mov(r1, r2));
       }
       _ => panic!(),
     }
@@ -446,11 +392,11 @@ impl<'a> Environment<'a> {
   }
 
   /// Gets the address of a label from its initial assemble index
-  pub fn get_label_address(&self, label_name: &'a str) -> Option<u16> {
-    self.labels.get(label_name).copied()
+  pub fn get_label_address(&self, label_name: &str) -> Option<u16> {
+    self.labels.get(&SmolStr::new(label_name)).copied()
   }
 
-  pub fn add_label(&mut self, label: &'a str, addr: u16) {
+  pub fn add_label(&mut self, label: SmolStr, addr: u16) {
     self.labels.insert(label, addr);
   }
 

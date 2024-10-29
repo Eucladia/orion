@@ -5,6 +5,7 @@ use crate::unwrap;
 use lexer::instruction::Instruction;
 use lexer::token::{Token, TokenKind};
 use lexer::{Lexer, Register};
+use smol_str::SmolStr;
 use std::num::IntErrorKind;
 use std::ops::Range;
 
@@ -98,7 +99,7 @@ impl<'a> Parser<'a> {
           unwrap!(self.get_source_content(ident_token.span().start..colon_token.span().end))
             .to_string();
 
-        Some(LabelNode::new(label_name))
+        Some(LabelNode::new(SmolStr::new(&label_name)))
       }
       _ => None,
     }

@@ -1,4 +1,5 @@
 use lexer::{instruction::Instruction, Register};
+use smol_str::SmolStr;
 
 /// The root node for a source file
 #[derive(Debug, Clone)]
@@ -16,8 +17,7 @@ pub enum Node {
 /// A node representing a label
 #[derive(Debug, Clone)]
 pub struct LabelNode {
-  // TODO: Future optimization would be to use smol_str since most labels wouldn't be long
-  name: String,
+  name: SmolStr,
 }
 
 /// A node representing an instruction
@@ -52,12 +52,12 @@ impl ProgramNode {
 }
 
 impl LabelNode {
-  pub fn new(name: String) -> Self {
+  pub fn new(name: SmolStr) -> Self {
     Self { name }
   }
 
-  pub fn label_name(&self) -> &str {
-    &self.name
+  pub fn label_name(&self) -> SmolStr {
+    self.name.clone()
   }
 }
 
