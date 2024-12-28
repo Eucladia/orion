@@ -9,8 +9,10 @@ use std::collections::HashMap;
 pub struct Environment {
   pub flags: u8,
   pub registers: Registers,
-  labels: HashMap<SmolStr, u16>,
-  memory: Box<[u8; Environment::MEMORY_SIZE as usize]>,
+  // Label -> address &&  index -> label
+  pub label_indices: HashMap<u16, SmolStr>,
+  pub labels: HashMap<SmolStr, u16>,
+  pub memory: Box<[u8; Environment::MEMORY_SIZE as usize]>,
   // Stores the previous addresses to go to.
   call_stack: Vec<u16>,
 }
@@ -23,6 +25,7 @@ impl Environment {
     Self {
       flags: Flags::NONE,
       registers: Registers::default(),
+      label_indices: HashMap::new(),
       labels: HashMap::new(),
       memory: Box::new([0; Self::MEMORY_SIZE as usize]),
       call_stack: Vec::new(),
@@ -192,174 +195,154 @@ impl Environment {
         self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
         self.assemble_instruction_unchecked(addr + 2, (data >> 8) as u8);
       }
-      (JNZ, &[OperandNode::Identifier(ref label)]) => {
-        match self.get_label_address(label.as_str()) {
-          Some(addr) => {
-            self.assemble_instruction_unchecked(addr, 0xC2);
-            self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-            self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
-          }
-          None => unassembled.push((instruction_node, addr)),
+      (JNZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
+          self.assemble_instruction_unchecked(addr, 0xC2);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
-      }
-      (JNC, &[OperandNode::Identifier(ref label)]) => {
-        match self.get_label_address(label.as_str()) {
-          Some(addr) => {
-            self.assemble_instruction_unchecked(addr, 0xD2);
-            self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-            self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
-          }
-          None => unassembled.push((instruction_node, addr)),
+        None => unassembled.push((instruction_node, addr)),
+      },
+      (JNC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
+          self.assemble_instruction_unchecked(addr, 0xD2);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
-      }
-      (JPO, &[OperandNode::Identifier(ref label)]) => {
-        match self.get_label_address(label.as_str()) {
-          Some(addr) => {
-            self.assemble_instruction_unchecked(addr, 0xE2);
-            self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-            self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
-          }
-          None => unassembled.push((instruction_node, addr)),
+        None => unassembled.push((instruction_node, addr)),
+      },
+      (JPO, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
+          self.assemble_instruction_unchecked(addr, 0xE2);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
-      }
-      (JP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
-        Some(addr) => {
+        None => unassembled.push((instruction_node, addr)),
+      },
+      (JP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
           self.assemble_instruction_unchecked(addr, 0xF2);
-          self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
         None => unassembled.push((instruction_node, addr)),
       },
-      (JMP, &[OperandNode::Identifier(ref label)]) => {
-        match self.get_label_address(label.as_str()) {
-          Some(addr) => {
-            self.assemble_instruction_unchecked(addr, 0xC3);
-            self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-            self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
-          }
-          None => unassembled.push((instruction_node, addr)),
+      (JMP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
+          self.assemble_instruction_unchecked(addr, 0xC3);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
-      }
+        None => unassembled.push((instruction_node, addr)),
+      },
 
-      (JZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
-        Some(addr) => {
+      (JZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
           self.assemble_instruction_unchecked(addr, 0xCA);
-          self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
         None => unassembled.push((instruction_node, addr)),
       },
-      (JC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
-        Some(addr) => {
+      (JC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
           self.assemble_instruction_unchecked(addr, 0xDA);
-          self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
         None => unassembled.push((instruction_node, addr)),
       },
-      (JPE, &[OperandNode::Identifier(ref label)]) => {
-        match self.get_label_address(label.as_str()) {
-          Some(addr) => {
-            self.assemble_instruction_unchecked(addr, 0xEA);
-            self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-            self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
-          }
-          None => unassembled.push((instruction_node, addr)),
+      (JPE, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
+          self.assemble_instruction_unchecked(addr, 0xEA);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
-      }
-      (JM, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
-        Some(addr) => {
+        None => unassembled.push((instruction_node, addr)),
+      },
+      (JM, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
           self.assemble_instruction_unchecked(addr, 0xFA);
-          self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
         None => unassembled.push((instruction_node, addr)),
       },
 
-      (CNZ, &[OperandNode::Identifier(ref label)]) => {
-        match self.get_label_address(label.as_str()) {
-          Some(addr) => {
-            self.assemble_instruction_unchecked(addr, 0xC4);
-            self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-            self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
-          }
-          None => unassembled.push((instruction_node, addr)),
+      (CNZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
+          self.assemble_instruction_unchecked(addr, 0xC4);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
-      }
-      (CNC, &[OperandNode::Identifier(ref label)]) => {
-        match self.get_label_address(label.as_str()) {
-          Some(addr) => {
-            self.assemble_instruction_unchecked(addr, 0xD4);
-            self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-            self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
-          }
-          None => unassembled.push((instruction_node, addr)),
+        None => unassembled.push((instruction_node, addr)),
+      },
+      (CNC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
+          self.assemble_instruction_unchecked(addr, 0xD4);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
-      }
-      (CPO, &[OperandNode::Identifier(ref label)]) => {
-        match self.get_label_address(label.as_str()) {
-          Some(addr) => {
-            self.assemble_instruction_unchecked(addr, 0xE4);
-            self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-            self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
-          }
-          None => unassembled.push((instruction_node, addr)),
+        None => unassembled.push((instruction_node, addr)),
+      },
+      (CPO, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
+          self.assemble_instruction_unchecked(addr, 0xE4);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
-      }
-      (CP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
-        Some(addr) => {
+        None => unassembled.push((instruction_node, addr)),
+      },
+      (CP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
           self.assemble_instruction_unchecked(addr, 0xF4);
-          self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
         None => unassembled.push((instruction_node, addr)),
       },
 
-      (CZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
-        Some(addr) => {
+      (CZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
           self.assemble_instruction_unchecked(addr, 0xCC);
-          self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
         None => unassembled.push((instruction_node, addr)),
       },
-      (CC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
-        Some(addr) => {
+      (CC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
           self.assemble_instruction_unchecked(addr, 0xDC);
-          self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
         None => unassembled.push((instruction_node, addr)),
       },
-      (CPE, &[OperandNode::Identifier(ref label)]) => {
-        match self.get_label_address(label.as_str()) {
-          Some(addr) => {
-            self.assemble_instruction_unchecked(addr, 0xEC);
-            self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-            self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
-          }
-          None => unassembled.push((instruction_node, addr)),
+      (CPE, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
+          self.assemble_instruction_unchecked(addr, 0xEC);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
-      }
-      (CM, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label.as_str()) {
-        Some(addr) => {
+        None => unassembled.push((instruction_node, addr)),
+      },
+      (CM, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
           self.assemble_instruction_unchecked(addr, 0xFC);
-          self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
         None => unassembled.push((instruction_node, addr)),
       },
 
-      (CALL, &[OperandNode::Identifier(ref label)]) => {
-        match self.get_label_address(label.as_str()) {
-          Some(addr) => {
-            self.assemble_instruction_unchecked(addr, 0xCD);
-            self.assemble_instruction_unchecked(addr + 1, (addr & 0xFF) as u8);
-            self.assemble_instruction_unchecked(addr + 2, (addr >> 8) as u8);
-          }
-          None => unassembled.push((instruction_node, addr)),
+      (CALL, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+        Some(jmp_to) => {
+          self.assemble_instruction_unchecked(addr, 0xCD);
+          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
+          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
         }
-      }
+        None => unassembled.push((instruction_node, addr)),
+      },
 
       // 2 Operands
       (LXI, &[OperandNode::Register(r1), OperandNode::Literal(data)]) => {
@@ -391,9 +374,9 @@ impl Environment {
     *self.memory.get_mut(address as usize).unwrap() = value;
   }
 
-  /// Gets the address of a label from its initial assemble index
-  pub fn get_label_address(&self, label_name: &str) -> Option<u16> {
-    self.labels.get(&SmolStr::new(label_name)).copied()
+  /// Gets the start of a label from its name
+  pub fn get_label_address(&self, label_name: &SmolStr) -> Option<u16> {
+    self.labels.get(label_name).copied()
   }
 
   pub fn add_label(&mut self, label: SmolStr, addr: u16) {

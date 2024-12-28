@@ -36,7 +36,7 @@ pub enum OperandNode {
   /// For instructions that contain numeric literals – eg memory addresses or numbers
   Literal(u16),
   /// For instructions that have labels
-  Identifier(String),
+  Identifier(SmolStr),
 }
 
 impl ProgramNode {

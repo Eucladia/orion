@@ -68,6 +68,7 @@ impl<'a> Parser<'a> {
         if let Some(node) = label_node {
           Ok(Node::Label(node))
         } else {
+          // TODO: Parse directives here
           todo!("other non label idents")
         }
       }
@@ -95,9 +96,7 @@ impl<'a> Parser<'a> {
       Some(colon_token) if matches!(colon_token.kind(), TokenKind::Colon) => {
         // SAFETY: We have a valid identifier token and we just checked for a colon, given
         // the immutable source str
-        let label_name =
-          unwrap!(self.get_source_content(ident_token.span().start..colon_token.span().end))
-            .to_string();
+        let label_name = unwrap!(self.get_source_content(ident_token.span())).to_string();
 
         Some(LabelNode::new(SmolStr::new(&label_name)))
       }
@@ -162,7 +161,7 @@ impl<'a> Parser<'a> {
           // SAFETY: We have a valid `Identifier` token produced by the lexer and an immutable str
           let ident = unwrap!(self.get_source_content(token.span()));
 
-          operands.push(OperandNode::Identifier(ident.to_string()));
+          operands.push(OperandNode::Identifier(SmolStr::new(ident.to_string())));
           last_token_operand = true;
         }
         TokenKind::Comma => {
