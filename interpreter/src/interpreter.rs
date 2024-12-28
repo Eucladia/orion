@@ -881,32 +881,7 @@ fn update_flags_u8_arithmetic(
   new_value: u8,
   is_addition: bool,
 ) {
-  env.set_flag(Flags::Sign, new_value & 0x80 == 1);
-  env.set_flag(Flags::Zero, new_value == 0);
-  env.set_flag(Flags::Parity, new_value.count_ones() % 2 == 0);
-
-  // Compare the nibbles accordingly depending on the operation we did
-  let old_nibble = old_value & 0x0F;
-  let new_nibble = new_value & 0x0F;
-
-  if is_addition {
-    env.set_flag(Flags::AuxiliaryCarry, old_nibble + new_nibble > 0x0F);
-    // If we added, then we should have a carry if the new value is smaller
-    env.set_flag(Flags::Carry, new_value < old_value);
-  } else {
-    env.set_flag(Flags::AuxiliaryCarry, old_nibble < new_nibble);
-    // If we subtracted, then we should have a carry if the new value is greater
-    env.set_flag(Flags::Carry, new_value > old_value);
-  }
-}
-
-fn update_flags_u16_arithmetic(
-  env: &mut Environment,
-  old_value: u16,
-  new_value: u16,
-  is_addition: bool,
-) {
-  env.set_flag(Flags::Sign, new_value & 0x80 == 1);
+  env.set_flag(Flags::Sign, new_value & 0x80 != 0);
   env.set_flag(Flags::Zero, new_value == 0);
   env.set_flag(Flags::Parity, new_value.count_ones() % 2 == 0);
 
