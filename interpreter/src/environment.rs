@@ -402,13 +402,24 @@ impl Environment {
     }
   }
 
-  /// Resets the flags, registers, and memory.
+  /// Completely resets the flags, registers, and memory.
   pub fn reset(&mut self) {
     self.flags = Flags::NONE;
     self.registers = Registers::default();
-    // Prefer mutating to reuse the underlying allocation
+    // Reuse the underlying allocation
     self.labels.clear();
+    self.label_indices.clear();
     self.memory.fill(0);
+  }
+
+  /// Resets everything, but leaves the encoded instructions intact
+  pub fn reset_runtime(&mut self, assemble_index: u16) {
+    self.flags = Flags::NONE;
+    self.registers = Registers::default();
+    // Reuse the underlying allocation
+    self.labels.clear();
+    self.label_indices.clear();
+    self.memory[assemble_index as usize..].fill(0);
   }
 }
 

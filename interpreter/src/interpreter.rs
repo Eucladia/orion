@@ -75,6 +75,18 @@ impl Interpreter {
     Ok(())
   }
 
+  /// Resets the interpreter, wiping all memory and registers.
+  ///
+  /// If `wipe_encoded` is `false`, then the assembled instructions in memory are preserved.
+  pub fn reset(&mut self, wipe_encoded: bool) {
+    if wipe_encoded {
+      self.env.reset();
+      self.assemble_index = 0;
+    } else {
+      self.env.reset_runtime(self.assemble_index);
+    }
+  }
+
   fn fetch_instruction(&mut self) -> Option<u8> {
     if self.env.registers.pc >= self.assemble_index {
       return None;
@@ -99,6 +111,8 @@ impl Interpreter {
     if self.env.label_indices.contains_key(&self.env.registers.pc) {
       // Labels are 16 bits
       self.env.registers.pc += 2;
+
+      return;
     }
 
     match byte {
@@ -169,7 +183,7 @@ impl Interpreter {
       // LHLD imm16
       b if b == 0x2A => execute_lhld(&mut self.env, b),
 
-      // LDAX
+      // LDA
       b if matches!(b, 0x0A | 0x1A) => execute_ldax(&mut self.env, b),
 
       // LDA imm16
@@ -269,6 +283,9 @@ impl Interpreter {
       // RAR
       b if b == 0x1F => execute_rar(&mut self.env, b),
 
+      // RAL
+      b if b == 0x17 => execute_ral(&mut self.env, b),
+
       // CMA
       b if b == 0x2F => execute_cma(&mut self.env, b),
 
@@ -305,7 +322,10 @@ impl Interpreter {
       // RET
       b if b == 0xC9 => execute_ret(&mut self.env, b),
 
-      b => panic!("invalid instruction received: {b}"),
+      b => panic!(
+        "0x{:X}: invalid instruction received: 0x{:X}",
+        self.env.registers.pc, byte
+      ),
     }
   }
 }
@@ -339,9 +359,9 @@ fn execute_mvi(env: &mut Environment, b: u8) {
     0x36 => Register::M,
 
     0x0E => Register::C,
-    0x1E => Register::C,
-    0x2E => Register::C,
-    0x3E => Register::C,
+    0x1E => Register::E,
+    0x2E => Register::L,
+    0x3E => Register::A,
     _ => unreachable!(),
   };
 
@@ -350,7 +370,7 @@ fn execute_mvi(env: &mut Environment, b: u8) {
   set_register_value(env, dest, value);
 
   env.registers.dr = (value as u16) << 8;
-  env.registers.pc += 3;
+  env.registers.pc += 2;
 }
 
 fn execute_lxi(env: &mut Environment, byte: u8) {
@@ -1296,11 +1316,24 @@ fn execute_rar(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let a = get_register_value(env, Register::A).unwrap();
-  let lsb = a & 0x01;
+  let lsb = a & 0x1;
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
   let rotated = (a >> 1) | (carry_value << 7);
 
   env.set_flag(Flags::Carry, lsb == 1);
+  env.registers.a = rotated;
+  env.registers.pc += 1;
+}
+
+fn execute_ral(env: &mut Environment, instruction_byte: u8) {
+  env.registers.ir = instruction_byte;
+
+  let a = get_register_value(env, Register::A).unwrap();
+  let msb = a >> 7;
+  let carry_value = env.is_flag_set(Flags::Carry) as u8;
+  let rotated = (a << 1) | carry_value;
+
+  env.set_flag(Flags::Carry, msb == 1);
   env.registers.a = rotated;
   env.registers.pc += 1;
 }
@@ -1478,7 +1511,7 @@ mod tests {
   use super::Interpreter;
 
   #[test]
-  fn doesnt_panic() {
+  fn even_numbers_in_array() {
     let src = include_str!("../../test_files/even_numbers_in_array.asm");
     let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
 
@@ -1496,5 +1529,29 @@ mod tests {
     while int.execute().is_some() {}
 
     assert_eq!(int.env.memory_at(0x2070), Some(0x04));
+  }
+
+  #[test]
+  fn pos_or_neg() {
+    let src = include_str!("../../test_files/pos_or_neg.asm");
+    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
+
+    int.assemble();
+
+    // Test a positive number
+    int.env.set_memory_at(0x2050, 0x17);
+
+    while int.execute().is_some() {}
+
+    assert_eq!(int.env.memory_at(0x2055), Some(0));
+
+    int.reset(false);
+
+    // Test a negative number
+    int.env.set_memory_at(0x2050, 0xD6);
+
+    while int.execute().is_some() {}
+
+    assert_eq!(int.env.memory_at(0x2055), Some(1));
   }
 }
