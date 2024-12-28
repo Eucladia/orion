@@ -1,3 +1,4 @@
+// TODO: Separate update flag function for logical ops
 // TODO: Make arithmetic ops wrapping
 // TODO: Bounds checking for memory and return a result
 use crate::{instruction_bytes_occupied, Environment};
@@ -743,22 +744,22 @@ fn execute_push(env: &mut Environment, instruction_byte: u8) {
     env.registers.dr = (env.registers.c as u16) << 8 | env.registers.b as u16;
 
     env.set_memory_at(env.registers.sp, env.registers.b);
-    env.set_memory_at(env.registers.sp - 1, env.registers.c);
+    env.set_memory_at(env.registers.sp.wrapping_sub(1), env.registers.c);
   } else if instruction_byte == 0xD5 {
     env.registers.dr = (env.registers.e as u16) << 8 | env.registers.d as u16;
 
     env.set_memory_at(env.registers.sp, env.registers.d);
-    env.set_memory_at(env.registers.sp - 1, env.registers.e);
+    env.set_memory_at(env.registers.sp.wrapping_sub(1), env.registers.e);
   } else if instruction_byte == 0xE5 {
     env.registers.dr = (env.registers.l as u16) << 8 | env.registers.h as u16;
 
     env.set_memory_at(env.registers.sp, env.registers.h);
-    env.set_memory_at(env.registers.sp - 1, env.registers.l);
+    env.set_memory_at(env.registers.sp.wrapping_sub(1), env.registers.l);
   } else if instruction_byte == 0xF5 {
     env.registers.dr = (env.flags as u16) << 8 | env.registers.a as u16;
 
     env.set_memory_at(env.registers.sp, env.registers.a);
-    env.set_memory_at(env.registers.sp - 1, env.flags);
+    env.set_memory_at(env.registers.sp.wrapping_sub(1), env.flags);
   }
 
   env.registers.sp -= 2;
@@ -796,24 +797,24 @@ fn execute_dcx(env: &mut Environment, instruction_byte: u8) {
 
   if instruction_byte == 0x0B {
     let curr_value = (env.registers.b as u16) << 8 | env.registers.c as u16;
-    let updated_value = curr_value - 1;
+    let updated_value = curr_value.wrapping_sub(1);
 
     env.registers.b = (updated_value >> 8) as u8;
     env.registers.c = (updated_value & 0xFF) as u8;
   } else if instruction_byte == 0x1B {
     let curr_value = (env.registers.d as u16) << 8 | env.registers.e as u16;
-    let updated_value = curr_value - 1;
+    let updated_value = curr_value.wrapping_sub(1);
 
     env.registers.d = (updated_value >> 8) as u8;
     env.registers.e = (updated_value & 0xFF) as u8;
   } else if instruction_byte == 0x2B {
     let curr_value = (env.registers.h as u16) << 8 | env.registers.l as u16;
-    let updated_value = curr_value - 1;
+    let updated_value = curr_value.wrapping_sub(1);
 
     env.registers.h = (updated_value >> 8) as u8;
     env.registers.l = (updated_value & 0xFF) as u8;
   } else if instruction_byte == 0x3B {
-    let updated_value = env.registers.sp - 1;
+    let updated_value = env.registers.sp.wrapping_sub(1);
 
     env.registers.b = (updated_value >> 8) as u8;
     env.registers.c = (updated_value & 0xFF) as u8;
@@ -828,26 +829,26 @@ fn execute_dad(env: &mut Environment, instruction_byte: u8) {
   if instruction_byte == 0x09 {
     let bc_value = (env.registers.b as u16) << 8 | env.registers.c as u16;
     let hl_value = (env.registers.h as u16) << 8 | env.registers.l as u16;
-    let sum = bc_value + hl_value;
+    let sum = bc_value.wrapping_add(hl_value);
 
     env.registers.h = (sum >> 8) as u8;
     env.registers.l = (sum & 0xFF) as u8;
   } else if instruction_byte == 0x19 {
     let de_value = (env.registers.d as u16) << 8 | env.registers.e as u16;
     let hl_value = (env.registers.h as u16) << 8 | env.registers.l as u16;
-    let sum = de_value + hl_value;
+    let sum = de_value.wrapping_add(hl_value);
 
     env.registers.h = (sum >> 8) as u8;
     env.registers.l = (sum & 0xFF) as u8;
   } else if instruction_byte == 0x29 {
     let hl_value = (env.registers.h as u16) << 8 | env.registers.l as u16;
-    let sum = hl_value + hl_value;
+    let sum = hl_value.wrapping_add(hl_value);
 
     env.registers.h = (sum >> 8) as u8;
     env.registers.l = (sum & 0xFF) as u8;
   } else if instruction_byte == 0x39 {
     let hl_value = (env.registers.h as u16) << 8 | env.registers.l as u16;
-    let sum = env.registers.sp + hl_value;
+    let sum = env.registers.sp.wrapping_add(hl_value);
 
     env.registers.h = (sum >> 8) as u8;
     env.registers.l = (sum & 0xFF) as u8;
@@ -862,34 +863,50 @@ fn execute_dcr(env: &mut Environment, instruction_byte: u8) {
   let carry = env.is_flag_set(Flags::Carry);
 
   if instruction_byte == 0x05 {
-    env.registers.b -= 1;
-    update_flags_u8_arithmetic(env, env.registers.b + 1, env.registers.b, false);
+    let old_value = env.registers.b;
+
+    env.registers.b = old_value.wrapping_sub(1);
+    update_flags_u8_arithmetic(env, old_value, env.registers.b, false);
   } else if instruction_byte == 0x15 {
-    env.registers.d -= 1;
-    update_flags_u8_arithmetic(env, env.registers.d + 1, env.registers.d, false);
+    let old_value = env.registers.d;
+
+    env.registers.d = old_value.wrapping_sub(1);
+    update_flags_u8_arithmetic(env, old_value, env.registers.d, false);
   } else if instruction_byte == 0x25 {
-    env.registers.h -= 1;
-    update_flags_u8_arithmetic(env, env.registers.h + 1, env.registers.h, false);
+    let old_value = env.registers.h;
+
+    env.registers.h = old_value.wrapping_sub(1);
+    update_flags_u8_arithmetic(env, old_value, env.registers.h, false);
   } else if instruction_byte == 0x35 {
     let address = (env.registers.h as u16) << 8 | env.registers.l as u16;
     let value = env.memory_at(address).unwrap();
+    let new_value = value.wrapping_sub(1);
 
-    env.set_memory_at(address, value - 1);
-    update_flags_u8_arithmetic(env, value, value - 1, false);
+    env.set_memory_at(address, new_value);
+    update_flags_u8_arithmetic(env, value, new_value, false);
   } else if instruction_byte == 0x0D {
-    env.registers.c -= 1;
-    update_flags_u8_arithmetic(env, env.registers.c + 1, env.registers.c, false);
+    let old_value = env.registers.c;
+
+    env.registers.c = old_value.wrapping_sub(1);
+    update_flags_u8_arithmetic(env, old_value, env.registers.c, false);
   } else if instruction_byte == 0x1D {
-    env.registers.e -= 1;
-    update_flags_u8_arithmetic(env, env.registers.e + 1, env.registers.e, false);
+    let old_value = env.registers.e;
+
+    env.registers.e = old_value.wrapping_sub(1);
+    update_flags_u8_arithmetic(env, old_value, env.registers.e, false);
   } else if instruction_byte == 0x2D {
-    env.registers.l -= 1;
-    update_flags_u8_arithmetic(env, env.registers.l + 1, env.registers.l, false);
+    let old_value = env.registers.l;
+
+    env.registers.l = old_value.wrapping_sub(1);
+    update_flags_u8_arithmetic(env, old_value, env.registers.l, false);
   } else if instruction_byte == 0x3D {
-    env.registers.a -= 1;
-    update_flags_u8_arithmetic(env, env.registers.a + 1, env.registers.a, false);
+    let old_value = env.registers.a;
+
+    env.registers.a = old_value.wrapping_sub(1);
+    update_flags_u8_arithmetic(env, old_value, env.registers.a, false);
   }
 
+  // DCR preserves the carry flag
   env.set_flag(Flags::Carry, carry);
   env.registers.pc += 1;
 }
@@ -954,7 +971,7 @@ fn execute_inr(env: &mut Environment, instruction_byte: u8) {
     update_flags_u8_arithmetic(env, env.registers.a - 1, env.registers.a, true);
   }
 
-  // INR doesn't update the carry flag
+  // INR preserves the carry flag
   env.set_flag(Flags::Carry, carry);
   env.registers.pc += 1;
 }
@@ -994,12 +1011,7 @@ fn execute_cmp(env: &mut Environment, instruction_byte: u8) {
   let a = get_register_value(env, Register::A).unwrap();
   let r = get_register_value(env, register).unwrap();
 
-  env.set_flag(Flags::Sign, a < r);
-  env.set_flag(Flags::Zero, a == r);
-  env.set_flag(Flags::Parity, (a - r).count_ones() % 2 == 0);
-  // Compare the lower nibbles
-  env.set_flag(Flags::AuxiliaryCarry, (a & 0x0F) < (r & 0x0F));
-  env.set_flag(Flags::Carry, a < r);
+  update_flags_u8_arithmetic(env, a, a.wrapping_sub(r), false);
 
   env.registers.pc += 1;
 }
@@ -1012,9 +1024,9 @@ fn execute_ora(env: &mut Environment, instruction_byte: u8) {
   let r = get_register_value(env, register).unwrap();
   let res = a | r;
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
+  update_flags_u8_arithmetic(env, a, a | r, false);
+
+  // These are reset
   env.set_flag(Flags::AuxiliaryCarry, false);
   env.set_flag(Flags::Carry, false);
 
@@ -1030,9 +1042,8 @@ fn execute_xra(env: &mut Environment, instruction_byte: u8) {
   let r = get_register_value(env, register).unwrap();
   let res = a ^ r;
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
+  update_flags_u8_arithmetic(env, a, a ^ r, false);
+  // These flags get reset
   env.set_flag(Flags::AuxiliaryCarry, false);
   env.set_flag(Flags::Carry, false);
 
@@ -1048,10 +1059,10 @@ fn execute_ana(env: &mut Environment, instruction_byte: u8) {
   let r = get_register_value(env, register).unwrap();
   let res = a & r;
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
-  env.set_flag(Flags::AuxiliaryCarry, false);
+  update_flags_u8_arithmetic(env, a, a & r, false);
+  // Aux carry is always set when doing a logical AND on 8085
+  env.set_flag(Flags::AuxiliaryCarry, true);
+  // Carry is always reset
   env.set_flag(Flags::Carry, false);
 
   env.registers.a = res;
@@ -1065,16 +1076,9 @@ fn execute_sbb(env: &mut Environment, instruction_byte: u8) {
   let a = get_register_value(env, Register::A).unwrap();
   let r = get_register_value(env, register).unwrap();
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
-  let res = a - r - carry_value;
+  let res = a.wrapping_sub(r).wrapping_sub(carry_value);
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
-  env.set_flag(
-    Flags::AuxiliaryCarry,
-    (a & 0x0F) < (r & 0x0F) || (a & 0x0F) < carry_value,
-  );
-  env.set_flag(Flags::Carry, a < r + carry_value);
+  update_flags_u8_arithmetic(env, a, res, false);
 
   env.registers.a = res;
   env.registers.pc += 1;
@@ -1086,13 +1090,9 @@ fn execute_sub(env: &mut Environment, instruction_byte: u8) {
   let register = decode_register(instruction_byte - 0x90);
   let a = get_register_value(env, Register::A).unwrap();
   let r = get_register_value(env, register).unwrap();
-  let res = a - r;
+  let res = a.wrapping_sub(r);
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
-  env.set_flag(Flags::AuxiliaryCarry, (a & 0x0F) < (r & 0x0F));
-  env.set_flag(Flags::Carry, a < r);
+  update_flags_u8_arithmetic(env, a, res, false);
 
   env.registers.a = res;
   env.registers.pc += 1;
@@ -1105,20 +1105,9 @@ fn execute_adc(env: &mut Environment, instruction_byte: u8) {
   let a = get_register_value(env, Register::A).unwrap();
   let r = get_register_value(env, register).unwrap();
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
-  let res = a + r + carry_value;
+  let res = a.wrapping_add(r).wrapping_add(carry_value);
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
-  env.set_flag(
-    Flags::AuxiliaryCarry,
-    // Check if the 5th bit is not set after adding the lower nibbles
-    ((a & 0x0F) + (r & 0x0F) + carry_value) & 0x10 != 0,
-  );
-  env.set_flag(
-    Flags::Carry,
-    (a as u16 + r as u16 + carry_value as u16) > 0xFF,
-  );
+  update_flags_u8_arithmetic(env, a, res, true);
 
   env.registers.a = res;
   env.registers.pc += 1;
@@ -1131,9 +1120,9 @@ fn execute_ori(env: &mut Environment, instruction_byte: u8) {
   let imm8 = env.memory_at(env.registers.pc + 1).unwrap();
   let res = a | imm8;
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
+  update_flags_u8_arithmetic(env, a, res, false);
+
+  // ORI resets the aux carry and carry flags
   env.set_flag(Flags::AuxiliaryCarry, false);
   env.set_flag(Flags::Carry, false);
 
@@ -1148,13 +1137,9 @@ fn execute_ani(env: &mut Environment, instruction_byte: u8) {
   let imm8 = env.memory_at(env.registers.pc + 1).unwrap();
   let res = a & imm8;
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
-  env.set_flag(
-    Flags::AuxiliaryCarry,
-    (a & 0x0F) & (imm8 & 0x0F) & 0x10 != 0,
-  );
+  update_flags_u8_arithmetic(env, a, res, false);
+  // Aux carry is always set on 8085, see page 1-12 on bitsavers 8080/8085 manual
+  env.set_flag(Flags::AuxiliaryCarry, true);
   env.set_flag(Flags::Carry, false);
 
   env.registers.a = res;
@@ -1166,13 +1151,9 @@ fn execute_sui(env: &mut Environment, instruction_byte: u8) {
 
   let a = get_register_value(env, Register::A).unwrap();
   let imm8 = env.memory_at(env.registers.pc + 1).unwrap();
-  let res = a - imm8;
+  let res = a.wrapping_sub(imm8);
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
-  env.set_flag(Flags::AuxiliaryCarry, (a & 0x0F) < (imm8 & 0x0F));
-  env.set_flag(Flags::Carry, a < imm8);
+  update_flags_u8_arithmetic(env, a, res, false);
 
   env.registers.a = res;
   env.registers.pc += 2;
@@ -1183,13 +1164,9 @@ fn execute_adi(env: &mut Environment, instruction_byte: u8) {
 
   let a = get_register_value(env, Register::A).unwrap();
   let imm8 = env.memory_at(env.registers.pc + 1).unwrap();
-  let res = a + imm8;
+  let res = a.wrapping_add(imm8);
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
-  env.set_flag(Flags::AuxiliaryCarry, (a & 0x0F) + (imm8 & 0x0F) > 0x0F);
-  env.set_flag(Flags::Carry, (a as u16 + imm8 as u16) > 0xFF);
+  update_flags_u8_arithmetic(env, a, res, true);
 
   env.registers.a = res;
   env.registers.pc += 2;
@@ -1201,13 +1178,9 @@ fn execute_add(env: &mut Environment, instruction_byte: u8) {
   let register = decode_register(instruction_byte - 0x80);
   let a = get_register_value(env, Register::A).unwrap();
   let r = get_register_value(env, register).unwrap();
-  let res = a + r;
+  let res = a.wrapping_add(r);
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
-  env.set_flag(Flags::AuxiliaryCarry, (a & 0x0F) + (r & 0x0F) > 0x0F);
-  env.set_flag(Flags::Carry, (a as u16 + r as u16) > 0xFF);
+  update_flags_u8_arithmetic(env, a, res, true);
 
   env.registers.a = res;
   env.registers.pc += 1;
@@ -1218,12 +1191,9 @@ fn execute_cpi(env: &mut Environment, instruction_byte: u8) {
 
   let a = get_register_value(env, Register::A).unwrap();
   let imm8 = env.memory_at(env.registers.pc + 1).unwrap();
+  let res = a.wrapping_sub(imm8);
 
-  env.set_flag(Flags::Sign, a < imm8);
-  env.set_flag(Flags::Zero, a == imm8);
-  env.set_flag(Flags::Parity, (a - imm8).count_ones() % 2 == 0);
-  env.set_flag(Flags::AuxiliaryCarry, (a & 0x0F) < (imm8 & 0x0F));
-  env.set_flag(Flags::Carry, a < imm8);
+  update_flags_u8_arithmetic(env, a, res, false);
 
   env.registers.pc += 2;
 }
@@ -1235,11 +1205,7 @@ fn execute_xri(env: &mut Environment, instruction_byte: u8) {
   let imm8 = env.memory_at(env.registers.pc + 1).unwrap();
   let res = a ^ imm8;
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
-  env.set_flag(Flags::AuxiliaryCarry, false);
-  env.set_flag(Flags::Carry, false);
+  update_flags_u8_arithmetic(env, a, res, false);
 
   env.registers.a = res;
   env.registers.pc += 2;
@@ -1250,13 +1216,9 @@ fn execute_sbi(env: &mut Environment, instruction_byte: u8) {
 
   let a = get_register_value(env, Register::A).unwrap();
   let imm8 = env.memory_at(env.registers.pc + 1).unwrap();
-  let res = a - imm8;
+  let res = a.wrapping_sub(imm8);
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
-  env.set_flag(Flags::AuxiliaryCarry, (a & 0x0F) < (imm8 & 0x0F));
-  env.set_flag(Flags::Carry, a < imm8);
+  update_flags_u8_arithmetic(env, a, res, false);
 
   env.registers.a = res;
   env.registers.pc += 2;
@@ -1268,19 +1230,9 @@ fn execute_aci(env: &mut Environment, instruction_byte: u8) {
   let a = get_register_value(env, Register::A).unwrap();
   let imm8 = env.memory_at(env.registers.pc + 1).unwrap();
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
-  let res = a + imm8 + carry_value;
+  let res = a.wrapping_add(imm8).wrapping_add(carry_value);
 
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
-  env.set_flag(
-    Flags::AuxiliaryCarry,
-    ((a & 0x0F) + (imm8 & 0x0F) + carry_value) & 0x10 != 0,
-  );
-  env.set_flag(
-    Flags::Carry,
-    (a as u16 + imm8 as u16 + carry_value as u16) > 0xFF,
-  );
+  update_flags_u8_arithmetic(env, a, res, true);
 
   env.registers.a = res;
   env.registers.pc += 2;
@@ -1290,10 +1242,10 @@ fn execute_rlc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let a = get_register_value(env, Register::A).unwrap();
-  let msb = a & 0x80;
   let rotated = a.rotate_left(1);
 
-  env.set_flag(Flags::Carry, msb != 0);
+  // Only the carry flag is updated
+  env.set_flag(Flags::Carry, a >> 7 == 1);
 
   env.registers.a = rotated;
   env.registers.pc += 2;
@@ -1303,10 +1255,9 @@ fn execute_rrc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let a = get_register_value(env, Register::A).unwrap();
-  let lsb = a & 0x01;
   let rotated = a.rotate_right(1);
 
-  env.set_flag(Flags::Carry, lsb != 0);
+  env.set_flag(Flags::Carry, a & 0x1 == 1);
 
   env.registers.a = rotated;
   env.registers.pc += 2;
@@ -1316,11 +1267,10 @@ fn execute_rar(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let a = get_register_value(env, Register::A).unwrap();
-  let lsb = a & 0x1;
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
   let rotated = (a >> 1) | (carry_value << 7);
 
-  env.set_flag(Flags::Carry, lsb == 1);
+  env.set_flag(Flags::Carry, a & 0x1 == 1);
   env.registers.a = rotated;
   env.registers.pc += 1;
 }
@@ -1329,11 +1279,10 @@ fn execute_ral(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let a = get_register_value(env, Register::A).unwrap();
-  let msb = a >> 7;
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
   let rotated = (a << 1) | carry_value;
 
-  env.set_flag(Flags::Carry, msb == 1);
+  env.set_flag(Flags::Carry, a >> 7 == 1);
   env.registers.a = rotated;
   env.registers.pc += 1;
 }
@@ -1553,5 +1502,138 @@ mod tests {
     while int.execute().is_some() {}
 
     assert_eq!(int.env.memory_at(0x2055), Some(1));
+  }
+
+  #[test]
+  fn sum_of_array() {
+    let src = include_str!("../../test_files/sum_of_array.asm");
+    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
+
+    int.assemble();
+
+    int.env.set_memory_at(0x2050, 0x01);
+    int.env.set_memory_at(0x2051, 0x02);
+    int.env.set_memory_at(0x2052, 0x03);
+    int.env.set_memory_at(0x2053, 0x04);
+    int.env.set_memory_at(0x2054, 0x0A);
+
+    while int.execute().is_some() {}
+
+    assert_eq!(
+      int.env.memory_slice_at(0x3000..0x3001 + 1),
+      Some([0x14, 0x0].as_slice())
+    );
+  }
+
+  #[test]
+  fn ones_comp() {
+    let src = include_str!("../../test_files/ones_complement.asm");
+    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
+
+    int.assemble();
+
+    while int.execute().is_some() {}
+
+    assert_eq!(int.env.memory_at(0x50), Some(0x7A))
+  }
+
+  #[test]
+  fn twos_comp() {
+    let src = include_str!("../../test_files/twos_complement.asm");
+    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
+
+    int.assemble();
+
+    while int.execute().is_some() {}
+
+    assert_eq!(int.env.memory_at(0x50), Some(0x9B))
+  }
+
+  #[test]
+  fn add_two_bytes() {
+    let src = include_str!("../../test_files/add_two_bytes.asm");
+    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
+
+    int.assemble();
+
+    int.env.set_memory_at(0x2000, 0x10);
+    int.env.set_memory_at(0x2001, 0x10);
+
+    while int.execute().is_some() {}
+
+    assert_eq!(int.env.memory_at(0x2002), Some(0x20));
+  }
+
+  #[test]
+  fn max_array_value() {
+    let src = include_str!("../../test_files/max_array_value.asm");
+    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
+
+    int.assemble();
+
+    int.env.set_memory_at(0x0050, 0x92);
+    int.env.set_memory_at(0x0051, 0xB4);
+
+    while int.execute().is_some() {}
+
+    assert_eq!(int.env.memory_at(0x0060), Some(0xB4));
+  }
+
+  #[test]
+  fn num_zeros_in_byte() {
+    let src = include_str!("../../test_files/num_zeros_in_byte.asm");
+    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
+
+    int.assemble();
+
+    int.env.set_memory_at(0x0030, 0xF2);
+
+    while int.execute().is_some() {}
+
+    assert_eq!(int.env.memory_at(0x0040), Some(0x3));
+  }
+
+  #[test]
+  fn min_num_in_n_array() {
+    let src = include_str!("../../test_files/min_num_in_n_array.asm");
+    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
+
+    int.assemble();
+
+    int.env.set_memory_at(0x0030, 0x06);
+    int.env.set_memory_at(0x0031, 0xB4);
+    int.env.set_memory_at(0x0032, 0x56);
+    int.env.set_memory_at(0x0033, 0x08);
+    int.env.set_memory_at(0x0034, 0x45);
+    int.env.set_memory_at(0x0035, 0x33);
+    int.env.set_memory_at(0x0036, 0x07);
+
+    while int.execute().is_some() {}
+
+    assert_eq!(int.env.memory_at(0x0040), Some(0x7));
+  }
+
+  #[test]
+  fn occurrences_of_num() {
+    let src = include_str!("../../test_files/occurrences_of_num.asm");
+    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
+
+    int.assemble();
+
+    // Array of numbers
+    int.env.set_memory_at(0x0040, 0x01);
+    int.env.set_memory_at(0x0041, 0x02);
+    int.env.set_memory_at(0x0042, 0x01);
+    int.env.set_memory_at(0x0043, 0x03);
+    int.env.set_memory_at(0x0044, 0x08);
+    int.env.set_memory_at(0x0045, 0x01);
+    int.env.set_memory_at(0x0046, 0xA2);
+
+    // Search for the number 0x1
+    int.env.set_memory_at(0x0060, 0x1);
+
+    while int.execute().is_some() {}
+
+    assert_eq!(int.env.memory_at(0x0070), Some(0x3));
   }
 }

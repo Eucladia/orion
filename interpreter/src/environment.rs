@@ -1,9 +1,10 @@
 use crate::registers::Registers;
 use lexer::{instruction::Instruction, Flags, Register};
 use parser::nodes::{InstructionNode, OperandNode};
-
 use smol_str::SmolStr;
+
 use std::collections::HashMap;
+use std::ops::Range;
 
 #[derive(Debug)]
 pub struct Environment {
@@ -364,6 +365,10 @@ impl Environment {
       }
       _ => panic!(),
     }
+  }
+
+  pub fn memory_slice_at(&self, range: Range<u16>) -> Option<&[u8]> {
+    self.memory.get(range.start as usize..range.end as usize)
   }
 
   pub fn memory_at(&self, address: u16) -> Option<u8> {
