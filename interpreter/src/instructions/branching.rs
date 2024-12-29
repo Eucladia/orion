@@ -9,7 +9,7 @@ pub fn execute_cmp(env: &mut Environment, instruction_byte: u8) {
   let a = registers::get_register_value(env, Register::A).unwrap();
   let r = registers::get_register_value(env, register).unwrap();
 
-  env.update_flags_u8_arithmetic(a, a.wrapping_sub(r), false);
+  env.update_flags_arithmetic(a, a.wrapping_sub(r), false);
 
   env.registers.pc += 1;
 }
@@ -19,9 +19,8 @@ pub fn execute_cpi(env: &mut Environment, instruction_byte: u8) {
 
   let a = registers::get_register_value(env, Register::A).unwrap();
   let imm8 = env.memory_at(env.registers.pc + 1).unwrap();
-  let res = a.wrapping_sub(imm8);
 
-  env.update_flags_u8_arithmetic(a, res, false);
+  env.update_flags_arithmetic(a, a.wrapping_sub(imm8), false);
 
   env.registers.pc += 2;
 }
@@ -129,6 +128,7 @@ pub fn execute_ret(env: &mut Environment, instruction_byte: u8) {
 
   env.registers.pc = go_to;
 }
+
 pub fn execute_call(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 

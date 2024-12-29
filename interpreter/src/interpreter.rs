@@ -1,5 +1,4 @@
 // TODO: Separate update flag function for logical ops
-// TODO: Make arithmetic ops wrapping
 // TODO: Bounds checking for memory and return a result
 use crate::{instruction_bytes_occupied, instructions, Environment};
 use parser::nodes::{Node, ProgramNode};

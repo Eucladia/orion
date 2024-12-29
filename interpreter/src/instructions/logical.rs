@@ -10,7 +10,7 @@ pub fn execute_ora(env: &mut Environment, instruction_byte: u8) {
   let r = registers::get_register_value(env, register).unwrap();
   let res = a | r;
 
-  env.update_flags_u8_arithmetic(a, a | r, false);
+  env.update_flags_arithmetic(a, a | r, false);
 
   // These are reset
   env.set_flag(Flags::AuxiliaryCarry, false);
@@ -28,7 +28,7 @@ pub fn execute_xra(env: &mut Environment, instruction_byte: u8) {
   let r = registers::get_register_value(env, register).unwrap();
   let res = a ^ r;
 
-  env.update_flags_u8_arithmetic(a, a ^ r, false);
+  env.update_flags_arithmetic(a, a ^ r, false);
   // These flags get reset
   env.set_flag(Flags::AuxiliaryCarry, false);
   env.set_flag(Flags::Carry, false);
@@ -45,7 +45,7 @@ pub fn execute_ana(env: &mut Environment, instruction_byte: u8) {
   let r = registers::get_register_value(env, register).unwrap();
   let res = a & r;
 
-  env.update_flags_u8_arithmetic(a, a & r, false);
+  env.update_flags_arithmetic(a, a & r, false);
   // Aux carry is always set when doing a logical AND on 8085
   env.set_flag(Flags::AuxiliaryCarry, true);
   // Carry is always reset
@@ -62,7 +62,7 @@ pub fn execute_ori(env: &mut Environment, instruction_byte: u8) {
   let imm8 = env.memory_at(env.registers.pc + 1).unwrap();
   let res = a | imm8;
 
-  env.update_flags_u8_arithmetic(a, res, false);
+  env.update_flags_arithmetic(a, res, false);
 
   // ORI resets the aux carry and carry flags
   env.set_flag(Flags::AuxiliaryCarry, false);
@@ -79,7 +79,7 @@ pub fn execute_ani(env: &mut Environment, instruction_byte: u8) {
   let imm8 = env.memory_at(env.registers.pc + 1).unwrap();
   let res = a & imm8;
 
-  env.update_flags_u8_arithmetic(a, res, false);
+  env.update_flags_arithmetic(a, res, false);
   // Aux carry is always set on 8085, see page 1-12 on bitsavers 8080/8085 manual
   env.set_flag(Flags::AuxiliaryCarry, true);
   env.set_flag(Flags::Carry, false);
@@ -95,7 +95,7 @@ pub fn execute_xri(env: &mut Environment, instruction_byte: u8) {
   let imm8 = env.memory_at(env.registers.pc + 1).unwrap();
   let res = a ^ imm8;
 
-  env.update_flags_u8_arithmetic(a, res, false);
+  env.update_flags_arithmetic(a, res, false);
 
   env.registers.a = res;
   env.registers.pc += 2;

@@ -44,16 +44,17 @@ impl Environment {
       self.flags &= !(flag as u8);
     }
   }
+
   // Updates flags for 8 bit arithmetical operations
-  pub fn update_flags_u8_arithmetic(&mut self, old_value: u8, new_value: u8, is_addition: bool) {
+  pub fn update_flags_arithmetic(&mut self, old_value: u8, new_value: u8, is_addition: bool) {
     self.set_flag(Flags::Sign, new_value & 0x80 != 0);
     self.set_flag(Flags::Zero, new_value == 0);
     self.set_flag(Flags::Parity, new_value.count_ones() % 2 == 0);
 
-    // Compare the nibbles accordingly depending on the operation we did
     let old_nibble = old_value & 0x0F;
     let new_nibble = new_value & 0x0F;
 
+    // Compare the nibbles accordingly depending on the operation we did
     if is_addition {
       self.set_flag(Flags::AuxiliaryCarry, old_nibble + new_nibble > 0x0F);
       // If we added, then we should have a carry if the new value is smaller
