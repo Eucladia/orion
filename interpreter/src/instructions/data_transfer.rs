@@ -1,5 +1,4 @@
 //! Data transfer instructions
-// TODO: XCHG & XTHL
 use crate::{registers, Environment};
 use lexer::Register;
 
@@ -157,4 +156,28 @@ pub fn execute_lhld(env: &mut Environment, instruction_byte: u8) {
   env.registers.l = env.memory_at(env.registers.pc + 2).unwrap();
 
   env.registers.pc += 3;
+}
+
+pub fn execute_xchg(env: &mut Environment, instruction_byte: u8) {
+  env.registers.ir = instruction_byte;
+
+  std::mem::swap(&mut env.registers.h, &mut env.registers.d);
+  std::mem::swap(&mut env.registers.l, &mut env.registers.e);
+
+  env.registers.pc += 1;
+}
+
+pub fn execute_xthl(env: &mut Environment, instruction_byte: u8) {
+  env.registers.ir = instruction_byte;
+
+  std::mem::swap(
+    &mut env.memory_at(env.registers.sp).unwrap(),
+    &mut env.registers.l,
+  );
+  std::mem::swap(
+    &mut env.memory_at(env.registers.sp + 1).unwrap(),
+    &mut env.registers.h,
+  );
+
+  env.registers.pc += 1;
 }
