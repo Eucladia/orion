@@ -72,6 +72,10 @@ pub fn execute_lxi(env: &mut Environment, byte: u8) {
       env.registers.h = upper;
       env.registers.l = lower;
     }
+    // Stack pointer
+    0x31 => {
+      env.registers.sp = ((upper as u16) << 8) | lower as u16;
+    }
     _ => unreachable!(),
   }
 
@@ -178,6 +182,14 @@ pub fn execute_xthl(env: &mut Environment, instruction_byte: u8) {
     &mut env.memory_at(env.registers.sp + 1).unwrap(),
     &mut env.registers.h,
   );
+
+  env.registers.pc += 1;
+}
+
+pub fn execute_sphl(env: &mut Environment, instruction_byte: u8) {
+  env.registers.ir = instruction_byte;
+
+  env.registers.sp = ((env.registers.h as u16) << 8) | (env.registers.l as u16);
 
   env.registers.pc += 1;
 }

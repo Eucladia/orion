@@ -176,11 +176,13 @@ impl Interpreter {
       // SHLD im16
       b if b == 0x22 => instructions::execute_shld(&mut self.env, b),
       // LXI r1, imm16
-      b if matches!(b, 0x01 | 0x11 | 0x21) => instructions::execute_lxi(&mut self.env, b),
+      b if matches!(b, 0x01 | 0x11 | 0x21 | 0x31) => instructions::execute_lxi(&mut self.env, b),
       // XCHG
       b if b == 0xEB => instructions::execute_xchg(&mut self.env, b),
       // XTHL
       b if b == 0xEB => instructions::execute_xthl(&mut self.env, b),
+      // SPHL
+      b if b == 0xF9 => instructions::execute_sphl(&mut self.env, b),
 
       // LOGICAL INSTRUCTIONS
       // ORA

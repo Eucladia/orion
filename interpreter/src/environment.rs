@@ -110,6 +110,7 @@ impl Environment {
       (RPE, &[]) => self.assemble_instruction_unchecked(addr, 0xE8),
       (RM, &[]) => self.assemble_instruction_unchecked(addr, 0xF8),
       (RET, &[]) => self.assemble_instruction_unchecked(addr, 0xC9),
+      (SPHL, &[]) => self.assemble_instruction_unchecked(addr, 0xF9),
 
       // 1 operand
       (ACI, &[OperandNode::Literal(data)]) => {
@@ -482,6 +483,7 @@ const fn encode_dcx(r1: Register) -> u8 {
     Register::B => 0x0B,
     Register::D => 0x1B,
     Register::H => 0x2B,
+    Register::SP => 0x3B,
     _ => panic!("invalid register passed to encode_dcx"),
   }
 }
@@ -491,6 +493,7 @@ const fn encode_dad(r1: Register) -> u8 {
     Register::B => 0x09,
     Register::D => 0x19,
     Register::H => 0x29,
+    Register::SP => 0x39,
     _ => panic!("invalid register passed to encode_dad"),
   }
 }
@@ -500,6 +503,7 @@ const fn encode_inx(r1: Register) -> u8 {
     Register::B => 0x03,
     Register::D => 0x13,
     Register::H => 0x23,
+    Register::SP => 0x33,
     _ => panic!("invalid register passed to encode_inx"),
   }
 }
@@ -509,6 +513,7 @@ const fn encode_lxi(r1: Register, data: u16) -> (u8, u8, u8) {
     Register::B => 0x01,
     Register::D => 0x11,
     Register::H => 0x21,
+    Register::SP => 0x31,
     _ => panic!("invalid register passed to lxi instruction"),
   };
 
