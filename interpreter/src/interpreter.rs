@@ -180,7 +180,7 @@ impl Interpreter {
       // XCHG
       b if b == 0xEB => instructions::execute_xchg(&mut self.env, b),
       // XTHL
-      b if b == 0xEB => instructions::execute_xthl(&mut self.env, b),
+      b if b == 0xE3 => instructions::execute_xthl(&mut self.env, b),
       // SPHL
       b if b == 0xF9 => instructions::execute_sphl(&mut self.env, b),
 
