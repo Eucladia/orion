@@ -12,6 +12,8 @@ pub enum Instruction {
   STAX,
   SHLD,
   LXI,
+  XCHG,
+  XTHL,
   PUSH,
   POP,
   // Arithmetical and Logical
@@ -95,7 +97,7 @@ impl Instruction {
       | CPE | CPO => 1,
 
       CMA | CMC | RAL | RAR | RLC | RRC | RET | RZ | RNZ | RC | RNC | RP | RM | RPE | RPO | HLT
-      | NOP => 0,
+      | NOP | XCHG | XTHL => 0,
     }
   }
 
@@ -108,6 +110,8 @@ impl Instruction {
       string if string.eq_ignore_ascii_case("sta") => Some(Instruction::STA),
       string if string.eq_ignore_ascii_case("stax") => Some(Instruction::STAX),
       string if string.eq_ignore_ascii_case("lxi") => Some(Instruction::LXI),
+      string if string.eq_ignore_ascii_case("xchg") => Some(Instruction::XCHG),
+      string if string.eq_ignore_ascii_case("xthl") => Some(Instruction::XTHL),
       string if string.eq_ignore_ascii_case("push") => Some(Instruction::PUSH),
       string if string.eq_ignore_ascii_case("pop") => Some(Instruction::POP),
       string if string.eq_ignore_ascii_case("add") => Some(Instruction::ADD),

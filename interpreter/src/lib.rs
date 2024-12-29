@@ -33,6 +33,8 @@ pub fn instruction_bytes_occupied(ins: &Instruction) -> u8 {
     Instruction::RPE => 1,
     Instruction::RM => 1,
     Instruction::RET => 1,
+    Instruction::XCHG => 1,
+    Instruction::XTHL => 1,
     // 1 operand instructions
     Instruction::ACI => 2,
     Instruction::SBI => 2,
