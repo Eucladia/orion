@@ -44,6 +44,26 @@ impl Environment {
       self.flags &= !(flag as u8);
     }
   }
+  // Updates flags for 8 bit arithmetical operations
+  pub fn update_flags_u8_arithmetic(&mut self, old_value: u8, new_value: u8, is_addition: bool) {
+    self.set_flag(Flags::Sign, new_value & 0x80 != 0);
+    self.set_flag(Flags::Zero, new_value == 0);
+    self.set_flag(Flags::Parity, new_value.count_ones() % 2 == 0);
+
+    // Compare the nibbles accordingly depending on the operation we did
+    let old_nibble = old_value & 0x0F;
+    let new_nibble = new_value & 0x0F;
+
+    if is_addition {
+      self.set_flag(Flags::AuxiliaryCarry, old_nibble + new_nibble > 0x0F);
+      // If we added, then we should have a carry if the new value is smaller
+      self.set_flag(Flags::Carry, new_value < old_value);
+    } else {
+      self.set_flag(Flags::AuxiliaryCarry, old_nibble < new_nibble);
+      // If we subtracted, then we should have a carry if the new value is greater
+      self.set_flag(Flags::Carry, new_value > old_value);
+    }
+  }
 
   pub fn add_to_call_stack(&mut self, previous_address: u16) {
     self.call_stack.push(previous_address);
@@ -407,24 +427,16 @@ impl Environment {
     }
   }
 
-  /// Completely resets the flags, registers, and memory.
-  pub fn reset(&mut self) {
+  /// Resets the flags, registers, and memory.
+  ///
+  /// The `starting_memory_index` is used to choose where to start clearing the memory from
+  pub fn reset(&mut self, starting_memory_index: u16) {
     self.flags = Flags::NONE;
     self.registers = Registers::default();
     // Reuse the underlying allocation
     self.labels.clear();
     self.label_indices.clear();
-    self.memory.fill(0);
-  }
-
-  /// Resets everything, but leaves the encoded instructions intact
-  pub fn reset_runtime(&mut self, assemble_index: u16) {
-    self.flags = Flags::NONE;
-    self.registers = Registers::default();
-    // Reuse the underlying allocation
-    self.labels.clear();
-    self.label_indices.clear();
-    self.memory[assemble_index as usize..].fill(0);
+    self.memory[starting_memory_index as usize..].fill(0);
   }
 }
 

@@ -1,4 +1,5 @@
 mod environment;
+mod instructions;
 mod interpreter;
 mod registers;
 
