@@ -462,6 +462,7 @@ const fn encode_push(r1: Register) -> u8 {
     Register::B => 0xC5,
     Register::D => 0xD5,
     Register::H => 0xE5,
+    Register::PSW => 0xF5,
     _ => panic!("invalid register passed to encode_push"),
   }
 }
@@ -471,6 +472,7 @@ const fn encode_pop(r1: Register) -> u8 {
     Register::B => 0xC1,
     Register::D => 0xD1,
     Register::H => 0xE1,
+    Register::PSW => 0xF1,
     _ => panic!("invalid register passed to encode_pop"),
   }
 }
