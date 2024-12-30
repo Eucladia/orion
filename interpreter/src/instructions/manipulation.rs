@@ -65,10 +65,12 @@ pub fn execute_stc(env: &mut Environment, instruction_byte: u8) {
   env.registers.pc += 1;
 }
 
-pub fn execute_hlt(env: &mut Environment) {
+pub fn execute_hlt(env: &mut Environment, instruction_byte: u8) {
+  env.registers.ir = instruction_byte;
   env.registers.pc += 1;
 }
 
-pub fn execute_nop(env: &mut Environment) {
+pub fn execute_nop(env: &mut Environment, instruction_byte: u8) {
+  env.registers.ir = instruction_byte;
   env.registers.pc += 1;
 }

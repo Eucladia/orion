@@ -266,9 +266,9 @@ impl Interpreter {
       // STC
       b if matches!(b, 0x37) => instructions::execute_stc(&mut self.env, b),
       // NOP
-      0x00 => instructions::execute_nop(&mut self.env),
+      0x0 => instructions::execute_nop(&mut self.env, 0x0),
       // HLT
-      0x76 => instructions::execute_hlt(&mut self.env),
+      0x76 => instructions::execute_hlt(&mut self.env, 0x76),
 
       b => panic!(
         "0x{:X}: invalid instruction received: 0x{:X}",
