@@ -1,5 +1,6 @@
 //! Manipulation related instructions
 use crate::Environment;
+use lexer::Flags;
 
 pub fn execute_push(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
@@ -53,6 +54,14 @@ pub fn execute_pop(env: &mut Environment, instruction_byte: u8) {
   }
 
   env.registers.sp += 2;
+  env.registers.pc += 1;
+}
+
+pub fn execute_stc(env: &mut Environment, instruction_byte: u8) {
+  env.registers.ir = instruction_byte;
+
+  env.set_flag(Flags::Carry, true);
+
   env.registers.pc += 1;
 }
 

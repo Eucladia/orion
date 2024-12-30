@@ -15,8 +15,6 @@ pub enum Instruction {
   XCHG,
   XTHL,
   SPHL,
-  PUSH,
-  POP,
   // Arithmetical and Logical
   ADD,
   ADC,
@@ -73,9 +71,11 @@ pub enum Instruction {
   RM,
   RPE,
   RPO,
-  // Processor control
+  // Manipulation
   HLT,
-  // No op
+  PUSH,
+  POP,
+  STC,
   NOP,
 }
 
@@ -98,7 +98,7 @@ impl Instruction {
       | CPE | CPO => 1,
 
       CMA | CMC | RAL | RAR | RLC | RRC | RET | RZ | RNZ | RC | RNC | RP | RM | RPE | RPO | HLT
-      | NOP | XCHG | XTHL | SPHL => 0,
+      | NOP | XCHG | XTHL | SPHL | STC => 0,
     }
   }
 
@@ -114,8 +114,6 @@ impl Instruction {
       string if string.eq_ignore_ascii_case("xchg") => Some(Instruction::XCHG),
       string if string.eq_ignore_ascii_case("xthl") => Some(Instruction::XTHL),
       string if string.eq_ignore_ascii_case("sphl") => Some(Instruction::SPHL),
-      string if string.eq_ignore_ascii_case("push") => Some(Instruction::PUSH),
-      string if string.eq_ignore_ascii_case("pop") => Some(Instruction::POP),
       string if string.eq_ignore_ascii_case("add") => Some(Instruction::ADD),
       string if string.eq_ignore_ascii_case("adc") => Some(Instruction::ADC),
       string if string.eq_ignore_ascii_case("adi") => Some(Instruction::ADI),
@@ -171,6 +169,9 @@ impl Instruction {
       string if string.eq_ignore_ascii_case("rpe") => Some(Instruction::RPE),
       string if string.eq_ignore_ascii_case("rpo") => Some(Instruction::RPO),
       string if string.eq_ignore_ascii_case("hlt") => Some(Instruction::HLT),
+      string if string.eq_ignore_ascii_case("stc") => Some(Instruction::STC),
+      string if string.eq_ignore_ascii_case("push") => Some(Instruction::PUSH),
+      string if string.eq_ignore_ascii_case("pop") => Some(Instruction::POP),
       string if string.eq_ignore_ascii_case("nop") => Some(Instruction::NOP),
       _ => None,
     }

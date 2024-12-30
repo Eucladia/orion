@@ -113,6 +113,7 @@ impl Environment {
       (SPHL, &[]) => self.assemble_instruction_unchecked(addr, 0xF9),
       (XCHG, &[]) => self.assemble_instruction_unchecked(addr, 0xEB),
       (XTHL, &[]) => self.assemble_instruction_unchecked(addr, 0xE3),
+      (STC, &[]) => self.assemble_instruction_unchecked(addr, 0x37),
 
       // 1 operand
       (ACI, &[OperandNode::Literal(data)]) => {
