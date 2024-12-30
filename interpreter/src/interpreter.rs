@@ -284,181 +284,134 @@ mod tests {
 
   use super::Interpreter;
 
+  /// Runs an assembly file, making sure that the expected memory values are set.
+  macro_rules! run_asm {
+      (
+          $src:literal,
+          [$($write_addr:literal => $write_value:literal),*],
+          [$($expect_addr:literal => $expect_value:literal),*]
+      ) => {
+        {
+          let src = include_str!(concat!("../../test_files/", $src, ".asm"));
+          let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
+
+          int.assemble().unwrap();
+
+          $(
+            int.env.set_memory_at($write_addr, $write_value);
+          )*
+
+          while int.execute().is_some() {}
+
+          $(
+            assert_eq!(int.env.memory_at($expect_addr), Some($expect_value));
+          )*
+
+          int
+        }
+      };
+      (
+          $int:expr,
+          [$($write_addr:literal => $write_value:literal),*],
+          [$($expect_addr:literal => $expect_value:literal),*]
+      ) => {
+        {
+          $(
+            int.env.set_memory_at($write_addr, $write_value);
+          )*
+
+          while int.execute().is_some() {}
+
+          $(
+            assert_eq!(int.env.memory_at($expect_addr), Some($expect_value));
+          )*
+        }
+      };
+  }
+
   #[test]
   fn even_numbers_in_array() {
-    let src = include_str!("../../test_files/even_numbers_in_array.asm");
-    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
-
-    int.assemble();
-
-    int.env.set_memory_at(0x2040, 0x01);
-    int.env.set_memory_at(0x2040, 0x01);
-    int.env.set_memory_at(0x2041, 0x02);
-    int.env.set_memory_at(0x2042, 0x03);
-    int.env.set_memory_at(0x2043, 0x04);
-    int.env.set_memory_at(0x2044, 0x0A);
-    int.env.set_memory_at(0x2045, 0x05);
-    int.env.set_memory_at(0x2046, 0x60);
-
-    while int.execute().is_some() {}
-
-    assert_eq!(int.env.memory_at(0x2070), Some(0x04));
+    run_asm!(
+      "even_numbers_in_array",
+      [
+        0x2040 => 0x1, 0x2041 => 0x2, 0x2042 => 0x3, 0x2043 => 0x4, 0x2044 => 0xA,
+        0x2045 => 0x5, 0x2046 =>  0x60
+      ],
+      [0x2070 => 0x4]
+    );
   }
 
   #[test]
   fn pos_or_neg() {
-    let src = include_str!("../../test_files/pos_or_neg.asm");
-    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
-
-    int.assemble();
-
     // Test a positive number
-    int.env.set_memory_at(0x2050, 0x17);
+    let mut interpreter = run_asm!(
+      "pos_or_neg", [0x2050 => 0x17], [0x2055 => 0x0]
+    );
 
-    while int.execute().is_some() {}
-
-    assert_eq!(int.env.memory_at(0x2055), Some(0));
-
-    int.reset(false);
+    interpreter.reset(false);
 
     // Test a negative number
-    int.env.set_memory_at(0x2050, 0xD6);
-
-    while int.execute().is_some() {}
-
-    assert_eq!(int.env.memory_at(0x2055), Some(1));
+    run_asm!(
+      "pos_or_neg", [0x2050 => 0xD6], [0x2055 => 0x1]
+    );
   }
 
   #[test]
   fn sum_of_array() {
-    let src = include_str!("../../test_files/sum_of_array.asm");
-    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
-
-    int.assemble();
-
-    int.env.set_memory_at(0x2050, 0x01);
-    int.env.set_memory_at(0x2051, 0x02);
-    int.env.set_memory_at(0x2052, 0x03);
-    int.env.set_memory_at(0x2053, 0x04);
-    int.env.set_memory_at(0x2054, 0x0A);
-
-    while int.execute().is_some() {}
-
-    assert_eq!(
-      int.env.memory_slice_at(0x3000..0x3001 + 1),
-      Some([0x14, 0x0].as_slice())
+    run_asm!(
+      "sum_of_array",
+      [0x02050 => 0x1, 0x2051 => 0x2, 0x2052 => 0x3, 0x2053 => 0x04, 0x2054 => 0xA],
+      [0x3000 => 0x14, 0x3001 => 0x0]
     );
   }
 
   #[test]
   fn ones_comp() {
-    let src = include_str!("../../test_files/ones_complement.asm");
-    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
-
-    int.assemble();
-
-    while int.execute().is_some() {}
-
-    assert_eq!(int.env.memory_at(0x50), Some(0x7A))
+    run_asm!("ones_complement", [], [0x50 => 0x7A]);
   }
 
   #[test]
   fn twos_comp() {
-    let src = include_str!("../../test_files/twos_complement.asm");
-    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
-
-    int.assemble();
-
-    while int.execute().is_some() {}
-
-    assert_eq!(int.env.memory_at(0x50), Some(0x9B))
+    run_asm!("twos_complement", [], [0x50 => 0x9B]);
   }
 
   #[test]
   fn add_two_bytes() {
-    let src = include_str!("../../test_files/add_two_bytes.asm");
-    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
-
-    int.assemble();
-
-    int.env.set_memory_at(0x2000, 0x10);
-    int.env.set_memory_at(0x2001, 0x10);
-
-    while int.execute().is_some() {}
-
-    assert_eq!(int.env.memory_at(0x2002), Some(0x20));
+    run_asm!("add_two_bytes", [0x2000 => 0x10, 0x2001 => 0x10], [0x2002 => 0x20]);
   }
 
   #[test]
   fn max_array_value() {
-    let src = include_str!("../../test_files/max_array_value.asm");
-    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
-
-    int.assemble();
-
-    int.env.set_memory_at(0x0050, 0x92);
-    int.env.set_memory_at(0x0051, 0xB4);
-
-    while int.execute().is_some() {}
-
-    assert_eq!(int.env.memory_at(0x0060), Some(0xB4));
+    run_asm!("max_array_value", [0x0050 => 0x92, 0x0051 => 0xB4], [0x0060 => 0xB4]);
   }
 
   #[test]
   fn num_zeros_in_byte() {
-    let src = include_str!("../../test_files/num_zeros_in_byte.asm");
-    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
-
-    int.assemble();
-
-    int.env.set_memory_at(0x0030, 0xF2);
-
-    while int.execute().is_some() {}
-
-    assert_eq!(int.env.memory_at(0x0040), Some(0x3));
+    run_asm!("num_zeros_in_byte", [0x0030 => 0xF2], [0x0040 => 0x3]);
   }
 
   #[test]
   fn min_num_in_n_array() {
-    let src = include_str!("../../test_files/min_num_in_n_array.asm");
-    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
-
-    int.assemble();
-
-    int.env.set_memory_at(0x0030, 0x06);
-    int.env.set_memory_at(0x0031, 0xB4);
-    int.env.set_memory_at(0x0032, 0x56);
-    int.env.set_memory_at(0x0033, 0x08);
-    int.env.set_memory_at(0x0034, 0x45);
-    int.env.set_memory_at(0x0035, 0x33);
-    int.env.set_memory_at(0x0036, 0x07);
-
-    while int.execute().is_some() {}
-
-    assert_eq!(int.env.memory_at(0x0040), Some(0x7));
+    run_asm!("min_num_in_n_array",
+      [
+        0x0030 => 0x6, 0x0031 => 0xB4, 0x0032 => 0x56, 0x0033 => 0x8,
+        0x0034 => 0x45, 0x0035 => 0x33, 0x0036 => 0x7
+      ],
+      [0x0040 => 0x7]
+    );
   }
 
   #[test]
   fn occurrences_of_num() {
-    let src = include_str!("../../test_files/occurrences_of_num.asm");
-    let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
-
-    int.assemble();
-
-    // Array of numbers
-    int.env.set_memory_at(0x0040, 0x01);
-    int.env.set_memory_at(0x0041, 0x02);
-    int.env.set_memory_at(0x0042, 0x01);
-    int.env.set_memory_at(0x0043, 0x03);
-    int.env.set_memory_at(0x0044, 0x08);
-    int.env.set_memory_at(0x0045, 0x01);
-    int.env.set_memory_at(0x0046, 0xA2);
-
-    // Search for the number 0x1
-    int.env.set_memory_at(0x0060, 0x1);
-
-    while int.execute().is_some() {}
-
-    assert_eq!(int.env.memory_at(0x0070), Some(0x3));
+    run_asm!(
+      "occurrences_of_num",
+      [
+        0x0040 => 0x1, 0x0041 => 0x2, 0x0042 => 0x1, 0x0043 => 0x3,
+        0x0044 => 0x8, 0x0045 => 0x1, 0x0046 => 0xA2,
+        // Search for 0x1
+        0x0060 => 0x1
+      ],
+      [0x0070 => 0x3]
+    );
   }
 }
