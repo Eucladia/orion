@@ -18,7 +18,7 @@ pub fn execute_cpi(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let a = registers::get_register_value(env, Register::A).unwrap();
-  let imm8 = env.read_memory().unwrap();
+  let imm8 = env.read_memory();
 
   env.update_flags_arithmetic(a, a.wrapping_sub(imm8), false);
 
@@ -132,8 +132,8 @@ pub fn execute_ret(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_call(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
   let jump_to = (label_upper as u16) << 8 | label_lower as u16;
   let ret_to = env.registers.next_pc();
 
@@ -144,8 +144,8 @@ pub fn execute_call(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_cm(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
   let ret_to = env.registers.next_pc();
 
   if env.is_flag_set(Flags::Sign) {
@@ -159,8 +159,8 @@ pub fn execute_cm(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_cpe(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
   let ret_to = env.registers.next_pc();
 
   if env.is_flag_set(Flags::Parity) {
@@ -174,8 +174,8 @@ pub fn execute_cpe(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_cc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
   let ret_to = env.registers.next_pc();
 
   if env.is_flag_set(Flags::Carry) {
@@ -189,8 +189,8 @@ pub fn execute_cc(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_cz(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
   let ret_to = env.registers.next_pc();
 
   if env.is_flag_set(Flags::Zero) {
@@ -204,8 +204,8 @@ pub fn execute_cz(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_cp(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
   let ret_to = env.registers.next_pc();
 
   if !env.is_flag_set(Flags::Sign) {
@@ -219,8 +219,8 @@ pub fn execute_cp(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_cpo(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
   let ret_to = env.registers.next_pc();
 
   if !env.is_flag_set(Flags::Parity) {
@@ -234,8 +234,8 @@ pub fn execute_cpo(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_cnc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
   let ret_to = env.registers.next_pc();
 
   if !env.is_flag_set(Flags::Carry) {
@@ -249,8 +249,8 @@ pub fn execute_cnc(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_cnz(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
   let ret_to = env.registers.next_pc();
 
   if !env.is_flag_set(Flags::Zero) {
@@ -264,8 +264,8 @@ pub fn execute_cnz(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_jm(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
 
   env.registers.next_pc();
 
@@ -279,8 +279,8 @@ pub fn execute_jm(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_jpe(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
 
   env.registers.next_pc();
 
@@ -294,8 +294,8 @@ pub fn execute_jpe(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_jc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
 
   env.registers.next_pc();
 
@@ -309,8 +309,8 @@ pub fn execute_jc(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_jz(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
 
   env.registers.next_pc();
 
@@ -324,8 +324,8 @@ pub fn execute_jz(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_jmp(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
   let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
   env.registers.pc = jump_to;
@@ -334,8 +334,8 @@ pub fn execute_jmp(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_jp(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
 
   env.registers.next_pc();
 
@@ -349,8 +349,8 @@ pub fn execute_jp(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_jpo(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
 
   env.registers.next_pc();
 
@@ -364,8 +364,8 @@ pub fn execute_jpo(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_jnc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
 
   env.registers.next_pc();
 
@@ -379,8 +379,8 @@ pub fn execute_jnc(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_jnz(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let label_lower = env.read_memory().unwrap();
-  let label_upper = env.read_memory().unwrap();
+  let label_lower = env.read_memory();
+  let label_upper = env.read_memory();
 
   env.registers.next_pc();
 

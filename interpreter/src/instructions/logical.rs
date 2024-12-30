@@ -24,7 +24,7 @@ pub fn execute_ori(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let a = registers::get_register_value(env, Register::A).unwrap();
-  let res = a | env.read_memory().unwrap();
+  let res = a | env.read_memory();
 
   env.update_flags_arithmetic(a, res, false);
 
@@ -58,7 +58,7 @@ pub fn execute_ani(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let a = registers::get_register_value(env, Register::A).unwrap();
-  let res = a & env.read_memory().unwrap();
+  let res = a & env.read_memory();
 
   env.update_flags_arithmetic(a, res, false);
   // Aux carry is always set on 8085, see page 1-12 on bitsavers 8080/8085 manual
@@ -73,7 +73,7 @@ pub fn execute_xri(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let a = registers::get_register_value(env, Register::A).unwrap();
-  let res = a ^ env.read_memory().unwrap();
+  let res = a ^ env.read_memory();
 
   env.update_flags_arithmetic(a, res, false);
   env.set_flag(Flags::AuxiliaryCarry, false);

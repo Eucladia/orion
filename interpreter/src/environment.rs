@@ -393,10 +393,14 @@ impl Environment {
   }
 
   /// Wrappingly reads the next byte of memory.
-  pub fn read_memory(&mut self) -> Option<u8> {
+  pub fn read_memory(&mut self) -> u8 {
     self.registers.pc = self.registers.pc.wrapping_add(1);
 
-    self.memory.get(self.registers.pc as usize).copied()
+    self
+      .memory
+      .get(self.registers.pc as usize)
+      .copied()
+      .unwrap()
   }
 
   pub fn memory_slice_at(&self, range: Range<u16>) -> Option<&[u8]> {

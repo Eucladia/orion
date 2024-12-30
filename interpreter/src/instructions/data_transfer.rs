@@ -40,7 +40,7 @@ pub fn execute_mvi(env: &mut Environment, b: u8) {
     _ => unreachable!(),
   };
 
-  let value = env.read_memory().unwrap();
+  let value = env.read_memory();
 
   registers::set_register_value(env, dest, value);
 
@@ -51,8 +51,8 @@ pub fn execute_mvi(env: &mut Environment, b: u8) {
 pub fn execute_lxi(env: &mut Environment, byte: u8) {
   env.registers.ir = byte;
 
-  let lower = env.read_memory().unwrap();
-  let upper = env.read_memory().unwrap();
+  let lower = env.read_memory();
+  let upper = env.read_memory();
 
   env.registers.dr = ((lower as u16) << 8) | upper as u16;
 
@@ -101,8 +101,8 @@ pub fn execute_ldax(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_lda(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let lower = env.read_memory().unwrap();
-  let upper = env.read_memory().unwrap();
+  let lower = env.read_memory();
+  let upper = env.read_memory();
   let value = env.memory_at((upper as u16) << 8 | lower as u16).unwrap();
 
   env.registers.a = value;
@@ -129,8 +129,8 @@ pub fn execute_stax(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_sta(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let lower = env.read_memory().unwrap();
-  let upper = env.read_memory().unwrap();
+  let lower = env.read_memory();
+  let upper = env.read_memory();
   let address = (upper as u16) << 8 | lower as u16;
 
   env.set_memory_at(address, env.registers.a);
@@ -142,8 +142,8 @@ pub fn execute_sta(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_shld(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let lower = env.read_memory().unwrap();
-  let upper = env.read_memory().unwrap();
+  let lower = env.read_memory();
+  let upper = env.read_memory();
   let address = (upper as u16) << 8 | lower as u16;
 
   // SHLD sets in inverse order
@@ -156,8 +156,8 @@ pub fn execute_shld(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_lhld(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  env.registers.h = env.read_memory().unwrap();
-  env.registers.l = env.read_memory().unwrap();
+  env.registers.h = env.read_memory();
+  env.registers.l = env.read_memory();
 
   env.registers.next_pc();
 }

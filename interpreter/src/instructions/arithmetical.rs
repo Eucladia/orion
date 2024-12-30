@@ -20,7 +20,7 @@ pub fn execute_adi(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let a = registers::get_register_value(env, Register::A).unwrap();
-  let res = a.wrapping_add(env.read_memory().unwrap());
+  let res = a.wrapping_add(env.read_memory());
 
   env.update_flags_arithmetic(a, res, true);
 
@@ -48,9 +48,7 @@ pub fn execute_aci(env: &mut Environment, instruction_byte: u8) {
 
   let a = registers::get_register_value(env, Register::A).unwrap();
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
-  let res = a
-    .wrapping_add(env.read_memory().unwrap())
-    .wrapping_add(carry_value);
+  let res = a.wrapping_add(env.read_memory()).wrapping_add(carry_value);
 
   env.update_flags_arithmetic(a, res, true);
 
@@ -90,7 +88,7 @@ pub fn execute_sui(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let a = registers::get_register_value(env, Register::A).unwrap();
-  let res = a.wrapping_sub(env.read_memory().unwrap());
+  let res = a.wrapping_sub(env.read_memory());
 
   env.update_flags_arithmetic(a, res, false);
 
@@ -101,7 +99,7 @@ pub fn execute_sbi(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let a = registers::get_register_value(env, Register::A).unwrap();
-  let res = a.wrapping_sub(env.read_memory().unwrap());
+  let res = a.wrapping_sub(env.read_memory());
 
   env.update_flags_arithmetic(a, res, false);
 
