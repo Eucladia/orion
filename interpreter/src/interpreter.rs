@@ -106,7 +106,7 @@ impl Interpreter {
   fn execute_instruction(&mut self, byte: u8) {
     if self.env.label_indices.contains_key(&self.env.registers.pc) {
       // Labels are 16 bits
-      self.env.registers.pc += 2;
+      self.env.registers.pc = self.env.registers.pc.wrapping_add(2);
 
       return;
     }

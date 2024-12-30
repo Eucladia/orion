@@ -21,7 +21,7 @@ pub fn execute_mov(env: &mut Environment, instruction_byte: u8) {
   registers::set_register_value(env, dest, reg_value);
 
   env.registers.dr = reg_value as u16;
-  env.registers.pc += 1;
+  env.registers.pc = env.registers.pc.wrapping_add(1);
 }
 
 pub fn execute_mvi(env: &mut Environment, b: u8) {
@@ -40,19 +40,19 @@ pub fn execute_mvi(env: &mut Environment, b: u8) {
     _ => unreachable!(),
   };
 
-  let value = env.memory_at(env.registers.pc + 1).unwrap();
+  let value = env.read_memory().unwrap();
 
   registers::set_register_value(env, dest, value);
 
   env.registers.dr = (value as u16) << 8;
-  env.registers.pc += 2;
+  env.registers.next_pc();
 }
 
 pub fn execute_lxi(env: &mut Environment, byte: u8) {
   env.registers.ir = byte;
 
-  let lower = env.memory_at(env.registers.pc + 1).unwrap();
-  let upper = env.memory_at(env.registers.pc + 2).unwrap();
+  let lower = env.read_memory().unwrap();
+  let upper = env.read_memory().unwrap();
 
   env.registers.dr = ((lower as u16) << 8) | upper as u16;
 
@@ -79,7 +79,7 @@ pub fn execute_lxi(env: &mut Environment, byte: u8) {
     _ => unreachable!(),
   }
 
-  env.registers.pc += 3;
+  env.registers.next_pc();
 }
 
 pub fn execute_ldax(env: &mut Environment, instruction_byte: u8) {
@@ -95,19 +95,19 @@ pub fn execute_ldax(env: &mut Environment, instruction_byte: u8) {
     env.registers.a = env.memory_at(address).unwrap();
   }
 
-  env.registers.pc += 1;
+  env.registers.next_pc();
 }
 
 pub fn execute_lda(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let lower = env.memory_at(env.registers.pc + 1).unwrap();
-  let upper = env.memory_at(env.registers.pc + 2).unwrap();
+  let lower = env.read_memory().unwrap();
+  let upper = env.read_memory().unwrap();
   let value = env.memory_at((upper as u16) << 8 | lower as u16).unwrap();
 
   env.registers.a = value;
   env.registers.dr = (lower as u16) << 8 | upper as u16;
-  env.registers.pc += 3;
+  env.registers.next_pc();
 }
 
 pub fn execute_stax(env: &mut Environment, instruction_byte: u8) {
@@ -123,43 +123,43 @@ pub fn execute_stax(env: &mut Environment, instruction_byte: u8) {
     env.set_memory_at(address, env.registers.a);
   }
 
-  env.registers.pc += 1;
+  env.registers.next_pc();
 }
 
 pub fn execute_sta(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let lower = env.memory_at(env.registers.pc + 1).unwrap();
-  let upper = env.memory_at(env.registers.pc + 2).unwrap();
+  let lower = env.read_memory().unwrap();
+  let upper = env.read_memory().unwrap();
   let address = (upper as u16) << 8 | lower as u16;
 
   env.set_memory_at(address, env.registers.a);
 
   env.registers.dr = (lower as u16) << 8 | (upper as u16);
-  env.registers.pc += 3;
+  env.registers.next_pc();
 }
 
 pub fn execute_shld(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let lower = env.memory_at(env.registers.pc + 1).unwrap();
-  let upper = env.memory_at(env.registers.pc + 2).unwrap();
+  let lower = env.read_memory().unwrap();
+  let upper = env.read_memory().unwrap();
   let address = (upper as u16) << 8 | lower as u16;
 
-  // SHLD set in inverse order
+  // SHLD sets in inverse order
   env.set_memory_at(address, env.registers.l);
   env.set_memory_at(address + 1, env.registers.h);
 
-  env.registers.pc += 3;
+  env.registers.next_pc();
 }
 
 pub fn execute_lhld(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  env.registers.h = env.memory_at(env.registers.pc + 1).unwrap();
-  env.registers.l = env.memory_at(env.registers.pc + 2).unwrap();
+  env.registers.h = env.read_memory().unwrap();
+  env.registers.l = env.read_memory().unwrap();
 
-  env.registers.pc += 3;
+  env.registers.next_pc();
 }
 
 pub fn execute_xchg(env: &mut Environment, instruction_byte: u8) {
@@ -168,7 +168,7 @@ pub fn execute_xchg(env: &mut Environment, instruction_byte: u8) {
   std::mem::swap(&mut env.registers.h, &mut env.registers.d);
   std::mem::swap(&mut env.registers.l, &mut env.registers.e);
 
-  env.registers.pc += 1;
+  env.registers.next_pc();
 }
 
 pub fn execute_xthl(env: &mut Environment, instruction_byte: u8) {
@@ -179,11 +179,11 @@ pub fn execute_xthl(env: &mut Environment, instruction_byte: u8) {
     &mut env.registers.l,
   );
   std::mem::swap(
-    &mut env.memory_at(env.registers.sp + 1).unwrap(),
+    &mut env.memory_at(env.registers.sp.wrapping_add(1)).unwrap(),
     &mut env.registers.h,
   );
 
-  env.registers.pc += 1;
+  env.registers.next_pc();
 }
 
 pub fn execute_sphl(env: &mut Environment, instruction_byte: u8) {
@@ -191,5 +191,5 @@ pub fn execute_sphl(env: &mut Environment, instruction_byte: u8) {
 
   env.registers.sp = ((env.registers.h as u16) << 8) | (env.registers.l as u16);
 
-  env.registers.pc += 1;
+  env.registers.next_pc();
 }

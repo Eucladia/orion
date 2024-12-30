@@ -27,14 +27,14 @@ pub fn execute_push(env: &mut Environment, instruction_byte: u8) {
     env.set_memory_at(env.registers.sp.wrapping_sub(1), env.flags);
   }
 
-  env.registers.sp -= 2;
-  env.registers.pc += 1;
+  env.registers.sp = env.registers.sp.wrapping_sub(2);
+  env.registers.next_pc();
 }
 
 pub fn execute_pop(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let lower = env.memory_at(env.registers.sp + 1).unwrap();
+  let lower = env.memory_at(env.registers.sp.wrapping_add(1)).unwrap();
   let upper = env.memory_at(env.registers.sp).unwrap();
 
   env.registers.dr = (lower as u16) << 8 | upper as u16;
@@ -53,8 +53,8 @@ pub fn execute_pop(env: &mut Environment, instruction_byte: u8) {
     env.flags = upper;
   }
 
-  env.registers.sp += 2;
-  env.registers.pc += 1;
+  env.registers.sp = env.registers.sp.wrapping_add(2);
+  env.registers.next_pc();
 }
 
 pub fn execute_stc(env: &mut Environment, instruction_byte: u8) {
@@ -62,15 +62,15 @@ pub fn execute_stc(env: &mut Environment, instruction_byte: u8) {
 
   env.set_flag(Flags::Carry, true);
 
-  env.registers.pc += 1;
+  env.registers.pc = env.registers.pc.wrapping_add(1);
 }
 
 pub fn execute_hlt(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
-  env.registers.pc += 1;
+  env.registers.next_pc();
 }
 
 pub fn execute_nop(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
-  env.registers.pc += 1;
+  env.registers.next_pc();
 }
