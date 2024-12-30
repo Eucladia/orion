@@ -69,13 +69,13 @@ impl Environment {
   pub fn add_to_call_stack(&mut self, previous_address: u16) {
     self.call_stack.push(previous_address);
 
-    self.registers.sp -= 1;
+    self.registers.sp = self.registers.sp.wrapping_sub(1);
   }
 
   pub fn return_from_call(&mut self) -> Option<u16> {
     let e = self.call_stack.pop();
 
-    self.registers.sp += 1;
+    self.registers.sp = self.registers.sp.wrapping_add(1);
 
     e
   }
