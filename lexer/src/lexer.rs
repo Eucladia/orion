@@ -1,5 +1,5 @@
 use crate::{
-  create_token, instruction::Instruction, register::Register, token::Token, LexerError, LexerResult,
+  create_token, instruction::Instruction, register::Register, token::Token, LexError, LexResult,
 };
 
 // A lexer used to lex a source program into tokens.
@@ -47,7 +47,7 @@ impl<'a> Lexer<'a> {
   }
 
   // Lexes a [`Token`]
-  fn lex_token(&mut self) -> Option<LexerResult<Token>> {
+  fn lex_token(&mut self) -> Option<LexResult<Token>> {
     // SAFETY: `lex_token` isn't called directly and we check that the index is within bounds in
     // the `Iterator`` interface
     let byte = unsafe { self.current_byte().unwrap_unchecked() };
@@ -77,7 +77,7 @@ impl<'a> Lexer<'a> {
           .and_then(|bytes| std::str::from_utf8(bytes).ok())
         {
           Some(x) => x,
-          None => return Some(Err(LexerError::InvalidUtf8(start))),
+          None => return Some(Err(LexError::InvalidUtf8(start))),
         };
 
         if Instruction::is_opcode(identifier) {
@@ -157,7 +157,7 @@ fn eat_identifier(lexer: &mut Lexer) {
 }
 
 impl Iterator for Lexer<'_> {
-  type Item = LexerResult<Token>;
+  type Item = LexResult<Token>;
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.curr >= self.bytes.len() {
@@ -268,7 +268,6 @@ mod tests {
   #[test]
   fn gibberish() {
     assert_eq!(
-      // Underscore is only a valid token if its preceded by an actual valid token
       get_tokens!("`~~~_+="),
       vec![
         Ok(create_token!(Unknown, 0..1)),

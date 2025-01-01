@@ -1,9 +1,9 @@
-use lexer::{token::TokenKind, Lexer, LexerResult};
+use lexer::{token::TokenKind, LexResult, Lexer};
 
 macro_rules! tokens_equal {
   ($src:literal, $($token:tt),*) => {
     let lexer = Lexer::from_bytes(include_bytes!(concat!("../../test_files/", $src, ".asm")));
-    let tokens = lexer.into_iter().map(|res| res.map(|tok| tok.kind())).collect::<LexerResult<Vec<_>>>();
+    let tokens = lexer.into_iter().map(|res| res.map(|tok| tok.kind())).collect::<LexResult<Vec<_>>>();
     let expected = vec![$(TokenKind::$token),*];
 
 

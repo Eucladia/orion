@@ -4,7 +4,7 @@ use crate::unwrap;
 
 use lexer::instruction::Instruction;
 use lexer::token::{Token, TokenKind};
-use lexer::LexerResult;
+use lexer::LexResult;
 use lexer::{Lexer, Register};
 use smol_str::SmolStr;
 use std::num::IntErrorKind;
@@ -25,12 +25,12 @@ impl<'a> Parser<'a> {
     }
   }
 
-  pub fn from_source(source: &'a str) -> LexerResult<Self> {
+  pub fn from_source(source: &'a str) -> LexResult<Self> {
     let lexer = Lexer::from_string(source);
 
     Ok(Self {
       source,
-      tokens: lexer.into_iter().collect::<LexerResult<Vec<_>>>()?,
+      tokens: lexer.into_iter().collect::<LexResult<Vec<_>>>()?,
       token_index: 0,
     })
   }
@@ -234,7 +234,7 @@ mod tests {
     ($src:literal) => {
       let source = include_str!(concat!("../../test_files/", $src, ".asm"));
       let lexer = Lexer::from_string(source);
-      let tokens = lexer.into_iter().collect::<LexerResult<Vec<_>>>();
+      let tokens = lexer.into_iter().collect::<LexResult<Vec<_>>>();
       let mut parser = Parser::new(source, tokens.unwrap());
       let program_node = parser.parse().unwrap();
 
