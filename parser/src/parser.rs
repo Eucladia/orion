@@ -162,7 +162,7 @@ impl<'a> Parser<'a> {
           // SAFETY: We have a valid `Identifier` token produced by the lexer and an immutable str
           let ident = unwrap!(self.get_source_content(token.span()));
 
-          operands.push(OperandNode::Identifier(SmolStr::new(ident.to_string())));
+          operands.push(OperandNode::Identifier(SmolStr::new(ident)));
           last_token_operand = true;
         }
         TokenKind::Comma => {

@@ -112,7 +112,7 @@ impl Environment {
     value
   }
 
-  /// Reads the next byte of memory, wrapping the PC if necessary.
+  /// Reads the next byte of memory, wrapping the program counter if necessary.
   pub fn read_memory(&mut self) -> u8 {
     self.registers.pc = self.registers.pc.wrapping_add(1);
 
@@ -428,6 +428,18 @@ impl Environment {
         self.assemble_instruction(addr, encode_mov(r1, r2));
       }
       _ => panic!(),
+    }
+  }
+}
+
+impl Default for Environment {
+  fn default() -> Self {
+    Self {
+      flags: Flags::NONE,
+      registers: Registers::default(),
+      label_indices: HashMap::new(),
+      labels: HashMap::new(),
+      memory: Box::new([0; Environment::MEMORY_SIZE as usize]),
     }
   }
 }

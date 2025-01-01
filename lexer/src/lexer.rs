@@ -156,7 +156,7 @@ fn eat_identifier(lexer: &mut Lexer) {
   {}
 }
 
-impl<'a> Iterator for Lexer<'a> {
+impl Iterator for Lexer<'_> {
   type Item = LexerResult<Token>;
 
   fn next(&mut self) -> Option<Self::Item> {

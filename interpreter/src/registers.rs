@@ -28,6 +28,10 @@ pub struct Registers {
 }
 
 impl Registers {
+  pub fn new() -> Self {
+    Self::default()
+  }
+
   /// Updates the program counter, wrapping around if necessary, and returns it.
   pub fn next_pc(&mut self) -> u16 {
     self.pc = self.pc.wrapping_add(1);
