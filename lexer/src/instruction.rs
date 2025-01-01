@@ -43,6 +43,7 @@ pub enum Instruction {
   ORI,
   XRA,
   XRI,
+  DAA,
   // Program flow
   JMP,
   JZ,
@@ -98,7 +99,7 @@ impl Instruction {
       | CPE | CPO => 1,
 
       CMA | CMC | RAL | RAR | RLC | RRC | RET | RZ | RNZ | RC | RNC | RP | RM | RPE | RPO | HLT
-      | NOP | XCHG | XTHL | SPHL | STC => 0,
+      | NOP | XCHG | XTHL | SPHL | STC | DAA => 0,
     }
   }
 
@@ -141,6 +142,7 @@ impl Instruction {
       string if string.eq_ignore_ascii_case("ori") => Some(Instruction::ORI),
       string if string.eq_ignore_ascii_case("xra") => Some(Instruction::XRA),
       string if string.eq_ignore_ascii_case("xri") => Some(Instruction::XRI),
+      string if string.eq_ignore_ascii_case("daa") => Some(Instruction::DAA),
       string if string.eq_ignore_ascii_case("jmp") => Some(Instruction::JMP),
       string if string.eq_ignore_ascii_case("jz") => Some(Instruction::JZ),
       string if string.eq_ignore_ascii_case("jnz") => Some(Instruction::JNZ),

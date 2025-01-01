@@ -281,6 +281,35 @@ pub fn execute_dad(env: &mut Environment, instruction_byte: u8) {
   env.registers.next_pc();
 }
 
+pub fn execute_daa(env: &mut Environment, instruction_byte: u8) {
+  env.registers.ir = instruction_byte;
+
+  let acc = env.registers.a;
+  let mut correction = 0;
+
+  if (acc & 0xF) > 9 || env.is_flag_set(Flags::AuxiliaryCarry) {
+    // Add 6 to the lower nibble
+    correction += 6;
+    env.set_flag(Flags::AuxiliaryCarry, true);
+  }
+
+  if (acc >> 4) > 9 || env.is_flag_set(Flags::Carry) {
+    // Add 6 to the upper nibble
+    correction += 6 << 4;
+    env.set_flag(Flags::Carry, true);
+  }
+
+  let res = acc.wrapping_add(correction);
+
+  env.registers.a = res;
+
+  env.set_flag(Flags::Zero, res == 0);
+  env.set_flag(Flags::Sign, res & 0x80 != 0);
+  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
+
+  env.registers.pc += 1;
+}
+
 pub fn execute_dcx(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 

@@ -155,6 +155,8 @@ impl Interpreter {
       b if b == 0x2F => instructions::execute_cma(&mut self.env, b),
       // CMC
       b if b == 0x3F => instructions::execute_cmc(&mut self.env, b),
+      // DAA
+      b if b == 0x27 => instructions::execute_daa(&mut self.env, b),
 
       // DATA TRANSFER INSTRUCTIONS
       // MOV r1, r2
