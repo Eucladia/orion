@@ -14,6 +14,7 @@ pub enum Instruction {
   LXI,
   XCHG,
   XTHL,
+  PCHL,
   SPHL,
   // Arithmetical and Logical
   ADD,
@@ -99,7 +100,7 @@ impl Instruction {
       | CPE | CPO => 1,
 
       CMA | CMC | RAL | RAR | RLC | RRC | RET | RZ | RNZ | RC | RNC | RP | RM | RPE | RPO | HLT
-      | NOP | XCHG | XTHL | SPHL | STC | DAA => 0,
+      | NOP | XCHG | XTHL | SPHL | PCHL | STC | DAA => 0,
     }
   }
 
@@ -115,6 +116,7 @@ impl Instruction {
       string if string.eq_ignore_ascii_case("xchg") => Some(Instruction::XCHG),
       string if string.eq_ignore_ascii_case("xthl") => Some(Instruction::XTHL),
       string if string.eq_ignore_ascii_case("sphl") => Some(Instruction::SPHL),
+      string if string.eq_ignore_ascii_case("pchl") => Some(Instruction::PCHL),
       string if string.eq_ignore_ascii_case("add") => Some(Instruction::ADD),
       string if string.eq_ignore_ascii_case("adc") => Some(Instruction::ADC),
       string if string.eq_ignore_ascii_case("adi") => Some(Instruction::ADI),

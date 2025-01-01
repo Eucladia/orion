@@ -193,3 +193,9 @@ pub fn execute_sphl(env: &mut Environment, instruction_byte: u8) {
 
   env.registers.next_pc();
 }
+
+pub fn execute_pchl(env: &mut Environment, instruction_byte: u8) {
+  env.registers.ir = instruction_byte;
+
+  env.registers.pc = ((env.registers.h as u16) << 8) | (env.registers.l as u16);
+}

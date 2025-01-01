@@ -185,6 +185,8 @@ impl Interpreter {
       b if b == 0xE3 => instructions::execute_xthl(&mut self.env, b),
       // SPHL
       b if b == 0xF9 => instructions::execute_sphl(&mut self.env, b),
+      // PCHL
+      b if b == 0xE9 => instructions::execute_pchl(&mut self.env, b),
 
       // LOGICAL INSTRUCTIONS
       // ORA

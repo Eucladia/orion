@@ -36,6 +36,7 @@ pub fn instruction_bytes_occupied(ins: &Instruction) -> u8 {
     Instruction::XCHG => 1,
     Instruction::XTHL => 1,
     Instruction::SPHL => 1,
+    Instruction::PCHL => 1,
     Instruction::STC => 1,
     Instruction::DAA => 1,
     // 1 operand instructions
