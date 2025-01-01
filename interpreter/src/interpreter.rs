@@ -301,7 +301,7 @@ mod tests {
       ) => {
         {
           let src = include_str!(concat!("../../test_files/", $src, ".asm"));
-          let mut int = Interpreter::new(Parser::from_source(src).parse().unwrap());
+          let mut int = Interpreter::new(Parser::from_source(src).unwrap().parse().unwrap());
 
           int.assemble().unwrap();
 

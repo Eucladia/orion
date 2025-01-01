@@ -4,6 +4,7 @@ use crate::unwrap;
 
 use lexer::instruction::Instruction;
 use lexer::token::{Token, TokenKind};
+use lexer::LexerResult;
 use lexer::{Lexer, Register};
 use smol_str::SmolStr;
 use std::num::IntErrorKind;
@@ -24,14 +25,14 @@ impl<'a> Parser<'a> {
     }
   }
 
-  pub fn from_source(source: &'a str) -> Self {
+  pub fn from_source(source: &'a str) -> LexerResult<Self> {
     let lexer = Lexer::from_string(source);
 
-    Self {
+    Ok(Self {
       source,
-      tokens: lexer.into_iter().collect::<Vec<_>>(),
+      tokens: lexer.into_iter().collect::<LexerResult<Vec<_>>>()?,
       token_index: 0,
-    }
+    })
   }
 
   /// Gets a [str] from the selected range.
@@ -241,8 +242,8 @@ mod tests {
     ($src:literal) => {
       let source = include_str!(concat!("../../test_files/", $src, ".asm"));
       let lexer = Lexer::from_string(source);
-      let tokens = lexer.into_iter().collect::<Vec<_>>();
-      let mut parser = Parser::new(source, tokens);
+      let tokens = lexer.into_iter().collect::<LexerResult<Vec<_>>>();
+      let mut parser = Parser::new(source, tokens.unwrap());
       let program_node = parser.parse().unwrap();
 
       assert!(!program_node.children().is_empty());

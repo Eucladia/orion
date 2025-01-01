@@ -1,5 +1,8 @@
-use crate::{create_token, instruction::Instruction, register::Register, token::Token};
+use crate::{
+  create_token, instruction::Instruction, register::Register, token::Token, LexerError, LexerResult,
+};
 
+// A lexer used to lex a source program into tokens.
 pub struct Lexer<'a> {
   curr: usize,
   bytes: &'a [u8],
@@ -30,7 +33,7 @@ impl<'a> Lexer<'a> {
     self.bytes.get(self.curr).copied()
   }
 
-  /// Advances the cursor
+  // Advances the cursor
   fn advance(&mut self) {
     if self.curr < self.bytes.len() {
       self.curr += 1;
@@ -44,7 +47,7 @@ impl<'a> Lexer<'a> {
   }
 
   // Lexes a [`Token`]
-  fn lex_token(&mut self) -> Option<Token> {
+  fn lex_token(&mut self) -> Option<LexerResult<Token>> {
     // SAFETY: `lex_token` isn't called directly and we check that the index is within bounds in
     // the `Iterator`` interface
     let byte = unsafe { self.current_byte().unwrap_unchecked() };
@@ -62,23 +65,27 @@ impl<'a> Lexer<'a> {
       ByteTokenType::WHITESPACE => {
         eat_whitespace(self);
 
-        Some(create_token!(Whitespace, start..self.curr))
+        Some(Ok(create_token!(Whitespace, start..self.curr)))
       }
       ByteTokenType::ALPHABETIC => {
         eat_identifier(self);
 
         let span = start..self.curr;
-        let identifier = self
+        let identifier = match self
           .bytes
           .get(span.clone())
-          .and_then(|bytes| std::str::from_utf8(bytes).ok())?;
+          .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        {
+          Some(x) => x,
+          None => return Some(Err(LexerError::InvalidUtf8(start))),
+        };
 
         if Instruction::is_opcode(identifier) {
-          Some(create_token!(Instruction, span))
+          Some(Ok(create_token!(Instruction, span)))
         } else if Register::is_register(identifier) {
-          Some(create_token!(Register, span))
+          Some(Ok(create_token!(Register, span)))
         } else {
-          Some(create_token!(Identifier, span))
+          Some(Ok(create_token!(Identifier, span)))
         }
       }
       ByteTokenType::NUMERIC => {
@@ -92,27 +99,27 @@ impl<'a> Lexer<'a> {
           self.advance();
         }
 
-        Some(create_token!(Literal, start..self.curr))
+        Some(Ok(create_token!(Literal, start..self.curr)))
       }
       ByteTokenType::COMMENT => {
         eat_comment(self);
 
-        Some(create_token!(Comment, start..self.curr))
+        Some(Ok(create_token!(Comment, start..self.curr)))
       }
       ByteTokenType::COMMA => {
         self.advance();
 
-        Some(create_token!(Comma, start..start + 1))
+        Some(Ok(create_token!(Comma, start..start + 1)))
       }
       ByteTokenType::LABEL => {
         self.advance();
 
-        Some(create_token!(Colon, start..start + 1))
+        Some(Ok(create_token!(Colon, start..start + 1)))
       }
       ByteTokenType::INVALID => {
         self.advance();
 
-        Some(create_token!(Unknown, start..start + 1))
+        Some(Ok(create_token!(Unknown, start..start + 1)))
       }
     }
   }
@@ -148,14 +155,14 @@ fn eat_identifier(lexer: &mut Lexer) {
 }
 
 impl<'a> Iterator for Lexer<'a> {
-  type Item = Token;
+  type Item = LexerResult<Token>;
 
-  fn next(&mut self) -> Option<Token> {
+  fn next(&mut self) -> Option<Self::Item> {
     if self.curr >= self.bytes.len() {
       if !self.is_eof {
         self.is_eof = true;
 
-        return Some(create_token!(EndOfFile, self.curr..self.curr));
+        return Some(Ok(create_token!(EndOfFile, self.curr..self.curr)));
       }
 
       return None;
@@ -259,13 +266,13 @@ mod tests {
       // Underscore is only a valid token if its preceded by an actual valid token
       get_tokens!("`~~~_+="),
       vec![
-        create_token!(Unknown, 0..1),
-        create_token!(Unknown, 1..2),
-        create_token!(Unknown, 2..3),
-        create_token!(Unknown, 3..4),
-        create_token!(Unknown, 4..5),
-        create_token!(Unknown, 5..6),
-        create_token!(Unknown, 6..7),
+        Ok(create_token!(Unknown, 0..1)),
+        Ok(create_token!(Unknown, 1..2)),
+        Ok(create_token!(Unknown, 2..3)),
+        Ok(create_token!(Unknown, 3..4)),
+        Ok(create_token!(Unknown, 4..5)),
+        Ok(create_token!(Unknown, 5..6)),
+        Ok(create_token!(Unknown, 6..7)),
       ]
     )
   }
@@ -277,8 +284,8 @@ mod tests {
     let tokens = get_tokens!(string);
     let mut new_string = String::with_capacity(string.len());
 
-    for token in tokens.iter() {
-      new_string.push_str(string.get(token.span()).unwrap());
+    for token in tokens.into_iter() {
+      new_string.push_str(string.get(token.unwrap().span()).unwrap());
     }
 
     assert_eq!(string, new_string);
