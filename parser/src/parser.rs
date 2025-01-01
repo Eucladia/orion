@@ -115,24 +115,8 @@ impl<'a> Parser<'a> {
     let mut last_token_operand = false;
 
     while operands.len() < num_operands {
-      let token = self.next_non_whitespace_token();
-
-      if token.is_none() {
-        return Err(ParseError {
-          location: self.source.len()..self.source.len(),
-          error_message: format!(
-            "expected `{}` operand(s) for the `{}` instruction",
-            num_operands, instruction
-          ),
-        });
-      }
-
-      // SAFETY: We check if it's `None` above
-      let token = unwrap!(token);
-
-      match token.kind() {
-        // TODO: separate function for these
-        TokenKind::Register => {
+      match self.next_non_whitespace_token() {
+        Some(token) if matches!(token.kind(), TokenKind::Register) => {
           // SAFETY: We have a valid `Register` token produced from the lexer and an immutable str
           let reg_str = unwrap!(self.get_source_content(token.span()));
           let reg = unwrap!(Register::from_string(reg_str));
@@ -140,7 +124,7 @@ impl<'a> Parser<'a> {
           operands.push(OperandNode::Register(reg));
           last_token_operand = true;
         }
-        TokenKind::Literal => {
+        Some(token) if matches!(token.kind(), TokenKind::Literal) => {
           // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
           let mut num_str = unwrap!(self.get_source_content(token.span()));
           // SAFETY: We're guaranteed at least one byte for `Literal`s.
@@ -158,14 +142,14 @@ impl<'a> Parser<'a> {
           operands.push(OperandNode::Literal(number));
           last_token_operand = true;
         }
-        TokenKind::Identifier => {
+        Some(token) if matches!(token.kind(), TokenKind::Identifier) => {
           // SAFETY: We have a valid `Identifier` token produced by the lexer and an immutable str
           let ident = unwrap!(self.get_source_content(token.span()));
 
           operands.push(OperandNode::Identifier(SmolStr::new(ident)));
           last_token_operand = true;
         }
-        TokenKind::Comma => {
+        Some(token) if matches!(token.kind(), TokenKind::Comma) => {
           if !last_token_operand {
             return Err(ParseError {
               location: token.span(),
@@ -175,11 +159,19 @@ impl<'a> Parser<'a> {
 
           last_token_operand = false;
         }
-
-        _ => {
+        Some(token) => {
           return Err(ParseError {
             location: token.span(),
             error_message: format!("expected an operand, but found `{}`", token.kind()),
+          });
+        }
+        None => {
+          return Err(ParseError {
+            location: self.source.len()..self.source.len(),
+            error_message: format!(
+              "expected `{}` operand(s) for the `{}` instruction",
+              num_operands, instruction
+            ),
           });
         }
       }
