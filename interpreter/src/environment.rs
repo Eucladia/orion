@@ -10,12 +10,11 @@ use std::ops::Range;
 pub struct Environment {
   pub flags: u8,
   pub registers: Registers,
-  // Label -> address &&  index -> label
+  // Maps a program counter to a label
   pub label_indices: HashMap<u16, SmolStr>,
+  // Maps a label to its address in the program
   pub labels: HashMap<SmolStr, u16>,
   pub memory: Box<[u8; Environment::MEMORY_SIZE as usize]>,
-  // Stores the previous addresses to go to.
-  call_stack: Vec<u16>,
 }
 
 impl Environment {
@@ -29,7 +28,6 @@ impl Environment {
       label_indices: HashMap::new(),
       labels: HashMap::new(),
       memory: Box::new([0; Self::MEMORY_SIZE as usize]),
-      call_stack: Vec::new(),
     }
   }
 
@@ -66,18 +64,23 @@ impl Environment {
     }
   }
 
-  pub fn add_to_call_stack(&mut self, previous_address: u16) {
-    self.call_stack.push(previous_address);
+  /// Writes an address onto the stack.
+  pub fn write_stack_address(&mut self, address: u16) {
+    // 8085 stores stuff in little endian, so the high byte should be stored first on the stack
+    self.set_memory_at(self.registers.sp.wrapping_sub(1), (address >> 8) as u8);
+    self.set_memory_at(self.registers.sp.wrapping_sub(2), (address & 0xFF) as u8);
 
-    self.registers.sp = self.registers.sp.wrapping_sub(1);
+    self.registers.sp = self.registers.sp.wrapping_sub(2);
   }
 
-  pub fn return_from_call(&mut self) -> Option<u16> {
-    let e = self.call_stack.pop();
+  /// Reads an address from the stack.
+  pub fn read_stack_address(&mut self) -> u16 {
+    let lower = self.memory_at(self.registers.sp).unwrap();
+    let upper = self.memory_at(self.registers.sp.wrapping_add(1)).unwrap();
 
-    self.registers.sp = self.registers.sp.wrapping_add(1);
+    self.registers.sp = self.registers.sp.wrapping_add(2);
 
-    e
+    (upper as u16) << 8 | lower as u16
   }
 
   /// Encodes an [InstructionNode] into the specified `address` in memory, or the current internal address.

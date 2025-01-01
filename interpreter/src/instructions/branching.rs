@@ -29,7 +29,7 @@ pub fn execute_rnz(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   if !env.is_flag_set(Flags::Zero) {
-    let go_to = env.return_from_call().unwrap();
+    let go_to = env.read_stack_address();
 
     env.registers.pc = go_to;
   } else {
@@ -41,7 +41,7 @@ pub fn execute_rnc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   if !env.is_flag_set(Flags::Carry) {
-    let go_to = env.return_from_call().unwrap();
+    let go_to = env.read_stack_address();
 
     env.registers.pc = go_to;
   } else {
@@ -53,7 +53,7 @@ pub fn execute_rpo(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   if !env.is_flag_set(Flags::Parity) {
-    let go_to = env.return_from_call().unwrap();
+    let go_to = env.read_stack_address();
 
     env.registers.pc = go_to;
   } else {
@@ -65,7 +65,7 @@ pub fn execute_rp(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   if !env.is_flag_set(Flags::Sign) {
-    let go_to = env.return_from_call().unwrap();
+    let go_to = env.read_stack_address();
 
     env.registers.pc = go_to;
   } else {
@@ -77,7 +77,7 @@ pub fn execute_rz(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   if env.is_flag_set(Flags::Zero) {
-    let go_to = env.return_from_call().unwrap();
+    let go_to = env.read_stack_address();
 
     env.registers.pc = go_to;
   } else {
@@ -89,7 +89,7 @@ pub fn execute_rc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   if env.is_flag_set(Flags::Carry) {
-    let go_to = env.return_from_call().unwrap();
+    let go_to = env.read_stack_address();
 
     env.registers.pc = go_to;
   } else {
@@ -101,7 +101,7 @@ pub fn execute_rpe(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   if env.is_flag_set(Flags::Parity) {
-    let go_to = env.return_from_call().unwrap();
+    let go_to = env.read_stack_address();
 
     env.registers.pc = go_to;
   } else {
@@ -113,7 +113,7 @@ pub fn execute_rm(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   if env.is_flag_set(Flags::Sign) {
-    let go_to = env.return_from_call().unwrap();
+    let go_to = env.read_stack_address();
 
     env.registers.pc = go_to;
   } else {
@@ -124,7 +124,7 @@ pub fn execute_rm(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_ret(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let go_to = env.return_from_call().unwrap();
+  let go_to = env.read_stack_address();
 
   env.registers.pc = go_to;
 }
@@ -137,7 +137,7 @@ pub fn execute_call(env: &mut Environment, instruction_byte: u8) {
   let jump_to = (label_upper as u16) << 8 | label_lower as u16;
   let ret_to = env.registers.next_pc();
 
-  env.add_to_call_stack(ret_to);
+  env.write_stack_address(ret_to);
   env.registers.pc = jump_to;
 }
 
@@ -151,7 +151,7 @@ pub fn execute_cm(env: &mut Environment, instruction_byte: u8) {
   if env.is_flag_set(Flags::Sign) {
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.add_to_call_stack(ret_to);
+    env.write_stack_address(ret_to);
     env.registers.pc = jump_to;
   }
 }
@@ -166,7 +166,7 @@ pub fn execute_cpe(env: &mut Environment, instruction_byte: u8) {
   if env.is_flag_set(Flags::Parity) {
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.add_to_call_stack(ret_to);
+    env.write_stack_address(ret_to);
     env.registers.pc = jump_to;
   }
 }
@@ -181,7 +181,7 @@ pub fn execute_cc(env: &mut Environment, instruction_byte: u8) {
   if env.is_flag_set(Flags::Carry) {
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.add_to_call_stack(ret_to);
+    env.write_stack_address(ret_to);
     env.registers.pc = jump_to;
   }
 }
@@ -196,7 +196,7 @@ pub fn execute_cz(env: &mut Environment, instruction_byte: u8) {
   if env.is_flag_set(Flags::Zero) {
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.add_to_call_stack(ret_to);
+    env.write_stack_address(ret_to);
     env.registers.pc = jump_to;
   }
 }
@@ -211,7 +211,7 @@ pub fn execute_cp(env: &mut Environment, instruction_byte: u8) {
   if !env.is_flag_set(Flags::Sign) {
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.add_to_call_stack(ret_to);
+    env.write_stack_address(ret_to);
     env.registers.pc = jump_to;
   }
 }
@@ -226,7 +226,7 @@ pub fn execute_cpo(env: &mut Environment, instruction_byte: u8) {
   if !env.is_flag_set(Flags::Parity) {
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.add_to_call_stack(ret_to);
+    env.write_stack_address(ret_to);
     env.registers.pc = jump_to;
   }
 }
@@ -241,7 +241,7 @@ pub fn execute_cnc(env: &mut Environment, instruction_byte: u8) {
   if !env.is_flag_set(Flags::Carry) {
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.add_to_call_stack(ret_to);
+    env.write_stack_address(ret_to);
     env.registers.pc = jump_to;
   }
 }
@@ -256,7 +256,7 @@ pub fn execute_cnz(env: &mut Environment, instruction_byte: u8) {
   if !env.is_flag_set(Flags::Zero) {
     let jump_to = (label_upper as u16) << 8 | label_lower as u16;
 
-    env.add_to_call_stack(ret_to);
+    env.write_stack_address(ret_to);
     env.registers.pc = jump_to;
   }
 }

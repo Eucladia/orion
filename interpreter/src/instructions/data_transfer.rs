@@ -54,7 +54,7 @@ pub fn execute_lxi(env: &mut Environment, byte: u8) {
   let lower = env.read_memory();
   let upper = env.read_memory();
 
-  env.registers.dr = ((lower as u16) << 8) | upper as u16;
+  env.registers.dr = ((upper as u16) << 8) | lower as u16;
 
   match byte {
     // Register pair B-C
