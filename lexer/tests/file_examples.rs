@@ -162,6 +162,7 @@ fn pos_or_neg() {
   #[rustfmt::skip]
   tokens_equal!(
     "pos_or_neg",
+    Comment, Whitespace,
     Instruction, Whitespace, Literal, Whitespace,
     Instruction, Whitespace,
     Instruction, Whitespace, Identifier, Whitespace,

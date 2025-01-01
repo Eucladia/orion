@@ -1,4 +1,4 @@
 MVI A, 133
 CMA
-STA 0
+STA 80
 HLT

@@ -2,11 +2,11 @@ LXI H, 48
 MOV A, M
 MVI C, 0
 MVI B, 8
-YY:
+YY
 RAR
 JC XX
 INR C
-XX:
+XX
 DCR B
 JNZ YY
 MOV A, C

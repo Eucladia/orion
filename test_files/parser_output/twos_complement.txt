@@ -1,5 +1,5 @@
 MVI A, 101
 CMA
 INR A
-STA 0
+STA 80
 HLT

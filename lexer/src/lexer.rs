@@ -148,10 +148,12 @@ fn eat_whitespace(lexer: &mut Lexer) {
 
 // Eats any kind of identifier
 fn eat_identifier(lexer: &mut Lexer) {
-  // The first character must be a letter, but the rest can be a number, `$`, or` `_`
-  while lexer.next_byte().map_or(false, |b| {
-    b.is_ascii_alphanumeric() || b == b'$' || b == b'_'
-  }) {}
+  // A label's first character must be alphabetic (including `?` and `@`),
+  // but the rest can be alphanumeric or `?`
+  while lexer
+    .next_byte()
+    .map_or(false, |b| b.is_ascii_alphanumeric() || b == b'?')
+  {}
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -210,6 +212,9 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
   }
 
   // Alphabet
+  default[b'?' as usize] = ByteTokenType::ALPHABETIC;
+  default[b'@' as usize] = ByteTokenType::ALPHABETIC;
+
   i = b'a';
 
   while i <= b'z' {

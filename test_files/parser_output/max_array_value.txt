@@ -4,6 +4,6 @@ INX H
 CMP M
 JNC XX
 MOV A, M
-XX:
+XX
 STA 96
 HLT
