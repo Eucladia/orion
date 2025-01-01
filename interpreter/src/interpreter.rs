@@ -65,7 +65,7 @@ impl Interpreter {
     }
 
     for n in 0..30 {
-      eprintln!("0x{:X}: 0x{:X}", n, self.env.memory_at(n).unwrap());
+      eprintln!("0x{:X}: 0x{:X}", n, self.env.memory_at(n));
     }
 
     // TODO: Change this to an error
@@ -91,7 +91,7 @@ impl Interpreter {
       return None;
     }
 
-    Some(self.env.memory_at(self.env.registers.pc)?)
+    Some(self.env.memory_at(self.env.registers.pc))
   }
 
   /// Execute's the next instruction in memory.
@@ -306,13 +306,13 @@ mod tests {
           int.assemble().unwrap();
 
           $(
-            int.env.set_memory_at($write_addr, $write_value);
+            int.env.write_memory($write_addr, $write_value);
           )*
 
           while int.execute().is_some() {}
 
           $(
-            assert_eq!(int.env.memory_at($expect_addr), Some($expect_value));
+            assert_eq!(int.env.memory_at($expect_addr), $expect_value);
           )*
 
           int

@@ -6,38 +6,27 @@ pub fn execute_push(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   if instruction_byte == 0xC5 {
-    env.registers.dr = (env.registers.c as u16) << 8 | env.registers.b as u16;
-
-    env.set_memory_at(env.registers.sp.wrapping_sub(1), env.registers.b);
-    env.set_memory_at(env.registers.sp.wrapping_sub(2), env.registers.c);
+    env.write_stack_u8(env.registers.b);
+    env.write_stack_u8(env.registers.c);
   } else if instruction_byte == 0xD5 {
-    env.registers.dr = (env.registers.e as u16) << 8 | env.registers.d as u16;
-
-    env.set_memory_at(env.registers.sp.wrapping_sub(1), env.registers.d);
-    env.set_memory_at(env.registers.sp.wrapping_sub(2), env.registers.e);
+    env.write_stack_u8(env.registers.d);
+    env.write_stack_u8(env.registers.e);
   } else if instruction_byte == 0xE5 {
-    env.registers.dr = (env.registers.l as u16) << 8 | env.registers.h as u16;
-
-    env.set_memory_at(env.registers.sp.wrapping_sub(1), env.registers.h);
-    env.set_memory_at(env.registers.sp.wrapping_sub(2), env.registers.l);
+    env.write_stack_u8(env.registers.h);
+    env.write_stack_u8(env.registers.l);
   } else if instruction_byte == 0xF5 {
-    env.registers.dr = (env.flags as u16) << 8 | env.registers.a as u16;
-
-    env.set_memory_at(env.registers.sp.wrapping_sub(1), env.registers.a);
-    env.set_memory_at(env.registers.sp.wrapping_sub(2), env.flags);
+    env.write_stack_u8(env.registers.a);
+    env.write_stack_u8(env.flags);
   }
 
-  env.registers.sp = env.registers.sp.wrapping_sub(2);
   env.registers.next_pc();
 }
 
 pub fn execute_pop(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let lower = env.memory_at(env.registers.sp).unwrap();
-  let upper = env.memory_at(env.registers.sp.wrapping_add(1)).unwrap();
-
-  env.registers.dr = (lower as u16) << 8 | upper as u16;
+  let lower = env.read_stack_u8();
+  let upper = env.read_stack_u8();
 
   if instruction_byte == 0xC1 {
     env.registers.b = upper;
@@ -53,7 +42,6 @@ pub fn execute_pop(env: &mut Environment, instruction_byte: u8) {
     env.flags = lower;
   }
 
-  env.registers.sp = env.registers.sp.wrapping_add(2);
   env.registers.next_pc();
 }
 
@@ -62,7 +50,7 @@ pub fn execute_stc(env: &mut Environment, instruction_byte: u8) {
 
   env.set_flag(Flags::Carry, true);
 
-  env.registers.pc = env.registers.pc.wrapping_add(1);
+  env.registers.next_pc();
 }
 
 pub fn execute_rst(env: &mut Environment, instruction_byte: u8) {
@@ -73,12 +61,8 @@ pub fn execute_rst(env: &mut Environment, instruction_byte: u8) {
   let target_address = (rst_number as u16) * 8;
 
   // Push the next instruction onto the stack
-  let pc = env.registers.pc.wrapping_add(1);
+  env.write_stack_address(env.registers.pc.wrapping_add(1));
 
-  env.set_memory_at(env.registers.sp.wrapping_sub(1), (pc >> 8) as u8);
-  env.set_memory_at(env.registers.sp.wrapping_sub(2), (pc & 0xFF) as u8);
-
-  env.registers.sp = env.registers.sp.wrapping_sub(2);
   env.registers.pc = target_address;
 }
 

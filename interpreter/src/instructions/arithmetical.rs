@@ -129,10 +129,10 @@ pub fn execute_inr(env: &mut Environment, instruction_byte: u8) {
     env.update_flags_arithmetic(old_value, env.registers.h, true);
   } else if instruction_byte == 0x34 {
     let address = (env.registers.h as u16) << 8 | env.registers.l as u16;
-    let value = env.memory_at(address).unwrap();
+    let value = env.memory_at(address);
     let new_value = value.wrapping_add(1);
 
-    env.set_memory_at(address, new_value);
+    env.write_memory(address, new_value);
     env.update_flags_arithmetic(value, new_value, true);
   } else if instruction_byte == 0x0C {
     let old_value = env.registers.c;
@@ -211,10 +211,10 @@ pub fn execute_dcr(env: &mut Environment, instruction_byte: u8) {
     env.update_flags_arithmetic(old_value, env.registers.h, false);
   } else if instruction_byte == 0x35 {
     let address = (env.registers.h as u16) << 8 | env.registers.l as u16;
-    let value = env.memory_at(address).unwrap();
+    let value = env.memory_at(address);
     let new_value = value.wrapping_sub(1);
 
-    env.set_memory_at(address, new_value);
+    env.write_memory(address, new_value);
     env.update_flags_arithmetic(value, new_value, false);
   } else if instruction_byte == 0x0D {
     let old_value = env.registers.c;

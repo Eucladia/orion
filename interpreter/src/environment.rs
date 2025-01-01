@@ -4,7 +4,6 @@ use parser::nodes::{InstructionNode, OperandNode};
 use smol_str::SmolStr;
 
 use std::collections::HashMap;
-use std::ops::Range;
 
 #[derive(Debug)]
 pub struct Environment {
@@ -18,7 +17,9 @@ pub struct Environment {
 }
 
 impl Environment {
+  /// The default starting address of where instructions get encoded.
   pub const INSTRUCTION_STARTING_ADDRESS: u16 = 0x0000;
+  /// The amount of memory available.
   pub const MEMORY_SIZE: u16 = u16::MAX;
 
   pub fn new() -> Self {
@@ -64,23 +65,103 @@ impl Environment {
     }
   }
 
-  /// Writes an address onto the stack.
+  /// Writes an address onto the stack, in little endian order.
   pub fn write_stack_address(&mut self, address: u16) {
     // 8085 stores stuff in little endian, so the high byte should be stored first on the stack
-    self.set_memory_at(self.registers.sp.wrapping_sub(1), (address >> 8) as u8);
-    self.set_memory_at(self.registers.sp.wrapping_sub(2), (address & 0xFF) as u8);
+    self.write_stack_u8((address >> 8) as u8);
+    self.write_stack_u8((address & 0xFF) as u8);
+  }
 
-    self.registers.sp = self.registers.sp.wrapping_sub(2);
+  /// Writes the provided byte onto the stack.
+  pub fn write_stack_u8(&mut self, value: u8) {
+    self.registers.sp = self.registers.sp.wrapping_sub(1);
+
+    self.write_memory(self.registers.sp, value);
+  }
+
+  pub fn write_memory(&mut self, address: u16, value: u8) {
+    *self.memory.get_mut(address as usize).unwrap() = value;
   }
 
   /// Reads an address from the stack.
   pub fn read_stack_address(&mut self) -> u16 {
-    let lower = self.memory_at(self.registers.sp).unwrap();
-    let upper = self.memory_at(self.registers.sp.wrapping_add(1)).unwrap();
-
-    self.registers.sp = self.registers.sp.wrapping_add(2);
+    let lower = self.read_stack_u8();
+    let upper = self.read_stack_u8();
 
     (upper as u16) << 8 | lower as u16
+  }
+
+  /// Reads a byte from the stack.
+  pub fn read_stack_u8(&mut self) -> u8 {
+    let value = self.memory_at(self.registers.sp);
+
+    self.registers.sp = self.registers.sp.wrapping_add(1);
+
+    value
+  }
+
+  /// Reads the next byte of memory, wrapping the PC if necessary.
+  pub fn read_memory(&mut self) -> u8 {
+    self.registers.pc = self.registers.pc.wrapping_add(1);
+
+    self
+      .memory
+      .get(self.registers.pc as usize)
+      .copied()
+      .unwrap()
+  }
+
+  /// Reads the byte of memory located at the address.
+  pub fn memory_at(&self, address: u16) -> u8 {
+    self.memory.get(address as usize).copied().unwrap()
+  }
+
+  /// Reads a u16 from memory in little endian, wrapping the PC if necessary.
+  pub fn read_memory_u16(&mut self) -> u16 {
+    let lower = self.read_memory();
+    let upper = self.read_memory();
+
+    (upper as u16) << 8 | lower as u16
+  }
+
+  /// Gets the start of a label from its name
+  pub fn get_label_address(&self, label_name: &SmolStr) -> Option<u16> {
+    self.labels.get(label_name).copied()
+  }
+
+  pub fn add_label(&mut self, label: SmolStr, addr: u16) {
+    self.labels.insert(label, addr);
+  }
+
+  /// Sets the memory to the specified value.
+  ///
+  /// Returns [None] if the address was out of bounds.
+  pub fn assemble_instruction(&mut self, addr: u16, value: u8) -> Option<()> {
+    *self.memory.get_mut(addr as usize)? = value;
+
+    Some(())
+  }
+
+  /// Assmebles the value into memory at the specified address.
+  ///
+  /// SAFETY: The caller needs to make sure that addr is within [u16::MAX].
+  pub fn assemble_instruction_unchecked(&mut self, addr: u16, value: u8) {
+    // SAFETY: We can verify that the instruction addreses are correct at compile time.
+    unsafe {
+      *self.memory.get_unchecked_mut(addr as usize) = value;
+    }
+  }
+
+  /// Resets the flags, registers, and memory.
+  ///
+  /// The `starting_memory_index` is used to choose where to start clearing the memory from
+  pub fn reset(&mut self, starting_memory_index: u16) {
+    self.flags = Flags::NONE;
+    self.registers = Registers::default();
+    // Reuse the underlying allocation
+    self.labels.clear();
+    self.label_indices.clear();
+    self.memory[starting_memory_index as usize..].fill(0);
   }
 
   /// Encodes an [InstructionNode] into the specified `address` in memory, or the current internal address.
@@ -391,69 +472,6 @@ impl Environment {
       }
       _ => panic!(),
     }
-  }
-
-  /// Wrappingly reads the next byte of memory.
-  pub fn read_memory(&mut self) -> u8 {
-    self.registers.pc = self.registers.pc.wrapping_add(1);
-
-    self
-      .memory
-      .get(self.registers.pc as usize)
-      .copied()
-      .unwrap()
-  }
-
-  pub fn memory_slice_at(&self, range: Range<u16>) -> Option<&[u8]> {
-    self.memory.get(range.start as usize..range.end as usize)
-  }
-
-  pub fn memory_at(&self, address: u16) -> Option<u8> {
-    self.memory.get(address as usize).copied()
-  }
-
-  pub fn set_memory_at(&mut self, address: u16, value: u8) {
-    *self.memory.get_mut(address as usize).unwrap() = value;
-  }
-
-  /// Gets the start of a label from its name
-  pub fn get_label_address(&self, label_name: &SmolStr) -> Option<u16> {
-    self.labels.get(label_name).copied()
-  }
-
-  pub fn add_label(&mut self, label: SmolStr, addr: u16) {
-    self.labels.insert(label, addr);
-  }
-
-  /// Sets the memory to the specified value.
-  ///
-  /// Returns [None] if the address was out of bounds.
-  pub fn assemble_instruction(&mut self, addr: u16, value: u8) -> Option<()> {
-    *self.memory.get_mut(addr as usize)? = value;
-
-    Some(())
-  }
-
-  /// Assmebles the value into memory at the specified address.
-  ///
-  /// SAFETY: The caller needs to make sure that addr is within [u16::MAX].
-  pub fn assemble_instruction_unchecked(&mut self, addr: u16, value: u8) {
-    // SAFETY: We can verify that the instruction addreses are correct at compile time.
-    unsafe {
-      *self.memory.get_unchecked_mut(addr as usize) = value;
-    }
-  }
-
-  /// Resets the flags, registers, and memory.
-  ///
-  /// The `starting_memory_index` is used to choose where to start clearing the memory from
-  pub fn reset(&mut self, starting_memory_index: u16) {
-    self.flags = Flags::NONE;
-    self.registers = Registers::default();
-    // Reuse the underlying allocation
-    self.labels.clear();
-    self.label_indices.clear();
-    self.memory[starting_memory_index as usize..].fill(0);
   }
 }
 

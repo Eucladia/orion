@@ -25,8 +25,6 @@ pub struct Registers {
 
   /// Instruction register.
   pub ir: u8,
-  /// Data register that contains operands for the instruction register.
-  pub dr: u16,
 }
 
 impl Registers {
@@ -48,10 +46,8 @@ pub fn set_register_value(env: &mut Environment, dest_reg: Register, value: u8) 
     Register::H => env.registers.h = value,
     Register::L => env.registers.l = value,
 
-    Register::M => env.set_memory_at(
-      env
-        .memory_at((env.registers.h as u16) << 8 | env.registers.l as u16)
-        .unwrap() as u16,
+    Register::M => env.write_memory(
+      env.memory_at((env.registers.h as u16) << 8 | env.registers.l as u16) as u16,
       value,
     ),
     _ => unreachable!(),
@@ -67,7 +63,7 @@ pub fn get_register_value(env: &Environment, reg: Register) -> Option<u8> {
     Register::E => env.registers.e,
     Register::H => env.registers.h,
     Register::L => env.registers.l,
-    Register::M => env.memory_at((env.registers.h as u16) << 8 | env.registers.l as u16)?,
+    Register::M => env.memory_at((env.registers.h as u16) << 8 | env.registers.l as u16),
     _ => unreachable!(),
   })
 }
@@ -89,6 +85,7 @@ pub const fn decode_register(byte: u8) -> Register {
 impl Default for Registers {
   fn default() -> Self {
     Self {
+      // General purpose registers
       a: 0,
       b: 0,
       c: 0,
@@ -97,11 +94,12 @@ impl Default for Registers {
       h: 0,
       l: 0,
 
+      // Program counter
       pc: 0,
+      // Stack pointer
       sp: u16::MAX,
-
+      // Instruction register
       ir: 0,
-      dr: 0,
     }
   }
 }

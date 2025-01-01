@@ -20,7 +20,6 @@ pub fn execute_mov(env: &mut Environment, instruction_byte: u8) {
 
   registers::set_register_value(env, dest, reg_value);
 
-  env.registers.dr = reg_value as u16;
   env.registers.pc = env.registers.pc.wrapping_add(1);
 }
 
@@ -44,7 +43,6 @@ pub fn execute_mvi(env: &mut Environment, b: u8) {
 
   registers::set_register_value(env, dest, value);
 
-  env.registers.dr = (value as u16) << 8;
   env.registers.next_pc();
 }
 
@@ -53,8 +51,6 @@ pub fn execute_lxi(env: &mut Environment, byte: u8) {
 
   let lower = env.read_memory();
   let upper = env.read_memory();
-
-  env.registers.dr = ((upper as u16) << 8) | lower as u16;
 
   match byte {
     // Register pair B-C
@@ -88,11 +84,11 @@ pub fn execute_ldax(env: &mut Environment, instruction_byte: u8) {
   if instruction_byte == 0x0A {
     let address = (env.registers.b as u16) << 8 | env.registers.c as u16;
 
-    env.registers.a = env.memory_at(address).unwrap();
+    env.registers.a = env.memory_at(address);
   } else if instruction_byte == 0x1A {
     let address = (env.registers.d as u16) << 8 | env.registers.e as u16;
 
-    env.registers.a = env.memory_at(address).unwrap();
+    env.registers.a = env.memory_at(address);
   }
 
   env.registers.next_pc();
@@ -101,12 +97,10 @@ pub fn execute_ldax(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_lda(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let lower = env.read_memory();
-  let upper = env.read_memory();
-  let value = env.memory_at((upper as u16) << 8 | lower as u16).unwrap();
+  let addr = env.read_memory_u16();
+  let value = env.memory_at(addr);
 
   env.registers.a = value;
-  env.registers.dr = (lower as u16) << 8 | upper as u16;
   env.registers.next_pc();
 }
 
@@ -116,11 +110,11 @@ pub fn execute_stax(env: &mut Environment, instruction_byte: u8) {
   if instruction_byte == 0x02 {
     let address = (env.registers.b as u16) << 8 | env.registers.c as u16;
 
-    env.set_memory_at(address, env.registers.a);
+    env.write_memory(address, env.registers.a);
   } else if instruction_byte == 0x12 {
     let address = (env.registers.d as u16) << 8 | env.registers.e as u16;
 
-    env.set_memory_at(address, env.registers.a);
+    env.write_memory(address, env.registers.a);
   }
 
   env.registers.next_pc();
@@ -129,26 +123,21 @@ pub fn execute_stax(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_sta(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let lower = env.read_memory();
-  let upper = env.read_memory();
-  let address = (upper as u16) << 8 | lower as u16;
+  let addr = env.read_memory_u16();
 
-  env.set_memory_at(address, env.registers.a);
+  env.write_memory(addr, env.registers.a);
 
-  env.registers.dr = (lower as u16) << 8 | (upper as u16);
   env.registers.next_pc();
 }
 
 pub fn execute_shld(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let lower = env.read_memory();
-  let upper = env.read_memory();
-  let address = (upper as u16) << 8 | lower as u16;
+  let addr = env.read_memory_u16();
 
   // SHLD sets in inverse order
-  env.set_memory_at(address, env.registers.l);
-  env.set_memory_at(address + 1, env.registers.h);
+  env.write_memory(addr, env.registers.l);
+  env.write_memory(addr + 1, env.registers.h);
 
   env.registers.next_pc();
 }
@@ -174,12 +163,9 @@ pub fn execute_xchg(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_xthl(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
+  std::mem::swap(&mut env.memory_at(env.registers.sp), &mut env.registers.l);
   std::mem::swap(
-    &mut env.memory_at(env.registers.sp).unwrap(),
-    &mut env.registers.l,
-  );
-  std::mem::swap(
-    &mut env.memory_at(env.registers.sp.wrapping_add(1)).unwrap(),
+    &mut env.memory_at(env.registers.sp.wrapping_add(1)),
     &mut env.registers.h,
   );
 
