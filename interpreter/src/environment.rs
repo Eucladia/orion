@@ -128,7 +128,7 @@ impl Environment {
     self.memory.get(address as usize).copied().unwrap()
   }
 
-  /// Reads a u16 from memory in little endian, wrapping the PC if necessary.
+  /// Reads a u16 from memory in little endian, wrapping the program counter if necessary.
   pub fn read_memory_u16(&mut self) -> u16 {
     let lower = self.read_memory();
     let upper = self.read_memory();
@@ -145,23 +145,16 @@ impl Environment {
     self.labels.insert(label, addr);
   }
 
-  /// Sets the memory to the specified value.
-  ///
-  /// Returns [None] if the address was out of bounds.
-  pub fn assemble_instruction(&mut self, addr: u16, value: u8) -> Option<()> {
-    *self.memory.get_mut(addr as usize)? = value;
-
-    Some(())
+  /// Assembles the following instruction into the specified memory address.
+  pub fn assemble_instruction(&mut self, address: u16, instruction: u8) {
+    *self.memory.get_mut(address as usize).unwrap() = instruction;
   }
 
-  /// Assmebles the value into memory at the specified address.
-  ///
-  /// SAFETY: The caller needs to make sure that addr is within [u16::MAX].
-  pub fn assemble_instruction_unchecked(&mut self, addr: u16, value: u8) {
-    // SAFETY: We can verify that the instruction addreses are correct at compile time.
-    unsafe {
-      *self.memory.get_unchecked_mut(addr as usize) = value;
-    }
+  /// Assembles the 16-bit data into memory, in little endian order.
+  pub fn assemble_u16(&mut self, address: u16, data: u16) {
+    // Intel 8085 uses little endian, so store the low byte first
+    self.assemble_instruction(address, (data & 0xFF) as u8);
+    self.assemble_instruction(address + 1, (data >> 8) as u8);
   }
 
   /// Resets the flags, registers, and memory.
@@ -189,298 +182,250 @@ impl Environment {
 
     match (instruction_node.instruction(), instruction_node.operands()) {
       // No operands
-      (NOP, &[]) => self.assemble_instruction_unchecked(addr, 0x0),
-      (RAL, &[]) => self.assemble_instruction_unchecked(addr, 0x17),
-      (RLC, &[]) => self.assemble_instruction_unchecked(addr, 0x07),
-      (RRC, &[]) => self.assemble_instruction_unchecked(addr, 0x0F),
-      (RAR, &[]) => self.assemble_instruction_unchecked(addr, 0x1F),
-      (CMA, &[]) => self.assemble_instruction_unchecked(addr, 0x2F),
-      (CMC, &[]) => self.assemble_instruction_unchecked(addr, 0x3F),
-      (HLT, &[]) => self.assemble_instruction_unchecked(addr, 0x76),
-      (RNZ, &[]) => self.assemble_instruction_unchecked(addr, 0xC0),
-      (RNC, &[]) => self.assemble_instruction_unchecked(addr, 0xD0),
-      (RPO, &[]) => self.assemble_instruction_unchecked(addr, 0xE0),
-      (RP, &[]) => self.assemble_instruction_unchecked(addr, 0xF0),
-      (RZ, &[]) => self.assemble_instruction_unchecked(addr, 0xC8),
-      (RC, &[]) => self.assemble_instruction_unchecked(addr, 0xD8),
-      (RPE, &[]) => self.assemble_instruction_unchecked(addr, 0xE8),
-      (RM, &[]) => self.assemble_instruction_unchecked(addr, 0xF8),
-      (RET, &[]) => self.assemble_instruction_unchecked(addr, 0xC9),
-      (SPHL, &[]) => self.assemble_instruction_unchecked(addr, 0xF9),
-      (PCHL, &[]) => self.assemble_instruction_unchecked(addr, 0xE9),
-      (XCHG, &[]) => self.assemble_instruction_unchecked(addr, 0xEB),
-      (XTHL, &[]) => self.assemble_instruction_unchecked(addr, 0xE3),
-      (STC, &[]) => self.assemble_instruction_unchecked(addr, 0x37),
+      (NOP, &[]) => self.assemble_instruction(addr, 0x0),
+      (RAL, &[]) => self.assemble_instruction(addr, 0x17),
+      (RLC, &[]) => self.assemble_instruction(addr, 0x07),
+      (RRC, &[]) => self.assemble_instruction(addr, 0x0F),
+      (RAR, &[]) => self.assemble_instruction(addr, 0x1F),
+      (CMA, &[]) => self.assemble_instruction(addr, 0x2F),
+      (CMC, &[]) => self.assemble_instruction(addr, 0x3F),
+      (HLT, &[]) => self.assemble_instruction(addr, 0x76),
+      (RNZ, &[]) => self.assemble_instruction(addr, 0xC0),
+      (RNC, &[]) => self.assemble_instruction(addr, 0xD0),
+      (RPO, &[]) => self.assemble_instruction(addr, 0xE0),
+      (RP, &[]) => self.assemble_instruction(addr, 0xF0),
+      (RZ, &[]) => self.assemble_instruction(addr, 0xC8),
+      (RC, &[]) => self.assemble_instruction(addr, 0xD8),
+      (RPE, &[]) => self.assemble_instruction(addr, 0xE8),
+      (RM, &[]) => self.assemble_instruction(addr, 0xF8),
+      (RET, &[]) => self.assemble_instruction(addr, 0xC9),
+      (SPHL, &[]) => self.assemble_instruction(addr, 0xF9),
+      (PCHL, &[]) => self.assemble_instruction(addr, 0xE9),
+      (XCHG, &[]) => self.assemble_instruction(addr, 0xEB),
+      (XTHL, &[]) => self.assemble_instruction(addr, 0xE3),
+      (STC, &[]) => self.assemble_instruction(addr, 0x37),
 
       // 1 operand
       (ACI, &[OperandNode::Literal(data)]) => {
-        self.assemble_instruction_unchecked(addr, 0xCE);
-        self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
+        self.assemble_instruction(addr, 0xCE);
+        self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (SBI, &[OperandNode::Literal(data)]) => {
-        self.assemble_instruction_unchecked(addr, 0xDE);
-        self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
+        self.assemble_instruction(addr, 0xDE);
+        self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (XRI, &[OperandNode::Literal(data)]) => {
-        self.assemble_instruction_unchecked(addr, 0xEE);
-        self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
+        self.assemble_instruction(addr, 0xEE);
+        self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (CPI, &[OperandNode::Literal(data)]) => {
-        self.assemble_instruction_unchecked(addr, 0xFE);
-        self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
+        self.assemble_instruction(addr, 0xFE);
+        self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (ADD, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, 0x80 + encode_register(r1))
+        self.assemble_instruction(addr, 0x80 + encode_register(r1))
       }
       (ADI, &[OperandNode::Literal(data)]) => {
-        self.assemble_instruction_unchecked(addr, 0xC6);
-        self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
+        self.assemble_instruction(addr, 0xC6);
+        self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (SUI, &[OperandNode::Literal(data)]) => {
-        self.assemble_instruction_unchecked(addr, 0xD6);
-        self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
+        self.assemble_instruction(addr, 0xD6);
+        self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (ANI, &[OperandNode::Literal(data)]) => {
-        self.assemble_instruction_unchecked(addr, 0xE6);
-        self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
+        self.assemble_instruction(addr, 0xE6);
+        self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (ORI, &[OperandNode::Literal(data)]) => {
-        self.assemble_instruction_unchecked(addr, 0xF6);
-        self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
+        self.assemble_instruction(addr, 0xF6);
+        self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (ADC, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, 0x88 + encode_register(r1))
+        self.assemble_instruction(addr, 0x88 + encode_register(r1))
       }
       (SUB, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, 0x90 + encode_register(r1))
+        self.assemble_instruction(addr, 0x90 + encode_register(r1))
       }
       (SBB, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, 0x98 + encode_register(r1))
+        self.assemble_instruction(addr, 0x98 + encode_register(r1))
       }
       (ANA, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, 0xA0 + encode_register(r1))
+        self.assemble_instruction(addr, 0xA0 + encode_register(r1))
       }
       (XRA, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, 0xA8 + encode_register(r1))
+        self.assemble_instruction(addr, 0xA8 + encode_register(r1))
       }
       (ORA, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, 0xB0 + encode_register(r1))
+        self.assemble_instruction(addr, 0xB0 + encode_register(r1))
       }
       (CMP, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, 0xB8 + encode_register(r1))
+        self.assemble_instruction(addr, 0xB8 + encode_register(r1))
       }
-      (INX, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, encode_inx(r1))
-      }
-      (INR, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, encode_inr(r1))
-      }
-      (DCR, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, encode_dcr(r1))
-      }
-      (DAD, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, encode_dad(r1))
-      }
-      (DCX, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, encode_dcx(r1))
-      }
-      (POP, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, encode_pop(r1))
-      }
-      (PUSH, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, encode_push(r1))
-      }
+      (INX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_inx(r1)),
+      (INR, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_inr(r1)),
+      (DCR, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_dcr(r1)),
+      (DAD, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_dad(r1)),
+      (DCX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_dcx(r1)),
+      (POP, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_pop(r1)),
+      (PUSH, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_push(r1)),
       (STA, &[OperandNode::Literal(data)]) => {
-        self.assemble_instruction_unchecked(addr, 0x32);
-        self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
-        self.assemble_instruction_unchecked(addr + 2, (data >> 8) as u8);
+        self.assemble_instruction(addr, 0x32);
+        self.assemble_u16(addr + 1, data);
       }
       (SHLD, &[OperandNode::Literal(data)]) => {
-        self.assemble_instruction_unchecked(addr, 0x22);
-        self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
-        self.assemble_instruction_unchecked(addr + 2, (data >> 8) as u8);
+        self.assemble_instruction(addr, 0x22);
+        self.assemble_u16(addr + 1, data);
       }
-      (STAX, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, encode_stax(r1))
-      }
+      (STAX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_stax(r1)),
       (LDA, &[OperandNode::Literal(data)]) => {
-        self.assemble_instruction_unchecked(addr, 0x3A);
-        self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
-        self.assemble_instruction_unchecked(addr + 2, (data >> 8) as u8);
+        self.assemble_instruction(addr, 0x3A);
+        self.assemble_u16(addr + 1, data);
       }
-      (LDAX, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction_unchecked(addr, encode_ldax(r1))
-      }
+      (LDAX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_ldax(r1)),
       (LHLD, &[OperandNode::Literal(data)]) => {
-        self.assemble_instruction_unchecked(addr, 0x2A);
-        self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
-        self.assemble_instruction_unchecked(addr + 2, (data >> 8) as u8);
+        self.assemble_instruction(addr, 0x2A);
+        self.assemble_u16(addr + 1, data);
       }
-      (RST, &[OperandNode::Literal(num)]) => {
-        self.assemble_instruction_unchecked(addr, encode_rst(num))
-      }
+      (RST, &[OperandNode::Literal(num)]) => self.assemble_instruction(addr, encode_rst(num)),
       (JNZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xC2);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xC2);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JNC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xD2);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xD2);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JPO, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xE2);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xE2);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xF2);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xF2);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JMP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xC3);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xC3);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xCA);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xCA);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xDA);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xDA);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JPE, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xEA);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xEA);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JM, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xFA);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xFA);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CNZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xC4);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xC4);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CNC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xD4);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xD4);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CPO, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xE4);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xE4);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xF4);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xF4);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xCC);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xCC);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xDC);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xDC);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CPE, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xEC);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xEC);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CM, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xFC);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xFC);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CALL, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction_unchecked(addr, 0xCD);
-          self.assemble_instruction_unchecked(addr + 1, (jmp_to & 0xFF) as u8);
-          self.assemble_instruction_unchecked(addr + 2, (jmp_to >> 8) as u8);
+          self.assemble_instruction(addr, 0xCD);
+          self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
 
       // 2 Operands
       (LXI, &[OperandNode::Register(r1), OperandNode::Literal(data)]) => {
-        let data = encode_lxi(r1, data);
-
-        self.assemble_instruction_unchecked(addr, data.0);
-        self.assemble_instruction_unchecked(addr + 1, data.2);
-        self.assemble_instruction_unchecked(addr + 2, data.1);
+        self.assemble_instruction(addr, encode_lxi(r1));
+        self.assemble_u16(addr + 1, data);
       }
       (MVI, &[OperandNode::Register(r1), OperandNode::Literal(data)]) => {
-        let data = encode_mvi(r1, data);
-
-        // Encode the instruction, then the data
-        self.assemble_instruction_unchecked(addr, data.0);
-        self.assemble_instruction_unchecked(addr + 1, data.1);
+        self.assemble_instruction(addr, encode_mvi(r1));
+        self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (MOV, &[OperandNode::Register(r1), OperandNode::Register(r2)]) => {
-        self.assemble_instruction_unchecked(addr, encode_mov(r1, r2));
+        self.assemble_instruction(addr, encode_mov(r1, r2));
       }
       _ => panic!(),
     }
@@ -568,23 +513,18 @@ const fn encode_inx(r1: Register) -> u8 {
   }
 }
 
-const fn encode_lxi(r1: Register, data: u16) -> (u8, u8, u8) {
-  let reg = match r1 {
+const fn encode_lxi(r1: Register) -> u8 {
+  match r1 {
     Register::B => 0x01,
     Register::D => 0x11,
     Register::H => 0x21,
     Register::SP => 0x31,
     _ => panic!("invalid register passed to lxi instruction"),
-  };
-
-  let lower_half = data & 0xFF;
-  let upper_half = data >> 8;
-
-  (reg, upper_half as u8, lower_half as u8)
+  }
 }
 
-const fn encode_mvi(r1: Register, data: u16) -> (u8, u8) {
-  let reg = match r1 {
+const fn encode_mvi(r1: Register) -> u8 {
+  match r1 {
     Register::B => 0x06,
     Register::D => 0x16,
     Register::H => 0x26,
@@ -595,9 +535,7 @@ const fn encode_mvi(r1: Register, data: u16) -> (u8, u8) {
     Register::L => 0x2E,
     Register::A => 0x3E,
     _ => unreachable!(),
-  };
-
-  (reg, (data & 0xFF) as u8)
+  }
 }
 
 const fn encode_dcr(r1: Register) -> u8 {

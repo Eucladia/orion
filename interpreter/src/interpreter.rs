@@ -1,5 +1,3 @@
-// TODO: Separate update flag function for logical ops
-// TODO: Bounds checking for memory and return a result
 use crate::{instruction_bytes_occupied, instructions, Environment};
 use parser::nodes::{Node, ProgramNode};
 
@@ -40,8 +38,8 @@ impl Interpreter {
           let addr = Environment::INSTRUCTION_STARTING_ADDRESS + self.assemble_index;
           let label_name = label.label_name();
 
-          self.env.assemble_instruction_unchecked(addr, lower);
-          self.env.assemble_instruction_unchecked(addr + 1, upper);
+          self.env.assemble_instruction(addr, lower);
+          self.env.assemble_instruction(addr + 1, upper);
           // Make this index (and the next) as a label index
           self.env.label_indices.insert(addr, label_name.clone());
 
