@@ -7,12 +7,12 @@ pub struct Token {
 }
 
 impl Token {
-  /// Creates a new [Token] with the given [TokenKind] and length.
+  /// Creates a new [`Token`] with the given [`TokenKind`] and length.
   pub fn new(kind: TokenKind, range: Range<usize>) -> Self {
     Self { kind, range }
   }
 
-  /// Returns the [TokenKind] of this token.
+  /// Returns the [`TokenKind`] of this token.
   pub fn kind(&self) -> TokenKind {
     self.kind
   }

@@ -7,7 +7,7 @@ pub struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-  /// Creates a [Lexer] from a slice of bytes
+  /// Creates a [`Lexer`] from a slice of bytes
   pub fn from_bytes(bytes: &'a [u8]) -> Self {
     Self {
       bytes,
@@ -16,7 +16,7 @@ impl<'a> Lexer<'a> {
     }
   }
 
-  /// Creates a [Lexer] from a a [str]
+  /// Creates a [`Lexer`] from a a [str]
   pub fn from_string(content: &'a str) -> Self {
     Self {
       bytes: content.as_bytes(),
@@ -43,7 +43,7 @@ impl<'a> Lexer<'a> {
     self.bytes.get(self.curr).copied()
   }
 
-  // Lexes a [Token]
+  // Lexes a [`Token`]
   fn lex_token(&mut self) -> Option<Token> {
     // SAFETY: `lex_token` isn't called directly and we check that the index is within bounds in
     // the `Iterator`` interface

@@ -105,7 +105,7 @@ impl Instruction {
     }
   }
 
-  /// Parses an [Instruction] from a string.
+  /// Parses an [`Instruction`] from a string.
   pub fn from_string(string: &str) -> Option<Self> {
     match string {
       string if string.eq_ignore_ascii_case("mov") => Some(Instruction::MOV),
