@@ -269,6 +269,10 @@ impl Interpreter {
       b if matches!(b, 0xC1 | 0xD1 | 0xE1 | 0xF1) => instructions::execute_pop(&mut self.env, b),
       // STC
       b if matches!(b, 0x37) => instructions::execute_stc(&mut self.env, b),
+      // RST
+      b if matches!(b, 0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF) => {
+        instructions::execute_rst(&mut self.env, b)
+      }
       // NOP
       0x0 => instructions::execute_nop(&mut self.env, 0x0),
       // HLT

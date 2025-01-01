@@ -65,6 +65,23 @@ pub fn execute_stc(env: &mut Environment, instruction_byte: u8) {
   env.registers.pc = env.registers.pc.wrapping_add(1);
 }
 
+pub fn execute_rst(env: &mut Environment, instruction_byte: u8) {
+  env.registers.ir = instruction_byte;
+
+  // The restart number is stored in bits 3-5
+  let rst_number = (instruction_byte >> 3) & 0x7;
+  let target_address = (rst_number as u16) * 8;
+
+  // Push the next instruction onto the stack
+  let pc = env.registers.pc.wrapping_add(1);
+
+  env.set_memory_at(env.registers.sp, (pc >> 8) as u8);
+  env.set_memory_at(env.registers.sp.wrapping_sub(1), (pc & 0xFF) as u8);
+
+  env.registers.sp = env.registers.sp.wrapping_sub(1);
+  env.registers.pc = target_address;
+}
+
 pub fn execute_hlt(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
   env.registers.next_pc();

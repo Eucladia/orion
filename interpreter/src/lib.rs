@@ -87,6 +87,7 @@ pub fn instruction_bytes_occupied(ins: &Instruction) -> u8 {
     Instruction::CPE => 3,
     Instruction::CM => 3,
     Instruction::CALL => 3,
+    Instruction::RST => 1,
     // 2 operand instructions
     Instruction::LXI => 3,
     Instruction::MVI => 2,

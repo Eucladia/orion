@@ -152,7 +152,6 @@ impl Environment {
         self.assemble_instruction_unchecked(addr, 0xF6);
         self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
       }
-
       (ADC, &[OperandNode::Register(r1)]) => {
         self.assemble_instruction_unchecked(addr, 0x88 + encode_register(r1))
       }
@@ -208,7 +207,6 @@ impl Environment {
       (STAX, &[OperandNode::Register(r1)]) => {
         self.assemble_instruction_unchecked(addr, encode_stax(r1))
       }
-
       (LDA, &[OperandNode::Literal(data)]) => {
         self.assemble_instruction_unchecked(addr, 0x3A);
         self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
@@ -221,6 +219,9 @@ impl Environment {
         self.assemble_instruction_unchecked(addr, 0x2A);
         self.assemble_instruction_unchecked(addr + 1, (data & 0xFF) as u8);
         self.assemble_instruction_unchecked(addr + 2, (data >> 8) as u8);
+      }
+      (RST, &[OperandNode::Literal(num)]) => {
+        self.assemble_instruction_unchecked(addr, encode_rst(num))
       }
       (JNZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
@@ -262,7 +263,6 @@ impl Environment {
         }
         None => unassembled.push((instruction_node, addr)),
       },
-
       (JZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction_unchecked(addr, 0xCA);
@@ -295,7 +295,6 @@ impl Environment {
         }
         None => unassembled.push((instruction_node, addr)),
       },
-
       (CNZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction_unchecked(addr, 0xC4);
@@ -328,7 +327,6 @@ impl Environment {
         }
         None => unassembled.push((instruction_node, addr)),
       },
-
       (CZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction_unchecked(addr, 0xCC);
@@ -361,7 +359,6 @@ impl Environment {
         }
         None => unassembled.push((instruction_node, addr)),
       },
-
       (CALL, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction_unchecked(addr, 0xCD);
@@ -458,6 +455,21 @@ impl Environment {
 }
 
 // TODO: Remove these panics and handle it in the parser
+const fn encode_rst(num: u16) -> u8 {
+  match num {
+    0 => 0xC7,
+    2 => 0xD7,
+    4 => 0xE7,
+    6 => 0xF7,
+
+    1 => 0xCF,
+    3 => 0xDF,
+    5 => 0xEF,
+    7 => 0xFF,
+
+    _ => panic!("invalid number passed to encode_rst"),
+  }
+}
 const fn encode_ldax(r1: Register) -> u8 {
   match r1 {
     Register::B => 0x0A,

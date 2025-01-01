@@ -73,6 +73,7 @@ pub enum Instruction {
   RM,
   RPE,
   RPO,
+  RST,
   // Manipulation
   HLT,
   PUSH,
@@ -100,7 +101,7 @@ impl Instruction {
       | CPE | CPO => 1,
 
       CMA | CMC | RAL | RAR | RLC | RRC | RET | RZ | RNZ | RC | RNC | RP | RM | RPE | RPO | HLT
-      | NOP | XCHG | XTHL | SPHL | PCHL | STC | DAA => 0,
+      | NOP | XCHG | XTHL | SPHL | PCHL | STC | DAA | RST => 0,
     }
   }
 
@@ -172,6 +173,7 @@ impl Instruction {
       string if string.eq_ignore_ascii_case("rm") => Some(Instruction::RM),
       string if string.eq_ignore_ascii_case("rpe") => Some(Instruction::RPE),
       string if string.eq_ignore_ascii_case("rpo") => Some(Instruction::RPO),
+      string if string.eq_ignore_ascii_case("rst") => Some(Instruction::RST),
       string if string.eq_ignore_ascii_case("hlt") => Some(Instruction::HLT),
       string if string.eq_ignore_ascii_case("stc") => Some(Instruction::STC),
       string if string.eq_ignore_ascii_case("push") => Some(Instruction::PUSH),
