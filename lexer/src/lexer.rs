@@ -165,7 +165,9 @@ impl<'a> Iterator for Lexer<'a> {
   }
 }
 
-/// Creates a [Token] with the following [TokenKind] and length
+/// Creates a [`Token`] with the following [`TokenKind`] and length
+///
+/// [`TokenKind`]: crate::token::TokenKind
 #[macro_export]
 macro_rules! create_token {
   ($token:tt, $range:expr) => {
