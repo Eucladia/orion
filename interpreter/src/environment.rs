@@ -32,21 +32,23 @@ impl Environment {
     }
   }
 
+  /// Returns true if the flags are set.
   pub fn is_flag_set(&self, f: Flags) -> bool {
     (self.flags & f as u8) == f as u8
   }
 
-  pub fn set_flag(&mut self, flag: Flags, cond: bool) {
-    if cond {
+  /// Toggles the flags, depending on the `condition`.
+  pub fn set_flag(&mut self, flag: Flags, condition: bool) {
+    if condition {
       self.flags |= flag as u8;
     } else {
       self.flags &= !(flag as u8);
     }
   }
 
-  // Updates flags for 8 bit arithmetical operations
+  /// Updates the flags after running an arithmetic instruction.
   pub fn update_flags_arithmetic(&mut self, old_value: u8, new_value: u8, is_addition: bool) {
-    self.set_flag(Flags::Sign, new_value & 0x80 != 0);
+    self.set_flag(Flags::Sign, new_value >> 7 == 1);
     self.set_flag(Flags::Zero, new_value == 0);
     self.set_flag(Flags::Parity, new_value.count_ones() % 2 == 0);
 
@@ -63,6 +65,16 @@ impl Environment {
       // If we subtracted, then we should have a carry if the new value is greater
       self.set_flag(Flags::Carry, new_value > old_value);
     }
+  }
+
+  /// Updates the flags after running a logical instruction.
+  /// This function indefinitely resets [`Flags::AuxiliaryCarry`] and [`Flags::Carry`].
+  pub fn update_flags_logical(&mut self, value: u8) {
+    self.set_flag(Flags::Sign, value >> 7 == 1);
+    self.set_flag(Flags::Zero, value == 0);
+    self.set_flag(Flags::Parity, value.count_ones() % 2 == 0);
+    self.set_flag(Flags::Carry, false);
+    self.set_flag(Flags::AuxiliaryCarry, false);
   }
 
   /// Writes an address onto the stack, in little endian order.

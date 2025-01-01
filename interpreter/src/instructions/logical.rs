@@ -10,11 +10,7 @@ pub fn execute_ora(env: &mut Environment, instruction_byte: u8) {
   let r = registers::get_register_value(env, register).unwrap();
   let res = a | r;
 
-  env.update_flags_arithmetic(a, a | r, false);
-
-  // These are reset
-  env.set_flag(Flags::AuxiliaryCarry, false);
-  env.set_flag(Flags::Carry, false);
+  env.update_flags_logical(res);
 
   env.registers.a = res;
   env.registers.next_pc();
@@ -26,11 +22,7 @@ pub fn execute_ori(env: &mut Environment, instruction_byte: u8) {
   let a = registers::get_register_value(env, Register::A).unwrap();
   let res = a | env.read_memory();
 
-  env.update_flags_arithmetic(a, res, false);
-
-  // ORI resets the aux carry and carry flags
-  env.set_flag(Flags::AuxiliaryCarry, false);
-  env.set_flag(Flags::Carry, false);
+  env.update_flags_logical(res);
 
   env.registers.a = res;
   env.registers.next_pc();
@@ -44,11 +36,10 @@ pub fn execute_ana(env: &mut Environment, instruction_byte: u8) {
   let r = registers::get_register_value(env, register).unwrap();
   let res = a & r;
 
-  env.update_flags_arithmetic(a, a & r, false);
-  // Aux carry is always set when doing a logical AND on 8085
+  env.update_flags_logical(res);
+
+  // On 8058, AND always sets the AC flag
   env.set_flag(Flags::AuxiliaryCarry, true);
-  // Carry is always reset
-  env.set_flag(Flags::Carry, false);
 
   env.registers.a = res;
   env.registers.next_pc();
@@ -60,10 +51,10 @@ pub fn execute_ani(env: &mut Environment, instruction_byte: u8) {
   let a = registers::get_register_value(env, Register::A).unwrap();
   let res = a & env.read_memory();
 
-  env.update_flags_arithmetic(a, res, false);
-  // Aux carry is always set on 8085, see page 1-12 on bitsavers 8080/8085 manual
+  env.update_flags_logical(res);
+
+  // On 8058, AND always sets the AC flag
   env.set_flag(Flags::AuxiliaryCarry, true);
-  env.set_flag(Flags::Carry, false);
 
   env.registers.a = res;
   env.registers.next_pc();
@@ -75,9 +66,7 @@ pub fn execute_xri(env: &mut Environment, instruction_byte: u8) {
   let a = registers::get_register_value(env, Register::A).unwrap();
   let res = a ^ env.read_memory();
 
-  env.update_flags_arithmetic(a, res, false);
-  env.set_flag(Flags::AuxiliaryCarry, false);
-  env.set_flag(Flags::Carry, false);
+  env.update_flags_logical(res);
 
   env.registers.a = res;
   env.registers.next_pc();
@@ -91,10 +80,7 @@ pub fn execute_xra(env: &mut Environment, instruction_byte: u8) {
   let r = registers::get_register_value(env, register).unwrap();
   let res = a ^ r;
 
-  env.update_flags_arithmetic(a, a ^ r, false);
-  // These flags get reset
-  env.set_flag(Flags::AuxiliaryCarry, false);
-  env.set_flag(Flags::Carry, false);
+  env.update_flags_logical(res);
 
   env.registers.a = res;
   env.registers.next_pc();
