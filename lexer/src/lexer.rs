@@ -94,10 +94,7 @@ impl<'a> Lexer<'a> {
         eat_numerical_literal(self);
 
         // Check to see if there's a hex, octal, binary, or decimal suffix
-        if matches!(
-          self.current_byte().map(|x| x.to_ascii_lowercase()),
-          Some(b'h' | b'o' | b'b' | b'd')
-        ) {
+        if matches!(self.current_byte(), Some(b'H' | b'O' | b'Q' | b'B' | b'D')) {
           self.advance();
         }
 

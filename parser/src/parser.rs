@@ -128,10 +128,10 @@ impl<'a> Parser<'a> {
           // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
           let mut num_str = unwrap!(self.get_source_content(token.span()));
           // SAFETY: We're guaranteed at least one byte for `Literal`s.
-          let last_byte = unwrap!(num_str.as_bytes().last()).to_ascii_lowercase();
+          let last_byte = unwrap!(num_str.as_bytes().last().copied());
           let mut base = None;
 
-          if matches!(last_byte, b'h' | b'o' | b'b' | b'd') {
+          if matches!(last_byte, b'H' | b'O' | b'Q' | b'B' | b'D') {
             // SAFETY: We have at least one byte in this token
             num_str = unwrap!(num_str.get(..num_str.len() - 1));
             base = Some(last_byte);
@@ -193,10 +193,10 @@ impl<'a> Parser<'a> {
 
 fn parse_number(num: &str, base: Option<u8>, token_span: Range<usize>) -> ParseResult<u16> {
   let radix = match base {
-    Some(b'b') => 2,
-    Some(b'o') => 8,
-    Some(b'd') | None => 10,
-    Some(b'h') => 16,
+    Some(b'B') => 2,
+    Some(b'O' | b'Q') => 8,
+    Some(b'D') | None => 10,
+    Some(b'H') => 16,
     Some(x) => {
       return Err(ParseError {
         location: token_span.end - 1..token_span.end,
