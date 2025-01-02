@@ -76,7 +76,7 @@ impl<'a> Parser<'a> {
         if ident.starts_with("$") && ident.len() > 1 {
           return Some(Err(ParseError {
             location: token.span(),
-            error_message: format!("`$` is a reserved symbol and cannot be an identifier"),
+            error_message: "`$` is a reserved symbol and cannot be an identifier".to_string(),
           }));
         }
 
@@ -214,7 +214,7 @@ impl<'a> Parser<'a> {
     if instruction_type_error(&instruction, &operands) {
       Err(ParseError {
         location: instruction_token.span(),
-        error_message: format!("invalid types passed to this instruction"),
+        error_message: "invalid types passed to this instruction".to_string(),
       })
     } else {
       Ok(InstructionNode::from_operands(instruction, operands))
@@ -421,7 +421,7 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
     (SBI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
     (XRI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
     (CPI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
-    (RST, &[OperandNode::Literal(x)]) if matches!(x, 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7) => false,
+    (RST, &[OperandNode::Literal(0..=7)]) => false,
 
     // 0 operands
     (

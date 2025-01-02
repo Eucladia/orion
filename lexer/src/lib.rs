@@ -13,5 +13,5 @@ use types::LexResult;
 
 /// Lexes the input source into a group of tokens.
 pub fn lex(src: &str) -> LexResult<Vec<Token>> {
-  Lexer::from_string(src).into_iter().collect()
+  Lexer::from_string(src).collect()
 }
