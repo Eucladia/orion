@@ -7,13 +7,19 @@ use lexer::token::{Token, TokenKind};
 use lexer::LexResult;
 use lexer::{Lexer, Register};
 use smol_str::SmolStr;
+
+use std::collections::HashSet;
 use std::num::IntErrorKind;
 use std::ops::Range;
+
+/// The maximum length of a label name.
+pub const MAX_LABEL_NAME: usize = 6;
 
 pub struct Parser<'a> {
   source: &'a str,
   tokens: Vec<Token>,
   token_index: usize,
+  tracked_labels: HashSet<SmolStr>,
 }
 
 impl<'a> Parser<'a> {
@@ -22,6 +28,7 @@ impl<'a> Parser<'a> {
       source,
       tokens,
       token_index: 0,
+      tracked_labels: HashSet::new(),
     }
   }
 
@@ -32,10 +39,11 @@ impl<'a> Parser<'a> {
       source,
       tokens: lexer.into_iter().collect::<LexResult<Vec<_>>>()?,
       token_index: 0,
+      tracked_labels: HashSet::new(),
     })
   }
 
-  /// Gets a [str] from the selected range.
+  /// Gets a [`str`] from the selected range.
   pub fn get_source_content(&self, range: Range<usize>) -> Option<&str> {
     self.source.get(range)
   }
@@ -61,13 +69,37 @@ impl<'a> Parser<'a> {
   pub fn parse_next(&mut self) -> Option<ParseResult<Node>> {
     let token = self.next_non_whitespace_token()?;
 
-    Some(match token.kind() {
-      // We expect a label
+    match token.kind() {
       TokenKind::Identifier => {
+        let ident = unwrap!(self.get_source_content(token.span()));
+
+        if ident.starts_with("$") && ident.len() > 1 {
+          return Some(Err(ParseError {
+            location: token.span(),
+            error_message: format!("`$` is a reserved symbol and cannot be an identifier"),
+          }));
+        }
+
         let label_node = self.try_parse_label(&token);
 
         if let Some(node) = label_node {
-          Ok(Node::Label(node))
+          if node.label_name().len() > MAX_LABEL_NAME {
+            Some(Err(ParseError {
+              location: token.span(),
+              error_message: format!(
+                "label names cannot be greater than {MAX_LABEL_NAME} characters"
+              ),
+            }))
+          } else if self.tracked_labels.contains(&node.label_name()) {
+            Some(Err(ParseError {
+              location: token.span(),
+              error_message: format!("label `{}` was already defined.", node.label_name()),
+            }))
+          } else {
+            self.tracked_labels.insert(node.label_name());
+
+            Some(Ok(Node::Label(node)))
+          }
         } else {
           // TODO: Parse directives here
           todo!("other non label idents")
@@ -76,18 +108,19 @@ impl<'a> Parser<'a> {
       TokenKind::Instruction => {
         let instruction_node = self.parse_instruction(&token);
 
-        match instruction_node {
+        Some(match instruction_node {
           Ok(node) => Ok(Node::Instruction(node)),
           Err(e) => Err(e),
-        }
+        })
       }
-      TokenKind::EndOfFile => return None,
 
-      kind => Err(ParseError {
+      TokenKind::EndOfFile => None,
+
+      kind => Some(Err(ParseError {
         location: token.span(),
         error_message: format!("invalid token, `{}`", kind),
-      }),
-    })
+      })),
+    }
   }
 
   fn try_parse_label(&mut self, ident_token: &Token) -> Option<LabelNode> {
@@ -106,7 +139,8 @@ impl<'a> Parser<'a> {
   }
 
   fn parse_instruction(&mut self, instruction_token: &Token) -> ParseResult<InstructionNode> {
-    // SAFETY: We have an immutable str and the lexer produced this `Instruction` token, so this str is still valid
+    // SAFETY: We have an immutable str and the lexer produced this `Instruction` token,
+    // so this str is still valid
     let instruction_str = unwrap!(self.get_source_content(instruction_token.span()));
     let instruction = unwrap!(Instruction::from_string(instruction_str));
 
@@ -177,7 +211,14 @@ impl<'a> Parser<'a> {
       }
     }
 
-    Ok(InstructionNode::from_operands(instruction, operands))
+    if instruction_type_error(&instruction, &operands) {
+      Err(ParseError {
+        location: instruction_token.span(),
+        error_message: format!("invalid types passed to this instruction"),
+      })
+    } else {
+      Ok(InstructionNode::from_operands(instruction, operands))
+    }
   }
 
   fn next_non_whitespace_token(&mut self) -> Option<Token> {
@@ -188,6 +229,209 @@ impl<'a> Parser<'a> {
         return Some(token.clone());
       }
     }
+  }
+}
+
+fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> bool {
+  use Instruction::*;
+
+  match (instruction, ops) {
+    // Register-Register operands
+    (MOV, &[OperandNode::Register(_), OperandNode::Register(_)]) => false,
+
+    // Register-d16 operands
+    (
+      LXI,
+      &[OperandNode::Register(Register::B | Register::D | Register::H | Register::SP), OperandNode::Literal(_)],
+    ) => false,
+
+    // Register-d8 operands
+    (
+      MVI,
+      &[OperandNode::Register(
+        Register::A
+        | Register::B
+        | Register::C
+        | Register::D
+        | Register::E
+        | Register::H
+        | Register::L
+        | Register::M,
+      ), OperandNode::Literal(x)],
+    ) if x <= u8::MAX as u16 => false,
+
+    // Register operands
+    (STAX, &[OperandNode::Register(Register::B | Register::D)]) => false,
+    (INX, &[OperandNode::Register(Register::B | Register::D | Register::H | Register::SP)]) => {
+      false
+    }
+    (INR, &[OperandNode::Register(Register::B | Register::D | Register::H | Register::M)]) => false,
+    (DCR, &[OperandNode::Register(Register::B | Register::D | Register::H | Register::M)]) => false,
+    (DAD, &[OperandNode::Register(Register::B | Register::D | Register::H | Register::SP)]) => {
+      false
+    }
+    (LDAX, &[OperandNode::Register(Register::B | Register::D)]) => false,
+    (INR, &[OperandNode::Register(Register::C | Register::E | Register::L | Register::A)]) => false,
+    (DCR, &[OperandNode::Register(Register::C | Register::E | Register::L | Register::A)]) => false,
+    (DCX, &[OperandNode::Register(Register::B | Register::D | Register::H | Register::SP)]) => {
+      false
+    }
+    (
+      ADD,
+      &[OperandNode::Register(
+        Register::A
+        | Register::B
+        | Register::C
+        | Register::D
+        | Register::E
+        | Register::H
+        | Register::L
+        | Register::M,
+      )],
+    ) => false,
+    (
+      ADC,
+      &[OperandNode::Register(
+        Register::A
+        | Register::B
+        | Register::C
+        | Register::D
+        | Register::E
+        | Register::H
+        | Register::L
+        | Register::M,
+      )],
+    ) => false,
+    (
+      SUB,
+      &[OperandNode::Register(
+        Register::A
+        | Register::B
+        | Register::C
+        | Register::D
+        | Register::E
+        | Register::H
+        | Register::L
+        | Register::M,
+      )],
+    ) => false,
+    (
+      SBB,
+      &[OperandNode::Register(
+        Register::A
+        | Register::B
+        | Register::C
+        | Register::D
+        | Register::E
+        | Register::H
+        | Register::L
+        | Register::M,
+      )],
+    ) => false,
+    (
+      ANA,
+      &[OperandNode::Register(
+        Register::A
+        | Register::B
+        | Register::C
+        | Register::D
+        | Register::E
+        | Register::H
+        | Register::L
+        | Register::M,
+      )],
+    ) => false,
+    (
+      XRA,
+      &[OperandNode::Register(
+        Register::A
+        | Register::B
+        | Register::C
+        | Register::D
+        | Register::E
+        | Register::H
+        | Register::L
+        | Register::M,
+      )],
+    ) => false,
+    (
+      ORA,
+      &[OperandNode::Register(
+        Register::A
+        | Register::B
+        | Register::C
+        | Register::D
+        | Register::E
+        | Register::H
+        | Register::L
+        | Register::M,
+      )],
+    ) => false,
+    (
+      CMP,
+      &[OperandNode::Register(
+        Register::A
+        | Register::B
+        | Register::C
+        | Register::D
+        | Register::E
+        | Register::H
+        | Register::L
+        | Register::M,
+      )],
+    ) => false,
+    (POP, &[OperandNode::Register(Register::B | Register::D | Register::H | Register::PSW)]) => {
+      false
+    }
+    (PUSH, &[OperandNode::Register(Register::B | Register::D | Register::H | Register::PSW)]) => {
+      false
+    }
+
+    // a16 operands
+    // TODO: Change this to accept idents, literals, and expressions
+    (SHLD, &[OperandNode::Literal(_)]) => false,
+    (STA, &[OperandNode::Literal(_)]) => false,
+    (LHLD, &[OperandNode::Literal(_)]) => false,
+    (LDA, &[OperandNode::Literal(_)]) => false,
+    (JNZ, &[OperandNode::Identifier(_)]) => false,
+    (JNC, &[OperandNode::Identifier(_)]) => false,
+    (JPO, &[OperandNode::Identifier(_)]) => false,
+    (JP, &[OperandNode::Identifier(_)]) => false,
+    (JMP, &[OperandNode::Identifier(_)]) => false,
+    (CNZ, &[OperandNode::Identifier(_)]) => false,
+    (CNC, &[OperandNode::Identifier(_)]) => false,
+    (CPO, &[OperandNode::Identifier(_)]) => false,
+    (CP, &[OperandNode::Identifier(_)]) => false,
+    (JZ, &[OperandNode::Identifier(_)]) => false,
+    (JC, &[OperandNode::Identifier(_)]) => false,
+    (JPE, &[OperandNode::Identifier(_)]) => false,
+    (JM, &[OperandNode::Identifier(_)]) => false,
+    (CZ, &[OperandNode::Identifier(_)]) => false,
+    (CC, &[OperandNode::Identifier(_)]) => false,
+    (CPE, &[OperandNode::Identifier(_)]) => false,
+    (CM, &[OperandNode::Identifier(_)]) => false,
+    (CALL, &[OperandNode::Identifier(_)]) => false,
+
+    // d8 operands
+    (ADI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (SUI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (ANI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (ORI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (ACI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (SBI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (XRI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (CPI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (RST, &[OperandNode::Literal(x)]) if matches!(x, 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7) => false,
+
+    // 0 operands
+    (
+      NOP | HLT | RLC | RAL | DAA | STC | RRC | RAR | CMA | CMC | RNZ | RNC | RPO | RP | RZ | RC
+      | RPE | RM | RET | PCHL | SPHL | XCHG,
+      _,
+    ) => false,
+
+    // Anything else is an error
+    _ => true,
   }
 }
 
