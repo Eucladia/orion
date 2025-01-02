@@ -85,6 +85,8 @@ impl<'a> Lexer<'a> {
         } else if Register::is_register(identifier) {
           Some(Ok(create_token!(Register, span)))
         } else {
+          // NOTE: This will include `$`, which aren't valid identifiers,
+          // but that will get handled in the parser
           Some(Ok(create_token!(Identifier, span)))
         }
       }
@@ -211,9 +213,11 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
     i += 1;
   }
 
-  // Alphabet
+  // Alphabetical
   default[b'?' as usize] = ByteTokenType::ALPHABETIC;
   default[b'@' as usize] = ByteTokenType::ALPHABETIC;
+  // Reserved character, `$` is for the program counter
+  default[b'$' as usize] = ByteTokenType::ALPHABETIC;
 
   i = b'a';
 
