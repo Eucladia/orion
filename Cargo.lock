@@ -31,6 +31,7 @@ name = "lexer"
 version = "0.1.0"
 dependencies = [
  "thiserror",
+ "types",
 ]
 
 [[package]]
@@ -39,6 +40,7 @@ version = "0.1.0"
 dependencies = [
  "lexer",
  "smol_str",
+ "types",
 ]
 
 [[package]]
@@ -118,6 +120,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "types"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]

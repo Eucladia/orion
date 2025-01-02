@@ -1,6 +1,5 @@
-use crate::{
-  create_token, instruction::Instruction, register::Register, token::Token, LexError, LexResult,
-};
+use crate::{create_token, instruction::Instruction, register::Register, token::Token};
+use types::{LexError, LexResult};
 
 // A lexer used to lex a source program into tokens.
 pub struct Lexer<'a> {

@@ -1,4 +1,5 @@
-use lexer::{token::TokenKind, LexResult, Lexer};
+use lexer::{token::TokenKind, Lexer};
+use types::LexResult;
 
 macro_rules! tokens_equal {
   ($src:literal, $($token:tt),*) => {

@@ -1,11 +1,11 @@
-use crate::error::{ParseError, ParseResult};
 use crate::nodes::{InstructionNode, LabelNode, Node, OperandNode, ProgramNode};
 use crate::unwrap;
 
 use lexer::instruction::Instruction;
 use lexer::token::{Token, TokenKind};
-use lexer::LexResult;
 use lexer::{Lexer, Register};
+use types::{LexResult, ParseError, ParseResult};
+
 use smol_str::SmolStr;
 
 use std::collections::HashSet;
