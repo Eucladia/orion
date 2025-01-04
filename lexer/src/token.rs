@@ -30,6 +30,10 @@ pub enum TokenKind {
   Whitespace,
   /// Linebreak characters: `\n` & `\r`
   Linebreak,
+  /// A token representing a token.
+  ///
+  /// Note that the token's span includes double single quotes for escaped single quotes.
+  String,
   /// The end of the input source.
   EndOfFile,
   /// The comment character, `;`.

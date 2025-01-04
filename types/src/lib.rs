@@ -29,7 +29,10 @@ pub enum Error {
 pub enum LexError {
   /// The lexer encountered invalid UTF-8.
   #[error("invalid utf-8 encountered at position `{0}`")]
-  InvalidUtf8(usize),
+  InvalidAscii(usize),
+
+  #[error("expected the string to be closed at position `{0}`")]
+  UnclosedString(usize),
 }
 
 /// An error that occurred during parsing.

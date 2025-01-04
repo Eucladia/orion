@@ -71,6 +71,13 @@ impl<'a> Lexer<'a> {
 
         Some(Ok(create_token!(Linebreak, start..self.curr)))
       }
+      ByteTokenType::QUOTE => {
+        if let Err(e) = eat_string(self) {
+          return Some(Err(e));
+        }
+
+        Some(Ok(create_token!(String, start..self.curr)))
+      }
       ByteTokenType::ALPHABETIC => {
         eat_identifier(self);
 
@@ -81,7 +88,7 @@ impl<'a> Lexer<'a> {
           .and_then(|bytes| std::str::from_utf8(bytes).ok())
         {
           Some(x) => x,
-          None => return Some(Err(LexError::InvalidUtf8(start))),
+          None => return Some(Err(LexError::InvalidAscii(start))),
         };
 
         if Instruction::is_opcode(identifier) {
@@ -128,6 +135,27 @@ impl<'a> Lexer<'a> {
   }
 }
 
+fn eat_string(lexer: &mut Lexer) -> LexResult<()> {
+  loop {
+    let byte = lexer.next_byte();
+
+    match byte {
+      Some(b'\n' | b'\r') | None => return Err(LexError::UnclosedString(lexer.curr)),
+      Some(x) if !x.is_ascii() => return Err(LexError::InvalidAscii(lexer.curr)),
+      // Strings are escaped via 2 single quotes
+      Some(b'\'') => match lexer.next_byte() {
+        // Keep consuming since it's a valid escaped string
+        Some(b'\'') => continue,
+        // Any other character means that the string was closed
+        Some(_) | None => break,
+      },
+      // Keep consuming if we get valid ASCII
+      Some(_) => continue,
+    }
+  }
+
+  Ok(())
+}
 // Eats a comment until it finds a linebreak
 fn eat_comment(lexer: &mut Lexer) {
   while lexer
@@ -198,6 +226,7 @@ enum ByteTokenType {
   LINEBREAK,
   WHITESPACE,
   ALPHABETIC,
+  QUOTE,
   INVALID,
 }
 
@@ -220,6 +249,8 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
   default[b':' as usize] = ByteTokenType::COLON;
   // Comment
   default[b';' as usize] = ByteTokenType::COMMENT;
+  // Quote
+  default[b'\'' as usize] = ByteTokenType::QUOTE;
 
   // Numbers
   let mut i = b'0';
@@ -258,33 +289,116 @@ mod tests {
 
   macro_rules! get_tokens {
     ($src:expr) => {{
-      let mut tokens = Lexer::from_string($src).into_iter().collect::<Vec<_>>();
-
-      // Remove the `EndOfFile` token
-      tokens.pop();
+      let tokens = crate::lex($src).map(|mut toks| {
+        toks.pop();
+        toks
+      });
 
       tokens
     }};
   }
 
   #[test]
+  fn strings() {
+    assert_eq!(
+      get_tokens!("MVI A, 'F'"),
+      Ok(vec![
+        create_token!(Instruction, 0..3),
+        create_token!(Whitespace, 3..4),
+        create_token!(Register, 4..5),
+        create_token!(Comma, 5..6),
+        create_token!(Whitespace, 6..7),
+        create_token!(String, 7..10)
+      ]),
+      "expected ok for single char string"
+    );
+
+    assert_eq!(
+      // Technically this is invalid because we can only have 1 byte, but this will
+      // get parsed in the parser
+      get_tokens!("MVI A, 'FOO'"),
+      Ok(vec![
+        create_token!(Instruction, 0..3),
+        create_token!(Whitespace, 3..4),
+        create_token!(Register, 4..5),
+        create_token!(Comma, 5..6),
+        create_token!(Whitespace, 6..7),
+        create_token!(String, 7..12)
+      ]),
+      "expected ok for multi char string"
+    );
+
+    assert_eq!(
+      get_tokens!("MVI A, 'F"),
+      Err(LexError::UnclosedString(9)),
+      "expected error for unclosed single char string"
+    );
+
+    assert_eq!(
+      get_tokens!("MVI A, 'FOO"),
+      Err(LexError::UnclosedString(11)),
+      "expected error for unclosed multi char string"
+    );
+
+    assert_eq!(
+      get_tokens!("MVI A, 'FOO''S BAR"),
+      Err(LexError::UnclosedString(18)),
+      "expected error for unclosed multi char escaped string"
+    );
+
+    assert_eq!(
+      get_tokens!("MVI A, 'FOO''S BAR'"),
+      Ok(vec![
+        create_token!(Instruction, 0..3),
+        create_token!(Whitespace, 3..4),
+        create_token!(Register, 4..5),
+        create_token!(Comma, 5..6),
+        create_token!(Whitespace, 6..7),
+        create_token!(String, 7..19)
+      ]),
+      "expected ok for multi char escaped string"
+    );
+
+    assert_eq!(
+      get_tokens!("MVI A, 'FOO''S BAR'\nHLT"),
+      Ok(vec![
+        create_token!(Instruction, 0..3),
+        create_token!(Whitespace, 3..4),
+        create_token!(Register, 4..5),
+        create_token!(Comma, 5..6),
+        create_token!(Whitespace, 6..7),
+        create_token!(String, 7..19),
+        create_token!(Linebreak, 19..20),
+        create_token!(Instruction, 20..23)
+      ]),
+      "expected ok for multi instruction, multi char escaped string"
+    );
+
+    assert_eq!(
+      get_tokens!("MVI A, 'FOO''S BAR\nHLT"),
+      Err(LexError::UnclosedString(18)),
+      "expected error for multi instruction, multi char escaped string"
+    );
+  }
+
+  #[test]
   fn empty_input() {
-    assert_eq!(get_tokens!(""), vec![]);
+    assert_eq!(get_tokens!(""), Ok(vec![]));
   }
 
   #[test]
   fn gibberish() {
     assert_eq!(
       get_tokens!("`~~~_+="),
-      vec![
-        Ok(create_token!(Unknown, 0..1)),
-        Ok(create_token!(Unknown, 1..2)),
-        Ok(create_token!(Unknown, 2..3)),
-        Ok(create_token!(Unknown, 3..4)),
-        Ok(create_token!(Unknown, 4..5)),
-        Ok(create_token!(Unknown, 5..6)),
-        Ok(create_token!(Unknown, 6..7)),
-      ]
+      Ok(vec![
+        create_token!(Unknown, 0..1),
+        create_token!(Unknown, 1..2),
+        create_token!(Unknown, 2..3),
+        create_token!(Unknown, 3..4),
+        create_token!(Unknown, 4..5),
+        create_token!(Unknown, 5..6),
+        create_token!(Unknown, 6..7),
+      ])
     )
   }
 
@@ -292,11 +406,11 @@ mod tests {
   fn loseless() {
     // Check to see if we can reconstruct a program from its tokens
     let string = include_str!("../../test_files/sum_of_array.asm");
-    let tokens = get_tokens!(string);
+    let tokens = get_tokens!(string).unwrap();
     let mut new_string = String::with_capacity(string.len());
 
     for token in tokens.into_iter() {
-      new_string.push_str(string.get(token.unwrap().span()).unwrap());
+      new_string.push_str(string.get(token.span()).unwrap());
     }
 
     assert_eq!(string, new_string);
