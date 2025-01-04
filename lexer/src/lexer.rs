@@ -82,13 +82,13 @@ impl<'a> Lexer<'a> {
         eat_identifier(self);
 
         let span = start..self.curr;
-        let identifier = match self
-          .bytes
-          .get(span.clone())
-          .and_then(|bytes| std::str::from_utf8(bytes).ok())
-        {
-          Some(x) => x,
-          None => return Some(Err(LexError::InvalidAscii(start))),
+        // SAFETY: This is safe because identifiers have to be ASCII, thus valid UTF-8
+        let identifier = unsafe {
+          self
+            .bytes
+            .get(span.clone())
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            .unwrap_unchecked()
         };
 
         if Instruction::is_opcode(identifier) {
