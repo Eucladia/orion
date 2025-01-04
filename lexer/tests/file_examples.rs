@@ -15,9 +15,9 @@ fn ones_complement() {
   #[rustfmt::skip]
   tokens_equal!(
     "ones_complement",
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Linebreak,
+    Instruction, Whitespace, Literal, Linebreak,
     Instruction,
     EndOfFile
   );
@@ -28,10 +28,10 @@ fn twos_compliment() {
   #[rustfmt::skip]
   tokens_equal!(
     "twos_complement",
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Literal, Linebreak,
     Instruction,
     EndOfFile
   );
@@ -42,11 +42,11 @@ fn add_two_bytes() {
   #[rustfmt::skip]
    tokens_equal!(
     "add_two_bytes",
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Literal, Linebreak,
     Instruction,
     EndOfFile
   );
@@ -57,17 +57,17 @@ fn num_zeros_in_byte() {
   #[rustfmt::skip]
   tokens_equal!(
     "num_zeros_in_byte",
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Identifier, Colon, Whitespace, Instruction, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Identifier, Colon, Whitespace, Instruction, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Literal, Linebreak,
     Instruction,
     EndOfFile
   );
@@ -78,18 +78,18 @@ fn occurrences_of_number() {
   #[rustfmt::skip]
   tokens_equal!(
     "occurrences_of_num",
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace, Comment, Whitespace,
-    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Literal, Whitespace, Comment, Linebreak,
+    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Literal, Linebreak,
     Instruction,
     EndOfFile
   );
@@ -100,13 +100,13 @@ fn max_array_value() {
   #[rustfmt::skip]
   tokens_equal!(
     "max_array_value",
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Identifier, Colon, Whitespace, Instruction, Whitespace, Literal, Whitespace,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Identifier, Colon, Whitespace, Instruction, Whitespace, Literal, Linebreak,
     Instruction,
     EndOfFile
   );
@@ -117,18 +117,18 @@ fn min_num_in_n_array() {
   #[rustfmt::skip]
   tokens_equal!(
     "min_num_in_n_array",
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Instruction, Whitespace, Literal, Linebreak,
     Instruction,
     EndOfFile
   );
@@ -139,18 +139,18 @@ fn even_numbers_in_array() {
   #[rustfmt::skip]
   tokens_equal!(
     "even_numbers_in_array",
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Whitespace,
-    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Instruction, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Linebreak,
+    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Instruction, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Literal, Linebreak,
     Instruction,
     EndOfFile
   );
@@ -161,15 +161,15 @@ fn pos_or_neg() {
   #[rustfmt::skip]
   tokens_equal!(
     "pos_or_neg",
-    Comment, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace,
+    Comment, Linebreak,
+    Instruction, Whitespace, Literal, Linebreak,
+    Instruction, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Literal, Linebreak,
     Identifier, Colon, Whitespace, Instruction,
     EndOfFile
   );
@@ -180,19 +180,19 @@ fn sum_of_array() {
   #[rustfmt::skip]
   tokens_equal!(
     "sum_of_array",
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Whitespace,
-    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Instruction, Whitespace, Register, Whitespace, Comment, Whitespace,
-    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Identifier, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace,
-    Instruction, Whitespace, Register, Comma, Whitespace, Register, Whitespace,
-    Instruction, Whitespace, Literal, Whitespace,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Literal, Whitespace, Comment, Linebreak,
+    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Instruction, Whitespace, Register, Whitespace, Comment, Linebreak,
+    Identifier, Colon, Whitespace, Instruction, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Identifier, Linebreak,
+    Instruction, Whitespace, Literal, Linebreak,
+    Instruction, Whitespace, Register, Comma, Whitespace, Register, Linebreak,
+    Instruction, Whitespace, Literal, Linebreak,
     Instruction,
     EndOfFile
   );

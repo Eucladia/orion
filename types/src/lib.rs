@@ -13,7 +13,7 @@ pub type ParseResult<T> = std::result::Result<T, ParseError>;
 pub type AssemblerResult<T> = std::result::Result<T, AssemblerError>;
 
 /// An error.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum Error {
   #[error("an error occurred during lexing")]
   Lexer(#[from] LexError),
@@ -33,7 +33,7 @@ pub enum LexError {
 }
 
 /// An error that occurred during parsing.
-#[derive(Debug, Error, Clone)]
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
 #[error("parsing error occurred at {start_pos}: {kind}")]
 pub struct ParseError {
   /// The position where the error ocurred.
@@ -43,7 +43,7 @@ pub struct ParseError {
 }
 
 /// The kind of error that occurred during parsing.
-#[derive(Debug, Clone, Copy, Error)]
+#[derive(Debug, Clone, Copy, Error, PartialEq, Eq)]
 pub enum ParserErrorKind {
   #[error("the symbol is reserved")]
   ReservedSymbol,
@@ -65,10 +65,13 @@ pub enum ParserErrorKind {
 
   #[error("invalid number")]
   InvalidNumber,
+
+  #[error("expected linebreak")]
+  ExpectedLinebreak,
 }
 
 /// An error that can occur during assembling.
-#[derive(Debug, Copy, Clone, Error)]
+#[derive(Debug, Copy, Clone, Error, PartialEq, Eq)]
 pub enum AssemblerError {
   #[error("the label was already defined")]
   LabelRedefined,

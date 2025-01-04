@@ -26,8 +26,10 @@ impl Token {
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum TokenKind {
-  /// Any whitespace characters – `\n` & `\r`, `\t`, ` `, and `\xOC`.
+  /// The following whitespace characters: `\t`, ` `, and `\xOC`.
   Whitespace,
+  /// Linebreak characters: `\n` & `\r`
+  Linebreak,
   /// The end of the input source.
   EndOfFile,
   /// The comment character, `;`.

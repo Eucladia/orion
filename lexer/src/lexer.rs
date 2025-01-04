@@ -66,6 +66,11 @@ impl<'a> Lexer<'a> {
 
         Some(Ok(create_token!(Whitespace, start..self.curr)))
       }
+      ByteTokenType::LINEBREAK => {
+        self.advance();
+
+        Some(Ok(create_token!(Linebreak, start..self.curr)))
+      }
       ByteTokenType::ALPHABETIC => {
         eat_identifier(self);
 
@@ -182,6 +187,20 @@ macro_rules! create_token {
   };
 }
 
+#[allow(clippy::upper_case_acronyms)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+enum ByteTokenType {
+  COMMA,
+  COLON,
+  COMMENT,
+  NUMERIC,
+  LINEBREAK,
+  WHITESPACE,
+  ALPHABETIC,
+  INVALID,
+}
+
 // Array where the index corresponds to the byte received by the Lexer.
 //
 // The value is the type of token for that byte.
@@ -192,10 +211,11 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
   default[b',' as usize] = ByteTokenType::COMMA;
   // Whitespace characters, taken from `u8::is_ascii_whitespace`
   default[b'\t' as usize] = ByteTokenType::WHITESPACE;
-  default[b'\n' as usize] = ByteTokenType::WHITESPACE;
   default[b'\x0C' as usize] = ByteTokenType::WHITESPACE;
-  default[b'\r' as usize] = ByteTokenType::WHITESPACE;
   default[b' ' as usize] = ByteTokenType::WHITESPACE;
+  // Linebreak characters
+  default[b'\n' as usize] = ByteTokenType::LINEBREAK;
+  default[b'\r' as usize] = ByteTokenType::LINEBREAK;
   // Colon
   default[b':' as usize] = ByteTokenType::COLON;
   // Comment
@@ -231,19 +251,6 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
 
   default
 };
-
-#[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
-enum ByteTokenType {
-  COMMA,
-  COLON,
-  COMMENT,
-  NUMERIC,
-  WHITESPACE,
-  ALPHABETIC,
-  INVALID,
-}
 
 #[cfg(test)]
 mod tests {

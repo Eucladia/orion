@@ -42,14 +42,6 @@ impl<'a> Parser<'a> {
     self.source.get(range)
   }
 
-  fn next_token(&mut self) -> Option<&Token> {
-    let token = self.tokens.get(self.token_index);
-
-    self.token_index += 1;
-
-    token
-  }
-
   pub fn parse(&mut self) -> ParseResult<ProgramNode> {
     let mut nodes = Vec::new();
 
@@ -132,6 +124,7 @@ impl<'a> Parser<'a> {
     let num_operands = instruction.num_operands();
     let mut operands = Vec::with_capacity(num_operands);
     let mut last_token_operand = false;
+    let mut last_token = instruction_token.clone();
 
     while operands.len() < num_operands {
       match self.next_non_whitespace_token() {
@@ -142,6 +135,7 @@ impl<'a> Parser<'a> {
 
           operands.push(OperandNode::Register(reg));
           last_token_operand = true;
+          last_token = token;
         }
         Some(token) if matches!(token.kind(), TokenKind::Literal) => {
           // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
@@ -160,6 +154,7 @@ impl<'a> Parser<'a> {
 
           operands.push(OperandNode::Literal(number));
           last_token_operand = true;
+          last_token = token;
         }
         Some(token) if matches!(token.kind(), TokenKind::Identifier) => {
           // SAFETY: We have a valid `Identifier` token produced by the lexer and an immutable str
@@ -167,6 +162,7 @@ impl<'a> Parser<'a> {
 
           operands.push(OperandNode::Identifier(SmolStr::new(ident)));
           last_token_operand = true;
+          last_token = token;
         }
         Some(token) if matches!(token.kind(), TokenKind::Comma) => {
           if !last_token_operand {
@@ -193,6 +189,21 @@ impl<'a> Parser<'a> {
       }
     }
 
+    // Make sure the next non-comment token, if any, is a linebreak
+    let next_token = self.next_token();
+
+    if !matches!(
+      next_token.as_ref().map(Token::kind),
+      Some(TokenKind::EndOfFile | TokenKind::Linebreak) | None
+    ) {
+      return Err(ParseError {
+        // Point to the end of the last token
+        start_pos: last_token.span().end,
+        kind: ParserErrorKind::ExpectedLinebreak,
+      });
+    }
+
+    // Check if the types to the instruction are valid
     if instruction_type_error(&instruction, &operands) {
       Err(ParseError {
         start_pos: instruction_token.span().start,
@@ -203,11 +214,30 @@ impl<'a> Parser<'a> {
     }
   }
 
-  fn next_non_whitespace_token(&mut self) -> Option<Token> {
+  /// Gets the next token that isn't whitespace or a comment.
+  fn next_token(&mut self) -> Option<Token> {
     loop {
-      let token = self.next_token()?;
+      let token = self.tokens.get(self.token_index)?;
+
+      self.token_index += 1;
 
       if !matches!(token.kind(), TokenKind::Whitespace | TokenKind::Comment) {
+        return Some(token.clone());
+      }
+    }
+  }
+
+  /// Gets the enxt token that isn't whitespace, a linebreak, or a comment.
+  fn next_non_whitespace_token(&mut self) -> Option<Token> {
+    loop {
+      let token = self.tokens.get(self.token_index)?;
+
+      self.token_index += 1;
+
+      if !matches!(
+        token.kind(),
+        TokenKind::Whitespace | TokenKind::Linebreak | TokenKind::Comment
+      ) {
         return Some(token.clone());
       }
     }
@@ -449,19 +479,21 @@ fn parse_number(num: &str, base: Option<u8>, token_span: Range<usize>) -> ParseR
 
 #[cfg(test)]
 mod tests {
-  macro_rules! parse_file {
+  use types::{ParseError, ParserErrorKind};
+
+  macro_rules! parse_and_write {
     ($src:literal) => {
       let source = include_str!(concat!("../../test_files/", $src, ".asm"));
       let program_node = crate::parse(source).unwrap();
 
       assert!(!program_node.children().is_empty());
 
-      if matches!(std::fs::exists("../test_files/parser_output/"), Ok(false)) {
-        std::fs::create_dir("../test_files/parser_output/").unwrap();
+      if matches!(std::fs::exists("../output/parser/"), Ok(false)) {
+        std::fs::create_dir("../output/parser/").unwrap();
       }
 
       std::fs::write(
-        concat!("../test_files/parser_output/", $src, ".txt"),
+        concat!("../output/parser/", $src, ".txt"),
         &program_node.to_string(),
       )
       .unwrap();
@@ -469,17 +501,39 @@ mod tests {
   }
 
   #[test]
+  fn linebreak() {
+    assert_eq!(
+      crate::parse("MVI A, 01H MVI B, 02H").unwrap_err(),
+      types::Error::Parser(ParseError {
+        start_pos: 10,
+        kind: ParserErrorKind::ExpectedLinebreak,
+      })
+    );
+
+    assert_eq!(
+      crate::parse("MVI A, 01H\nMVI B, 02H HLT").unwrap_err(),
+      types::Error::Parser(ParseError {
+        start_pos: 21,
+        kind: ParserErrorKind::ExpectedLinebreak,
+      })
+    );
+
+    // If there are no more instructions, then it's also valid
+    assert!(crate::parse("MVI A, 01H").is_ok());
+  }
+
+  #[test]
   fn parser_doesnt_panic() {
-    parse_file!("add_two_bytes");
-    parse_file!("even_numbers_in_array");
-    parse_file!("max_array_value");
-    parse_file!("min_num_in_n_array");
-    parse_file!("num_zeros_in_byte");
-    parse_file!("occurrences_of_num");
-    parse_file!("ones_complement");
-    parse_file!("add_two_bytes");
-    parse_file!("pos_or_neg");
-    parse_file!("sum_of_array");
-    parse_file!("twos_complement");
+    parse_and_write!("add_two_bytes");
+    parse_and_write!("even_numbers_in_array");
+    parse_and_write!("max_array_value");
+    parse_and_write!("min_num_in_n_array");
+    parse_and_write!("num_zeros_in_byte");
+    parse_and_write!("occurrences_of_num");
+    parse_and_write!("ones_complement");
+    parse_and_write!("add_two_bytes");
+    parse_and_write!("pos_or_neg");
+    parse_and_write!("sum_of_array");
+    parse_and_write!("twos_complement");
   }
 }
