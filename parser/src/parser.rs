@@ -604,7 +604,8 @@ mod tests {
       types::Error::Parser(ParseError {
         start_pos: 10,
         kind: ParserErrorKind::ExpectedLinebreak,
-      })
+      }),
+      "expected linebreak between MVIs"
     );
 
     assert_eq!(
@@ -612,11 +613,15 @@ mod tests {
       types::Error::Parser(ParseError {
         start_pos: 21,
         kind: ParserErrorKind::ExpectedLinebreak,
-      })
+      }),
+      "expected linebreak before HLT"
     );
 
     // If there are no more instructions, then it's also valid
-    assert!(crate::parse("MVI A, 01H").is_ok());
+    assert!(
+      crate::parse("MVI A, 01H").is_ok(),
+      "single statement should be valid without linebreaks"
+    );
   }
 
   #[test]
