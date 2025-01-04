@@ -505,26 +505,18 @@ fn parse_number(num: &str, base: Option<u8>, token_span: Range<usize>) -> ParseR
     Some(b'o' | b'q') => 8,
     Some(b'd') | None => 10,
     Some(b'h') => 16,
-    Some(_) => {
-      // TODO: This should be unreachable, since the lexer handles this, no?
-      return Err(ParseError {
-        start_pos: token_span.end - 1,
-        kind: ParserErrorKind::InvalidNumber,
-      });
-    }
+    // Could never happen since `TokenKind::Literal` for numbers includes and
+    // validates the suffix
+    Some(_) => unreachable!("invalid numeric suffix"),
   };
 
   u16::from_str_radix(num, radix).map_err(|err| match err.kind() {
-    // TODO: This should also be invalid, no?
-    IntErrorKind::InvalidDigit => ParseError {
-      start_pos: token_span.start,
-      kind: ParserErrorKind::InvalidNumber,
-    },
     IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => ParseError {
       start_pos: token_span.start,
       kind: ParserErrorKind::InvalidNumber,
     },
-    // These cases wouldn't happen
+    // Any other cases should be unreachable, we really only care about fitting
+    // the number into a u16
     _ => unreachable!("invalid integer parsing"),
   })
 }
