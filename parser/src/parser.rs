@@ -3,7 +3,7 @@ use crate::unwrap;
 
 use lexer::instruction::Instruction;
 use lexer::token::{Token, TokenKind};
-use lexer::{Lexer, Register};
+use lexer::Register;
 use types::{LexResult, ParseError, ParseResult, ParserErrorKind};
 
 use smol_str::SmolStr;
@@ -30,11 +30,9 @@ impl<'a> Parser<'a> {
   }
 
   pub fn from_source(source: &'a str) -> LexResult<Self> {
-    let lexer = Lexer::from_string(source);
-
     Ok(Self {
       source,
-      tokens: lexer.into_iter().collect::<LexResult<Vec<_>>>()?,
+      tokens: lexer::lex(source)?,
       token_index: 0,
     })
   }
