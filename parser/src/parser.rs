@@ -4,7 +4,7 @@ use crate::unwrap;
 use lexer::instruction::Instruction;
 use lexer::token::{Token, TokenKind};
 use lexer::{Lexer, Register};
-use types::{LexResult, ParseError, ParseResult};
+use types::{LexResult, ParseError, ParseResult, ParserErrorKind};
 
 use smol_str::SmolStr;
 
@@ -75,8 +75,8 @@ impl<'a> Parser<'a> {
 
         if ident.starts_with("$") && ident.len() > 1 {
           return Some(Err(ParseError {
-            location: token.span(),
-            error_message: "`$` is a reserved symbol and cannot be an identifier".to_string(),
+            start_pos: token.span().start,
+            kind: ParserErrorKind::ReservedSymbol,
           }));
         }
 
@@ -85,15 +85,13 @@ impl<'a> Parser<'a> {
         if let Some(node) = label_node {
           if node.label_name().len() > MAX_LABEL_NAME {
             Some(Err(ParseError {
-              location: token.span(),
-              error_message: format!(
-                "label names cannot be greater than {MAX_LABEL_NAME} characters"
-              ),
+              start_pos: token.span().start,
+              kind: ParserErrorKind::LabelNameSizeInvalid,
             }))
           } else if self.tracked_labels.contains(&node.label_name()) {
             Some(Err(ParseError {
-              location: token.span(),
-              error_message: format!("label `{}` was already defined.", node.label_name()),
+              start_pos: token.span().start,
+              kind: ParserErrorKind::LabelAlreadyDefined,
             }))
           } else {
             self.tracked_labels.insert(node.label_name());
@@ -116,9 +114,9 @@ impl<'a> Parser<'a> {
 
       TokenKind::EndOfFile => None,
 
-      kind => Some(Err(ParseError {
-        location: token.span(),
-        error_message: format!("invalid token, `{}`", kind),
+      _ => Some(Err(ParseError {
+        start_pos: token.span().start,
+        kind: ParserErrorKind::UnexpectedToken,
       })),
     }
   }
@@ -186,8 +184,8 @@ impl<'a> Parser<'a> {
         Some(token) if matches!(token.kind(), TokenKind::Comma) => {
           if !last_token_operand {
             return Err(ParseError {
-              location: token.span(),
-              error_message: format!("unexpected `{}`", token.kind()),
+              start_pos: token.span().start,
+              kind: ParserErrorKind::UnexpectedToken,
             });
           }
 
@@ -195,17 +193,14 @@ impl<'a> Parser<'a> {
         }
         Some(token) => {
           return Err(ParseError {
-            location: token.span(),
-            error_message: format!("expected an operand, but found `{}`", token.kind()),
+            start_pos: token.span().start,
+            kind: ParserErrorKind::InvalidOperand,
           });
         }
         None => {
           return Err(ParseError {
-            location: self.source.len()..self.source.len(),
-            error_message: format!(
-              "expected `{}` operand(s) for the `{}` instruction",
-              num_operands, instruction
-            ),
+            start_pos: self.source.len(),
+            kind: ParserErrorKind::ExpectedOperand,
           });
         }
       }
@@ -213,8 +208,8 @@ impl<'a> Parser<'a> {
 
     if instruction_type_error(&instruction, &operands) {
       Err(ParseError {
-        location: instruction_token.span(),
-        error_message: "invalid types passed to this instruction".to_string(),
+        start_pos: instruction_token.span().start,
+        kind: ParserErrorKind::InvalidOperandType,
       })
     } else {
       Ok(InstructionNode::from_operands(instruction, operands))
@@ -441,32 +436,27 @@ fn parse_number(num: &str, base: Option<u8>, token_span: Range<usize>) -> ParseR
     Some(b'O' | b'Q') => 8,
     Some(b'D') | None => 10,
     Some(b'H') => 16,
-    Some(x) => {
+    Some(_) => {
+      // TODO: This should be unreachable, since the lexer handles this, no?
       return Err(ParseError {
-        location: token_span.end - 1..token_span.end,
-        error_message: format!("invalid radix `{}`", x),
+        start_pos: token_span.end - 1,
+        kind: ParserErrorKind::InvalidNumber,
       });
     }
   };
 
   u16::from_str_radix(num, radix).map_err(|err| match err.kind() {
+    // TODO: This should also be invalid, no?
     IntErrorKind::InvalidDigit => ParseError {
-      location: token_span,
-      error_message: format!("invalid number, `{}`", num),
+      start_pos: token_span.start,
+      kind: ParserErrorKind::InvalidNumber,
     },
     IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => ParseError {
-      location: token_span,
-      error_message: format!(
-        "number `{}` is too large to fit in 16 bits (`{}`)",
-        num,
-        u16::MAX
-      ),
+      start_pos: token_span.start,
+      kind: ParserErrorKind::InvalidNumber,
     },
     // These cases wouldn't happen
-    _ => ParseError {
-      location: token_span,
-      error_message: format!("unhandled int conversion, `{}`", num),
-    },
+    _ => unreachable!("invalid integer parsing"),
   })
 }
 

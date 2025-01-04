@@ -9,9 +9,7 @@ pub use lexer::Lexer;
 pub use register::Register;
 pub use token::*;
 
-use types::LexResult;
-
 /// Lexes the input source into a group of tokens.
-pub fn lex(src: &str) -> LexResult<Vec<Token>> {
+pub fn lex(src: &str) -> types::LexResult<Vec<Token>> {
   Lexer::from_string(src).collect()
 }
