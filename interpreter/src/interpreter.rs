@@ -292,12 +292,11 @@ impl Interpreter {
 
 #[cfg(test)]
 mod tests {
-  use parser::parser::Parser;
-
   use super::Interpreter;
+  use lexer::Flags;
 
   /// Runs an assembly file, making sure that the expected memory values are set.
-  macro_rules! run_asm {
+  macro_rules! run_file {
       (
           $src:literal,
           [$($write_addr:literal => $write_value:literal),*],
@@ -305,7 +304,7 @@ mod tests {
       ) => {
         {
           let src = include_str!(concat!("../../test_files/", $src, ".asm"));
-          let mut int = Interpreter::new(Parser::from_source(src).unwrap().parse().unwrap());
+          let mut int = Interpreter::new(parser::parse(src).unwrap());
 
           int.assemble().unwrap();
 
@@ -341,9 +340,79 @@ mod tests {
       };
   }
 
+  /// Runs an assembly program
+  macro_rules! run_asm {
+    (
+          $src:literal,
+          $func:expr,
+          $err:literal
+      ) => {
+      let mut int = Interpreter::new(parser::parse($src).unwrap());
+
+      int.assemble().unwrap();
+
+      while int.execute().is_some() {}
+
+      assert!($func(&mut int));
+    };
+  }
+
+  #[test]
+  fn d8_operands() {
+    run_asm!(
+      "MVI B, 'A'",
+      |int: &mut Interpreter| int.env.registers.b == b'A',
+      "invalid MVI w/ d8"
+    );
+
+    run_asm!(
+      "STC\nMVI A, 03H\nACI 'A'",
+      |int: &mut Interpreter| int.env.registers.a == b'A' + 0x3 + 0x1,
+      "invalid ACI w/ d8"
+    );
+
+    run_asm!(
+      "MVI A, 50H\nSBI 'A'",
+      |int: &mut Interpreter| int.env.registers.a == 0x50 - b'A',
+      "invalid SBI w/ d8"
+    );
+    run_asm!(
+      "MVI A, 03H\nXRI 'A'",
+      |int: &mut Interpreter| int.env.registers.a == b'A' ^ 0x3,
+      "invalid XRI w/ d8"
+    );
+    run_asm!(
+      "MVI A, 03H\nCPI 'A'",
+      |int: &mut Interpreter| int.env.is_flag_set(Flags::Carry) && int.env.is_flag_set(Flags::Sign),
+      "invalid CPI w/ d8"
+    );
+
+    run_asm!(
+      "MVI A, 03H\nADI 'A'",
+      |int: &mut Interpreter| int.env.registers.a == 0x3 + b'A',
+      "invalid ADI w/ d8"
+    );
+    run_asm!(
+      "MVI A, 68H\nSUI 'A'",
+      |int: &mut Interpreter| int.env.registers.a == 0x68 - b'A',
+      "invalid SUI with d8"
+    );
+    run_asm!(
+      "MVI A, 03H\nANI 'A'",
+      |int: &mut Interpreter| int.env.registers.a == 0x3 & b'A',
+      "invalid ANI w/ d8"
+    );
+    run_asm!(
+      "MVI A, 03H\nORI 'A'",
+      |int: &mut Interpreter| int.env.registers.a == 0x3 | b'A',
+      "invalid ORI w/ d8"
+    );
+  }
+
+  // Test files
   #[test]
   fn even_numbers_in_array() {
-    run_asm!(
+    run_file!(
       "even_numbers_in_array",
       [
         0x2040 => 0x1, 0x2041 => 0x2, 0x2042 => 0x3, 0x2043 => 0x4, 0x2044 => 0xA,
@@ -356,21 +425,21 @@ mod tests {
   #[test]
   fn pos_or_neg() {
     // Test a positive number
-    let mut interpreter = run_asm!(
+    let mut interpreter = run_file!(
       "pos_or_neg", [0x2050 => 0x17], [0x2055 => 0x0]
     );
 
     interpreter.reset(false);
 
     // Test a negative number
-    run_asm!(
+    run_file!(
       "pos_or_neg", [0x2050 => 0xD6], [0x2055 => 0x1]
     );
   }
 
   #[test]
   fn sum_of_array() {
-    run_asm!(
+    run_file!(
       "sum_of_array",
       [0x02050 => 0x1, 0x2051 => 0x2, 0x2052 => 0x3, 0x2053 => 0x04, 0x2054 => 0xA],
       [0x3000 => 0x14, 0x3001 => 0x0]
@@ -379,32 +448,32 @@ mod tests {
 
   #[test]
   fn ones_comp() {
-    run_asm!("ones_complement", [], [0x50 => 0x7A]);
+    run_file!("ones_complement", [], [0x50 => 0x7A]);
   }
 
   #[test]
   fn twos_comp() {
-    run_asm!("twos_complement", [], [0x50 => 0x9B]);
+    run_file!("twos_complement", [], [0x50 => 0x9B]);
   }
 
   #[test]
   fn add_two_bytes() {
-    run_asm!("add_two_bytes", [0x2000 => 0x10, 0x2001 => 0x10], [0x2002 => 0x20]);
+    run_file!("add_two_bytes", [0x2000 => 0x10, 0x2001 => 0x10], [0x2002 => 0x20]);
   }
 
   #[test]
   fn max_array_value() {
-    run_asm!("max_array_value", [0x0050 => 0x92, 0x0051 => 0xB4], [0x0060 => 0xB4]);
+    run_file!("max_array_value", [0x0050 => 0x92, 0x0051 => 0xB4], [0x0060 => 0xB4]);
   }
 
   #[test]
   fn num_zeros_in_byte() {
-    run_asm!("num_zeros_in_byte", [0x0030 => 0xF2], [0x0040 => 0x3]);
+    run_file!("num_zeros_in_byte", [0x0030 => 0xF2], [0x0040 => 0x3]);
   }
 
   #[test]
   fn min_num_in_n_array() {
-    run_asm!("min_num_in_n_array",
+    run_file!("min_num_in_n_array",
       [
         0x0030 => 0x6, 0x0031 => 0xB4, 0x0032 => 0x56, 0x0033 => 0x8,
         0x0034 => 0x45, 0x0035 => 0x33, 0x0036 => 0x7
@@ -415,7 +484,7 @@ mod tests {
 
   #[test]
   fn occurrences_of_num() {
-    run_asm!(
+    run_file!(
       "occurrences_of_num",
       [
         0x0040 => 0x1, 0x0041 => 0x2, 0x0042 => 0x1, 0x0043 => 0x3,

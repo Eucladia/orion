@@ -210,17 +210,33 @@ impl Environment {
         self.assemble_instruction(addr, 0xCE);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
+      (ACI, &[OperandNode::String(ref data)]) => {
+        self.assemble_instruction(addr, 0xCE);
+        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
+      }
       (SBI, &[OperandNode::Literal(data)]) => {
         self.assemble_instruction(addr, 0xDE);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
+      }
+      (SBI, &[OperandNode::String(ref data)]) => {
+        self.assemble_instruction(addr, 0xDE);
+        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (XRI, &[OperandNode::Literal(data)]) => {
         self.assemble_instruction(addr, 0xEE);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
+      (XRI, &[OperandNode::String(ref data)]) => {
+        self.assemble_instruction(addr, 0xEE);
+        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
+      }
       (CPI, &[OperandNode::Literal(data)]) => {
         self.assemble_instruction(addr, 0xFE);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
+      }
+      (CPI, &[OperandNode::String(ref data)]) => {
+        self.assemble_instruction(addr, 0xFE);
+        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (ADD, &[OperandNode::Register(r1)]) => {
         self.assemble_instruction(addr, 0x80 + encode_register(r1))
@@ -229,17 +245,33 @@ impl Environment {
         self.assemble_instruction(addr, 0xC6);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
+      (ADI, &[OperandNode::String(ref data)]) => {
+        self.assemble_instruction(addr, 0xC6);
+        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
+      }
       (SUI, &[OperandNode::Literal(data)]) => {
         self.assemble_instruction(addr, 0xD6);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
+      }
+      (SUI, &[OperandNode::String(ref data)]) => {
+        self.assemble_instruction(addr, 0xD6);
+        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (ANI, &[OperandNode::Literal(data)]) => {
         self.assemble_instruction(addr, 0xE6);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
+      (ANI, &[OperandNode::String(ref data)]) => {
+        self.assemble_instruction(addr, 0xE6);
+        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
+      }
       (ORI, &[OperandNode::Literal(data)]) => {
         self.assemble_instruction(addr, 0xF6);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
+      }
+      (ORI, &[OperandNode::String(ref data)]) => {
+        self.assemble_instruction(addr, 0xF6);
+        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (ADC, &[OperandNode::Register(r1)]) => {
         self.assemble_instruction(addr, 0x88 + encode_register(r1))
@@ -423,6 +455,10 @@ impl Environment {
       (MVI, &[OperandNode::Register(r1), OperandNode::Literal(data)]) => {
         self.assemble_instruction(addr, encode_mvi(r1));
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
+      }
+      (MVI, &[OperandNode::Register(r1), OperandNode::String(ref data)]) => {
+        self.assemble_instruction(addr, encode_mvi(r1));
+        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (MOV, &[OperandNode::Register(r1), OperandNode::Register(r2)]) => {
         self.assemble_instruction(addr, encode_mov(r1, r2));

@@ -4,6 +4,8 @@ pub mod parser;
 use lexer::Token;
 use nodes::ProgramNode;
 
+pub use parser::Parser;
+
 #[macro_export]
 macro_rules! unwrap {
   ($expr:expr) => {{
@@ -19,7 +21,7 @@ macro_rules! unwrap {
 }
 
 pub fn parse_tokens(src: &str, tokens: Vec<Token>) -> types::ParseResult<ProgramNode> {
-  parser::Parser::new(src, tokens).parse()
+  Parser::new(src, tokens).parse()
 }
 
 pub fn parse(src: &str) -> types::Result<ProgramNode> {
