@@ -284,28 +284,29 @@ pub fn execute_dad(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_daa(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let acc = env.registers.a;
   let mut correction = 0;
+  // Preserve the aux carry and carry flag, before doing the adjustment
+  let mut is_aux_carry_set = env.is_flag_set(Flags::AuxiliaryCarry);
+  let mut is_carry_set = env.is_flag_set(Flags::Carry);
 
-  if (acc & 0xF) > 9 || env.is_flag_set(Flags::AuxiliaryCarry) {
+  if (env.registers.a & 0xF) > 9 || is_aux_carry_set {
     // Add 6 to the lower nibble
     correction += 6;
-    env.set_flag(Flags::AuxiliaryCarry, true);
+    is_aux_carry_set = true;
   }
 
-  if (acc >> 4) > 9 || env.is_flag_set(Flags::Carry) {
+  if (env.registers.a >> 4) > 9 || is_carry_set {
     // Add 6 to the upper nibble
     correction += 6 << 4;
-    env.set_flag(Flags::Carry, true);
+    is_carry_set = true
   }
 
-  let res = acc.wrapping_add(correction);
+  env.registers.a = env.registers.a.wrapping_add(correction);
 
-  env.registers.a = res;
-
-  env.set_flag(Flags::Zero, res == 0);
-  env.set_flag(Flags::Sign, res & 0x80 != 0);
-  env.set_flag(Flags::Parity, res.count_ones() % 2 == 0);
+  env.update_flags_logical(env.registers.a);
+  // Update the carry flags to what they should be
+  env.set_flag(Flags::AuxiliaryCarry, is_aux_carry_set);
+  env.set_flag(Flags::Carry, is_carry_set);
 
   env.registers.pc += 1;
 }
