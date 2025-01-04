@@ -6,5 +6,4 @@ resolver = "2"
 
 [dependencies]
 types = { path = "../types/" }
-thiserror = "2"
 

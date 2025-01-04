@@ -1,5 +1,6 @@
 use crate::{instruction_bytes_occupied, instructions, Environment};
 use parser::nodes::{Node, ProgramNode};
+use types::AssemblerError;
 
 #[derive(Debug)]
 pub struct Interpreter {
@@ -18,7 +19,7 @@ impl Interpreter {
   }
 
   /// Assmebles the assembly, encoding the instructions into memory.
-  pub fn assemble(&mut self) -> crate::InterpreterResult<()> {
+  pub fn assemble(&mut self) -> types::AssemblerResult<()> {
     let mut unassembled = Vec::new();
 
     for node in self.node.children() {
@@ -31,12 +32,17 @@ impl Interpreter {
           self.assemble_index += instruction_bytes_occupied(&insn.instruction()) as u16;
         }
         Node::Label(label) => {
+          let label_name = label.label_name();
+
+          if self.env.labels.contains_key(&label_name) {
+            return Err(AssemblerError::LabelRedefined);
+          }
+
           // The label is to be inserted at the current address will be the address to go to
           let lower = (self.assemble_index & 0xFF) as u8;
           let upper = (self.assemble_index >> 8) as u8;
 
           let addr = Environment::INSTRUCTION_STARTING_ADDRESS + self.assemble_index;
-          let label_name = label.label_name();
 
           self.env.assemble_instruction(addr, lower);
           self.env.assemble_instruction(addr + 1, upper);

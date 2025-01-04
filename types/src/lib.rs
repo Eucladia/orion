@@ -1,21 +1,28 @@
 use thiserror::Error;
 
+/// A result.
+pub type Result<T> = std::result::Result<T, Error>;
+
 /// A lex result.
 pub type LexResult<T> = std::result::Result<T, LexError>;
 
 /// A parse result.
 pub type ParseResult<T> = std::result::Result<T, ParseError>;
 
-/// A result.
-pub type Result<T> = std::result::Result<T, Error>;
+/// An assembler result
+pub type AssemblerResult<T> = std::result::Result<T, AssemblerError>;
 
 /// An error.
 #[derive(Debug, Error)]
 pub enum Error {
-  #[error("an error occured during lexing")]
+  #[error("an error occurred during lexing")]
   Lexer(#[from] LexError),
-  #[error("an error occured during parsing")]
+
+  #[error("an error occurred during parsing")]
   Parser(#[from] ParseError),
+
+  #[error("an error occurred during assembling")]
+  Assembler(#[from] AssemblerError),
 }
 /// An error that occurred during lexing.
 #[derive(Debug, Error, Copy, Clone, PartialEq, Eq)]
@@ -35,6 +42,7 @@ pub struct ParseError {
   pub kind: ParserErrorKind,
 }
 
+/// The kind of error that occurred during parsing.
 #[derive(Debug, Clone, Copy, Error)]
 pub enum ParserErrorKind {
   #[error("the symbol is reserved")]
@@ -42,9 +50,6 @@ pub enum ParserErrorKind {
 
   #[error("the length of the label name is invalid")]
   LabelNameSizeInvalid,
-
-  #[error("label already defined")]
-  LabelAlreadyDefined,
 
   #[error("unexpected token")]
   UnexpectedToken,
@@ -60,4 +65,11 @@ pub enum ParserErrorKind {
 
   #[error("invalid number")]
   InvalidNumber,
+}
+
+/// An error that can occur during assembling.
+#[derive(Debug, Copy, Clone, Error)]
+pub enum AssemblerError {
+  #[error("the label was already defined")]
+  LabelRedefined,
 }

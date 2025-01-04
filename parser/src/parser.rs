@@ -8,7 +8,6 @@ use types::{LexResult, ParseError, ParseResult, ParserErrorKind};
 
 use smol_str::SmolStr;
 
-use std::collections::HashSet;
 use std::num::IntErrorKind;
 use std::ops::Range;
 
@@ -19,7 +18,6 @@ pub struct Parser<'a> {
   source: &'a str,
   tokens: Vec<Token>,
   token_index: usize,
-  tracked_labels: HashSet<SmolStr>,
 }
 
 impl<'a> Parser<'a> {
@@ -28,7 +26,6 @@ impl<'a> Parser<'a> {
       source,
       tokens,
       token_index: 0,
-      tracked_labels: HashSet::new(),
     }
   }
 
@@ -39,7 +36,6 @@ impl<'a> Parser<'a> {
       source,
       tokens: lexer.into_iter().collect::<LexResult<Vec<_>>>()?,
       token_index: 0,
-      tracked_labels: HashSet::new(),
     })
   }
 
@@ -88,14 +84,7 @@ impl<'a> Parser<'a> {
               start_pos: token.span().start,
               kind: ParserErrorKind::LabelNameSizeInvalid,
             }))
-          } else if self.tracked_labels.contains(&node.label_name()) {
-            Some(Err(ParseError {
-              start_pos: token.span().start,
-              kind: ParserErrorKind::LabelAlreadyDefined,
-            }))
           } else {
-            self.tracked_labels.insert(node.label_name());
-
             Some(Ok(Node::Label(node)))
           }
         } else {

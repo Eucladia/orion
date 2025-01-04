@@ -24,13 +24,13 @@ dependencies = [
  "lexer",
  "parser",
  "smol_str",
+ "types",
 ]
 
 [[package]]
 name = "lexer"
 version = "0.1.0"
 dependencies = [
- "thiserror",
  "types",
 ]
 
