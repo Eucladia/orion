@@ -1,26 +1,26 @@
 use lexer::{instruction::Instruction, Register};
 use smol_str::SmolStr;
 
-/// The root node for a source file
+/// The root node for a source file.
 #[derive(Debug, Clone)]
 pub struct ProgramNode {
   children: Vec<Node>,
 }
 
-/// A node
+/// A node.
 #[derive(Debug, Clone)]
 pub enum Node {
   Instruction(InstructionNode),
   Label(LabelNode),
 }
 
-/// A node representing a label
+/// A node representing a label.
 #[derive(Debug, Clone)]
 pub struct LabelNode {
   name: SmolStr,
 }
 
-/// A node representing an instruction
+/// A node representing an instruction.
 #[derive(Debug, Clone)]
 pub struct InstructionNode {
   // TODO: SmallVec or just use an array?
@@ -28,15 +28,17 @@ pub struct InstructionNode {
   instruction: Instruction,
 }
 
-/// A node representing the operands of an instruction
+/// A node representing the operands of an instruction.
 #[derive(Debug, Clone)]
 pub enum OperandNode {
-  /// For instructions that have an operand that is a register
+  /// For instructions that have an operand that is a register.
   Register(Register),
-  /// For instructions that contain numeric literals – eg memory addresses or numbers
+  /// For instructions that contain numeric literals – eg memory addresses or numbers.
   Literal(u16),
-  /// For instructions that have labels
+  /// For instructions that have labels.
   Identifier(SmolStr),
+  /// For strings.
+  String(SmolStr),
 }
 
 impl ProgramNode {
@@ -94,6 +96,7 @@ impl std::fmt::Display for OperandNode {
       OperandNode::Identifier(ident) => write!(f, "{}", &ident),
       OperandNode::Register(reg) => write!(f, "{}", reg),
       OperandNode::Literal(num) => write!(f, "{}", num),
+      OperandNode::String(str) => write!(f, "{}", str),
     }
   }
 }

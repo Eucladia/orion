@@ -6,7 +6,7 @@ use lexer::token::{Token, TokenKind};
 use lexer::Register;
 use types::{LexResult, ParseError, ParseResult, ParserErrorKind};
 
-use smol_str::SmolStr;
+use smol_str::{SmolStr, SmolStrBuilder};
 
 use std::num::IntErrorKind;
 use std::ops::Range;
@@ -164,6 +164,13 @@ impl<'a> Parser<'a> {
           last_token_operand = true;
           last_token = token;
         }
+        Some(token) if matches!(token.kind(), TokenKind::String) => {
+          let parsed_str = parse_string(self.source.as_bytes(), token.span());
+
+          operands.push(OperandNode::String(parsed_str));
+          last_token_operand = true;
+          last_token = token;
+        }
         Some(token) if matches!(token.kind(), TokenKind::Comma) => {
           if !last_token_operand {
             return Err(ParseError {
@@ -206,6 +213,7 @@ impl<'a> Parser<'a> {
     // Check if the types to the instruction are valid
     if instruction_type_error(&instruction, &operands) {
       Err(ParseError {
+        // Point to the start of the instruction that has the error
         start_pos: instruction_token.span().start,
         kind: ParserErrorKind::InvalidOperandType,
       })
@@ -244,6 +252,27 @@ impl<'a> Parser<'a> {
   }
 }
 
+fn parse_string(source_bytes: &[u8], span: Range<usize>) -> SmolStr {
+  let mut str = SmolStrBuilder::new();
+  let contents = source_bytes.get(span.start + 1..span.end - 1).unwrap();
+  let mut escaped_quote = false;
+
+  for &byte in contents.iter() {
+    if byte == b'\'' {
+      // If we had a `'` before, then we should insert this `'`.
+      if escaped_quote {
+        str.push(byte as char);
+      }
+
+      escaped_quote = !escaped_quote;
+    } else {
+      str.push(byte as char);
+    }
+  }
+
+  str.finish()
+}
+
 fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> bool {
   use Instruction::*;
 
@@ -271,6 +300,20 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
         | Register::M,
       ), OperandNode::Literal(x)],
     ) if x <= u8::MAX as u16 => false,
+    (
+      MVI,
+      &[OperandNode::Register(
+        Register::A
+        | Register::B
+        | Register::C
+        | Register::D
+        | Register::E
+        | Register::H
+        | Register::L
+        | Register::M,
+      ), OperandNode::String(ref x)],
+      // MVI can only take a d8, so we only want 1 ASCII character
+    ) if x.len() == 1 => false,
 
     // Register operands
     (STAX, &[OperandNode::Register(Register::B | Register::D)]) => false,
@@ -426,13 +469,22 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
 
     // d8 operands
     (ADI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (ADI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
     (SUI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (SUI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
     (ANI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (ANI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
     (ORI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (ORI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
     (ACI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (ACI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
     (SBI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (SBI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
     (XRI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (XRI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
     (CPI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (CPI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
+    // Special instruction that only takes 0..8
     (RST, &[OperandNode::Literal(0..=7)]) => false,
 
     // 0 operands
@@ -498,6 +550,46 @@ mod tests {
       )
       .unwrap();
     };
+  }
+
+  #[test]
+  fn using_d8_string() {
+    assert!(crate::parse("MVI A, 'B'").is_ok(), "using string for d8");
+
+    assert_eq!(
+      crate::parse("MVI A, 'BOO'").unwrap_err(),
+      types::Error::Parser(ParseError {
+        start_pos: 0,
+        kind: ParserErrorKind::InvalidOperandType,
+      }),
+      "using multi byte string for d8"
+    );
+
+    assert!(
+      crate::parse("MVI A, 'BOO").is_err(),
+      "using unclosed multi byte string for d8"
+    );
+  }
+
+  #[test]
+  fn invalid_op_types() {
+    assert_eq!(
+      crate::parse("MVI A, BOO").unwrap_err(),
+      types::Error::Parser(ParseError {
+        start_pos: 0,
+        kind: ParserErrorKind::InvalidOperandType,
+      }),
+      "using identifier instead of d8"
+    );
+
+    assert_eq!(
+      crate::parse("MVI A, FFFFH").unwrap_err(),
+      types::Error::Parser(ParseError {
+        start_pos: 0,
+        kind: ParserErrorKind::InvalidOperandType,
+      }),
+      "using d16 instead of d8"
+    );
   }
 
   #[test]
