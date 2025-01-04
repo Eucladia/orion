@@ -49,7 +49,7 @@ pub struct ParseError {
 #[derive(Debug, Clone, Copy, Error, PartialEq, Eq)]
 pub enum ParserErrorKind {
   #[error("the symbol is reserved")]
-  ReservedSymbol,
+  ReservedIdentifier,
 
   #[error("the length of the label name is invalid")]
   LabelNameSizeInvalid,
