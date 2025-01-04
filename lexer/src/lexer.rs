@@ -156,6 +156,7 @@ fn eat_string(lexer: &mut Lexer) -> LexResult<()> {
 
   Ok(())
 }
+
 // Eats a comment until it finds a linebreak
 fn eat_comment(lexer: &mut Lexer) {
   while lexer
@@ -171,10 +172,9 @@ fn eat_numerical_literal(lexer: &mut Lexer) {
 
 // Eats whitespace
 fn eat_whitespace(lexer: &mut Lexer) {
-  while lexer
-    .next_byte()
-    .map_or(false, |byte| byte.is_ascii_whitespace())
-  {}
+  while lexer.next_byte().map_or(false, |b| {
+    b.is_ascii_whitespace() && b != b'\n' && b != b'\r'
+  }) {}
 }
 
 // Eats any kind of identifier
