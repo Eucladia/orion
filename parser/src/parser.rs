@@ -451,15 +451,10 @@ fn parse_number(num: &str, base: Option<u8>, token_span: Range<usize>) -> ParseR
 
 #[cfg(test)]
 mod tests {
-  use super::*;
-
   macro_rules! parse_file {
     ($src:literal) => {
       let source = include_str!(concat!("../../test_files/", $src, ".asm"));
-      let lexer = Lexer::from_string(source);
-      let tokens = lexer.into_iter().collect::<LexResult<Vec<_>>>();
-      let mut parser = Parser::new(source, tokens.unwrap());
-      let program_node = parser.parse().unwrap();
+      let program_node = crate::parse(source).unwrap();
 
       assert!(!program_node.children().is_empty());
 
