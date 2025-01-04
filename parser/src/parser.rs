@@ -141,10 +141,10 @@ impl<'a> Parser<'a> {
           // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
           let mut num_str = unwrap!(self.get_source_content(token.span()));
           // SAFETY: We're guaranteed at least one byte for `Literal`s.
-          let last_byte = unwrap!(num_str.as_bytes().last().copied());
+          let last_byte = unwrap!(num_str.as_bytes().last()).to_ascii_lowercase();
           let mut base = None;
 
-          if matches!(last_byte, b'H' | b'O' | b'Q' | b'B' | b'D') {
+          if matches!(last_byte, b'h' | b'o' | b'q' | b'b' | b'd') {
             // SAFETY: We have at least one byte in this token
             num_str = unwrap!(num_str.get(..num_str.len() - 1));
             base = Some(last_byte);
@@ -501,10 +501,10 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
 
 fn parse_number(num: &str, base: Option<u8>, token_span: Range<usize>) -> ParseResult<u16> {
   let radix = match base {
-    Some(b'B') => 2,
-    Some(b'O' | b'Q') => 8,
-    Some(b'D') | None => 10,
-    Some(b'H') => 16,
+    Some(b'b') => 2,
+    Some(b'o' | b'q') => 8,
+    Some(b'd') | None => 10,
+    Some(b'h') => 16,
     Some(_) => {
       // TODO: This should be unreachable, since the lexer handles this, no?
       return Err(ParseError {
@@ -550,6 +550,19 @@ mod tests {
       )
       .unwrap();
     };
+  }
+
+  #[test]
+  fn valid_number_suffix() {
+    assert!(
+      crate::parse("MVI A, 1h").is_ok(),
+      "expected lowercase suffix to be valid"
+    );
+
+    assert!(
+      crate::parse("MVI A, 1H").is_ok(),
+      "expected uppercase suffix to be valid"
+    );
   }
 
   #[test]
