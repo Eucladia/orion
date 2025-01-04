@@ -59,10 +59,7 @@ impl<'a> Parser<'a> {
       TokenKind::Identifier => {
         let ident = unwrap!(self.get_source_content(token.span()));
 
-        if (ident.starts_with("$") && ident.len() > 1)
-          || ident.eq_ignore_ascii_case("STACK")
-          || ident.eq_ignore_ascii_case("MEMORY")
-        {
+        if ident.starts_with("$") && ident.len() > 1 {
           return Some(Err(ParseError {
             start_pos: token.span().start,
             kind: ParserErrorKind::ReservedIdentifier,
@@ -556,7 +553,7 @@ mod tests {
   }
 
   #[test]
-  fn using_d8_string() {
+  fn operand_d8_string() {
     assert!(crate::parse("MVI A, 'B'").is_ok(), "using string for d8");
 
     assert_eq!(
@@ -597,19 +594,7 @@ mod tests {
 
   #[test]
   fn reserved_words() {
-    assert!(
-      crate::parse("STACKY:\nMVI A, 01H").is_ok(),
-      "using a valid identifier"
-    );
-
-    assert_eq!(
-      crate::parse("STACK:\nMVI A, 01H").unwrap_err(),
-      types::Error::Parser(ParseError {
-        start_pos: 0,
-        kind: ParserErrorKind::ReservedIdentifier,
-      }),
-      "using a reserved identifier"
-    );
+    assert!(crate::parse("NOP\nNOP\nJMP $").is_ok());
   }
 
   #[test]
