@@ -39,17 +39,17 @@ pub enum Register {
 }
 
 impl Register {
-  /// Whether this [Register] is pair-able with the other one.
+  /// Whether this [`Register`] is pair-able with the other one.
   pub const fn is_matching_pair(self, other: Self) -> bool {
     Self::are_register_pairs(self, other)
   }
 
-  /// Whether these 2 [Register]s are pairs.
+  /// Whether these 2 [`Register`]s are pairs.
   pub const fn are_register_pairs(r1: Self, r2: Self) -> bool {
-    match (r1, r2) {
-      (Register::B, Register::C) | (Register::D, Register::E) | (Register::H, Register::L) => true,
-      _ => false,
-    }
+    matches!(
+      (r1, r2),
+      (Register::B, Register::C) | (Register::D, Register::E) | (Register::H, Register::L)
+    )
   }
 
   /// Whether a given string is a register, case insensitive
@@ -57,7 +57,7 @@ impl Register {
     Self::from_string(string).is_some()
   }
 
-  /// Parse a [Register] from a string.
+  /// Parse a [`Register`] from a string.
   pub fn from_string(string: &str) -> Option<Self> {
     match string {
       "a" | "A" => Some(Register::A),
