@@ -13,14 +13,15 @@ pub struct Environment {
   pub label_indices: HashMap<u16, SmolStr>,
   // Maps a label to its address in the program
   pub labels: HashMap<SmolStr, u16>,
-  pub memory: Box<[u8; Environment::MEMORY_SIZE as usize]>,
+  pub memory: Box<[u8; Environment::MEMORY_SIZE]>,
 }
 
 impl Environment {
   /// The default starting address of where instructions get encoded.
   pub const INSTRUCTION_STARTING_ADDRESS: u16 = 0x0000;
-  /// The amount of memory available.
-  pub const MEMORY_SIZE: u16 = u16::MAX;
+
+  /// The amount of memory available, which is 2^16.
+  pub const MEMORY_SIZE: usize = u16::MAX as usize + 1;
 
   pub fn new() -> Self {
     Self {
