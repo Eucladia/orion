@@ -40,14 +40,13 @@ pub enum Register {
 
 impl Register {
   /// Whether this [Register] is pair-able with the other one.
-  pub fn is_matching_pair(self, other: Self) -> bool {
+  pub const fn is_matching_pair(self, other: Self) -> bool {
     Self::are_register_pairs(self, other)
   }
 
   /// Whether these 2 [Register]s are pairs.
-  pub fn are_register_pairs(r1: Self, r2: Self) -> bool {
+  pub const fn are_register_pairs(r1: Self, r2: Self) -> bool {
     match (r1, r2) {
-      // The order matters, I think
       (Register::B, Register::C) | (Register::D, Register::E) | (Register::H, Register::L) => true,
       _ => false,
     }
