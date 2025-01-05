@@ -238,9 +238,7 @@ impl Environment {
         self.assemble_instruction(addr, 0xFE);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (ADD, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction(addr, 0x80 + encode_register(r1))
-      }
+      (ADD, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_add(r1)),
       (ADI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0xC6);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
@@ -273,27 +271,13 @@ impl Environment {
         self.assemble_instruction(addr, 0xF6);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (ADC, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction(addr, 0x88 + encode_register(r1))
-      }
-      (SUB, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction(addr, 0x90 + encode_register(r1))
-      }
-      (SBB, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction(addr, 0x98 + encode_register(r1))
-      }
-      (ANA, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction(addr, 0xA0 + encode_register(r1))
-      }
-      (XRA, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction(addr, 0xA8 + encode_register(r1))
-      }
-      (ORA, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction(addr, 0xB0 + encode_register(r1))
-      }
-      (CMP, &[OperandNode::Register(r1)]) => {
-        self.assemble_instruction(addr, 0xB8 + encode_register(r1))
-      }
+      (ADC, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_adc(r1)),
+      (SUB, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_sub(r1)),
+      (SBB, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_sbb(r1)),
+      (ANA, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_ana(r1)),
+      (XRA, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_xra(r1)),
+      (ORA, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_ora(r1)),
+      (CMP, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_cmp(r1)),
       (INX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_inx(r1)),
       (INR, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_inr(r1)),
       (DCR, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_dcr(r1)),
@@ -319,7 +303,7 @@ impl Environment {
         self.assemble_instruction(addr, 0x2A);
         self.assemble_u16(addr + 1, data);
       }
-      (RST, &[OperandNode::Numeric(num)]) => self.assemble_instruction(addr, encode_rst(num)),
+      (RST, &[OperandNode::Numeric(num)]) => self.assemble_instruction(addr, encode_rst(num as u8)),
       (JNZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, 0xC2);
@@ -463,7 +447,8 @@ impl Environment {
       (MOV, &[OperandNode::Register(r1), OperandNode::Register(r2)]) => {
         self.assemble_instruction(addr, encode_mov(r1, r2));
       }
-      _ => panic!(),
+
+      (instruction, _) => panic!("missing case when assembling {instruction}"),
     }
   }
 }
@@ -480,149 +465,147 @@ impl Default for Environment {
   }
 }
 
-// TODO: Remove these panics and handle it in the parser
-const fn encode_rst(num: u16) -> u8 {
-  match num {
-    0 => 0xC7,
-    2 => 0xD7,
-    4 => 0xE7,
-    6 => 0xF7,
-
-    1 => 0xCF,
-    3 => 0xDF,
-    5 => 0xEF,
-    7 => 0xFF,
-
-    _ => panic!("invalid number passed to encode_rst"),
-  }
-}
-const fn encode_ldax(r1: Register) -> u8 {
-  match r1 {
-    Register::B => 0x0A,
-    Register::D => 0x1A,
-    _ => panic!("invalid register passed to encode_ldax"),
-  }
-}
-const fn encode_stax(r1: Register) -> u8 {
-  match r1 {
-    Register::B => 0x02,
-    Register::D => 0x12,
-    _ => panic!("invalid register passed to encode_stax"),
-  }
+const fn encode_rst(num: u8) -> u8 {
+  // `RST` takes the form 0b11`XXX`111, where `XXX `are the encoded bits
+  0b11000111 | (num << 3)
 }
 
 const fn encode_push(r1: Register) -> u8 {
-  match r1 {
-    Register::B => 0xC5,
-    Register::D => 0xD5,
-    Register::H => 0xE5,
-    Register::PSW => 0xF5,
-    _ => panic!("invalid register passed to encode_push"),
-  }
+  let encoded_rp = match r1 {
+    Register::B => 0b00,
+    Register::D => 0b01,
+    Register::H => 0b10,
+    Register::PSW => 0b11,
+    _ => unreachable!(),
+  };
+
+  // `PUSH` takes the form 0b11`RP`0101, where `RP` is the register pair
+  0b11000101 | (encoded_rp << 4)
 }
 
 const fn encode_pop(r1: Register) -> u8 {
-  match r1 {
-    Register::B => 0xC1,
-    Register::D => 0xD1,
-    Register::H => 0xE1,
-    Register::PSW => 0xF1,
-    _ => panic!("invalid register passed to encode_pop"),
-  }
+  let encoded_rp = match r1 {
+    Register::B => 0b00,
+    Register::D => 0b01,
+    Register::H => 0b10,
+    Register::PSW => 0b11,
+    _ => unreachable!(),
+  };
+
+  // `POP` takes the form 0b11`RP`0001, where `RP` is the register pair
+  0b11000001 | (encoded_rp << 4)
 }
 
 const fn encode_dcx(r1: Register) -> u8 {
-  match r1 {
-    Register::B => 0x0B,
-    Register::D => 0x1B,
-    Register::H => 0x2B,
-    Register::SP => 0x3B,
-    _ => panic!("invalid register passed to encode_dcx"),
-  }
+  let encoded_rp = match r1 {
+    Register::B => 0b00,
+    Register::D => 0b01,
+    Register::H => 0b10,
+    Register::SP => 0b11,
+    _ => unreachable!(),
+  };
+
+  // `DCX` takes the form 0b00`RP`1011, where `RP` is the register pair
+  0b00001011 | (encoded_rp << 4)
 }
 
 const fn encode_dad(r1: Register) -> u8 {
-  match r1 {
-    Register::B => 0x09,
-    Register::D => 0x19,
-    Register::H => 0x29,
-    Register::SP => 0x39,
-    _ => panic!("invalid register passed to encode_dad"),
-  }
+  let encoded_rp = match r1 {
+    Register::B => 0b00,
+    Register::D => 0b01,
+    Register::H => 0b10,
+    Register::SP => 0b11,
+    _ => unreachable!(),
+  };
+
+  // `DAD` takes the form 0b00`RP`1001, where `RP` is the register pair
+  0b00001001 | (encoded_rp << 4)
 }
 
 const fn encode_inx(r1: Register) -> u8 {
-  match r1 {
-    Register::B => 0x03,
-    Register::D => 0x13,
-    Register::H => 0x23,
-    Register::SP => 0x33,
-    _ => panic!("invalid register passed to encode_inx"),
-  }
+  let encoded_rp = match r1 {
+    Register::B => 0b00,
+    Register::D => 0b01,
+    Register::H => 0b10,
+    Register::SP => 0b11,
+    _ => unreachable!(),
+  };
+
+  // `INX` takes the form 0b00`RP`0011, where `RP` is the register pair
+  0b00000011 | (encoded_rp << 4)
 }
 
 const fn encode_lxi(r1: Register) -> u8 {
-  match r1 {
-    Register::B => 0x01,
-    Register::D => 0x11,
-    Register::H => 0x21,
-    Register::SP => 0x31,
-    _ => panic!("invalid register passed to lxi instruction"),
-  }
+  let encoded_rp = match r1 {
+    Register::B => 0b00,
+    Register::D => 0b01,
+    Register::H => 0b10,
+    Register::SP => 0b11,
+    _ => unreachable!(),
+  };
+
+  // `LXI` takes the form 0b00`RP`0001, where `RP` is the register pair
+  0b00000001 | (encoded_rp << 4)
+}
+
+const fn encode_mov(r1: Register, r2: Register) -> u8 {
+  // `MOV` takes the form of 0b01`XXX``YYY` where `XXX` is the dest and `YYY` is the src
+  0b01000000 | (encode_register(r1) << 3) | encode_register(r2)
 }
 
 const fn encode_mvi(r1: Register) -> u8 {
-  match r1 {
-    Register::B => 0x06,
-    Register::D => 0x16,
-    Register::H => 0x26,
-    Register::M => 0x36,
-    // 8 bit registers
-    Register::C => 0xE,
-    Register::E => 0x1E,
-    Register::L => 0x2E,
-    Register::A => 0x3E,
-    _ => unreachable!(),
-  }
+  // `MVI` takes the form of 0b00`XXX`110 where `XXX` is the register
+  0b00000110 | (encode_register(r1) << 3)
 }
 
 const fn encode_dcr(r1: Register) -> u8 {
-  match r1 {
-    Register::B => 0x05,
-    Register::D => 0x15,
-    Register::H => 0x25,
-    Register::M => 0x35,
-    // 8 bit registers
-    Register::C => 0x0D,
-    Register::E => 0x1D,
-    Register::L => 0x2D,
-    Register::A => 0x3D,
-    _ => unreachable!(),
-  }
+  // `DCR` takes the form of 0b00`XXX`101 where `XXX` is the register
+  0b00000101 | (encode_register(r1) << 3)
 }
+
 const fn encode_inr(r1: Register) -> u8 {
-  match r1 {
-    Register::B => 0x04,
-    Register::D => 0x14,
-    Register::H => 0x24,
-    Register::M => 0x34,
-    // 8 bit registers
-    Register::C => 0x0C,
-    Register::E => 0x1C,
-    Register::L => 0x2C,
-    Register::A => 0x3C,
-    _ => unreachable!(),
-  }
+  // `INR` takes the form of 0b00`XXX`100 where `XXX` is the register
+  0b00000100 | (encode_register(r1) << 3)
 }
-const fn encode_mov(r1: Register, r2: Register) -> u8 {
-  // The normal value for `MOV M, A`, 0x76, actually corresponds to `HLT`
-  if matches!((r1, r2), (Register::M, Register::A)) {
-    return 0x77;
-  }
 
-  let base = 0x40;
+const fn encode_add(r1: Register) -> u8 {
+  // `ADD` takes the form of 0b10000`XXX` where `XXX` is the register
+  0b10000000 | encode_register(r1)
+}
 
-  base + (encode_register(r1) * 8) + encode_register(r2)
+const fn encode_adc(r1: Register) -> u8 {
+  // `ADC` takes the form of 0b10001`XXX` where `XXX` is the register
+  0b10001000 | encode_register(r1)
+}
+
+const fn encode_sub(r1: Register) -> u8 {
+  // `SUB` takes the form of 0b10010`XXX` where `XXX` is the register
+  0b10010000 | encode_register(r1)
+}
+
+const fn encode_sbb(r1: Register) -> u8 {
+  // `SBB` takes the form of 0b10011`XXX` where `XXX` is the register
+  0b10011000 | encode_register(r1)
+}
+
+const fn encode_ana(r1: Register) -> u8 {
+  // `ANA` takes the form of 0b10100`XXX` where `XXX` is the register
+  0b10100000 | encode_register(r1)
+}
+
+const fn encode_xra(r1: Register) -> u8 {
+  // `XRA` takes the form of 0b10101`XXX` where `XXX` is the register
+  0b10101000 | encode_register(r1)
+}
+
+const fn encode_ora(r1: Register) -> u8 {
+  // `ORA` takes the form of 0b10110`XXX` where `XXX` is the register
+  0b10110000 | encode_register(r1)
+}
+
+const fn encode_cmp(r1: Register) -> u8 {
+  // `CMP` takes the form of 0b10111`XXX` where `XXX` is the register
+  0b10111000 | encode_register(r1)
 }
 
 const fn encode_register(r1: Register) -> u8 {
@@ -635,6 +618,22 @@ const fn encode_register(r1: Register) -> u8 {
     Register::L => 5,
     Register::M => 6,
     Register::A => 7,
+    _ => unreachable!(),
+  }
+}
+
+// NOTE: LDAX and STAX don't seem to follow an encoding pattern?
+const fn encode_ldax(r1: Register) -> u8 {
+  match r1 {
+    Register::B => 0x0A,
+    Register::D => 0x1A,
+    _ => unreachable!(),
+  }
+}
+const fn encode_stax(r1: Register) -> u8 {
+  match r1 {
+    Register::B => 0x02,
+    Register::D => 0x12,
     _ => unreachable!(),
   }
 }
