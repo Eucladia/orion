@@ -112,7 +112,7 @@ impl<'a> Lexer<'a> {
           self.advance();
         }
 
-        Some(Ok(create_token!(Literal, start..self.curr)))
+        Some(Ok(create_token!(Numeric, start..self.curr)))
       }
       ByteTokenType::COMMENT => {
         eat_comment(self);

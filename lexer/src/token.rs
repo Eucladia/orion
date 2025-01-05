@@ -42,8 +42,10 @@ pub enum TokenKind {
   Comma,
   /// The colon character, `:`.
   Colon,
-  /// The only literals in 8085 assembly are integers.
-  Literal,
+  /// A numeric literal.
+  ///
+  /// Numeric literals may end in a `B`, `D, `Q`, `O` or `H` suffix.
+  Numeric,
   /// An identifier.
   ///
   /// Identifiers MUST start with a letter, but can be followed with a number, `$`, or `_`.

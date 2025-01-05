@@ -137,7 +137,7 @@ impl<'a> Parser<'a> {
           last_token_operand = true;
           last_token = token;
         }
-        Some(token) if matches!(token.kind(), TokenKind::Literal) => {
+        Some(token) if matches!(token.kind(), TokenKind::Numeric) => {
           // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
           let mut num_str = unwrap!(self.get_source_content(token.span()));
           // SAFETY: We're guaranteed at least one byte for `Literal`s.
@@ -152,7 +152,7 @@ impl<'a> Parser<'a> {
 
           let number = parse_number(num_str, base, token.span())?;
 
-          operands.push(OperandNode::Literal(number));
+          operands.push(OperandNode::Numeric(number));
           last_token_operand = true;
           last_token = token;
         }
@@ -283,7 +283,7 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
     // Register-d16 operands
     (
       LXI,
-      &[OperandNode::Register(Register::B | Register::D | Register::H | Register::SP), OperandNode::Literal(_)],
+      &[OperandNode::Register(Register::B | Register::D | Register::H | Register::SP), OperandNode::Numeric(_)],
     ) => false,
 
     // Register-d8 operands
@@ -298,7 +298,7 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
         | Register::H
         | Register::L
         | Register::M,
-      ), OperandNode::Literal(x)],
+      ), OperandNode::Numeric(x)],
     ) if x <= u8::MAX as u16 => false,
     (
       MVI,
@@ -444,10 +444,10 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
 
     // a16 operands
     // TODO: Change this to accept idents, literals, and expressions
-    (SHLD, &[OperandNode::Literal(_)]) => false,
-    (STA, &[OperandNode::Literal(_)]) => false,
-    (LHLD, &[OperandNode::Literal(_)]) => false,
-    (LDA, &[OperandNode::Literal(_)]) => false,
+    (SHLD, &[OperandNode::Numeric(_)]) => false,
+    (STA, &[OperandNode::Numeric(_)]) => false,
+    (LHLD, &[OperandNode::Numeric(_)]) => false,
+    (LDA, &[OperandNode::Numeric(_)]) => false,
     (JNZ, &[OperandNode::Identifier(_)]) => false,
     (JNC, &[OperandNode::Identifier(_)]) => false,
     (JPO, &[OperandNode::Identifier(_)]) => false,
@@ -468,24 +468,24 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
     (CALL, &[OperandNode::Identifier(_)]) => false,
 
     // d8 operands
-    (ADI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (ADI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (ADI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
-    (SUI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (SUI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (SUI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
-    (ANI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (ANI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (ANI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
-    (ORI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (ORI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (ORI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
-    (ACI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (ACI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (ACI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
-    (SBI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (SBI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (SBI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
-    (XRI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (XRI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (XRI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
-    (CPI, &[OperandNode::Literal(x)]) if x <= u8::MAX as u16 => false,
+    (CPI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (CPI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
     // Special instruction that only takes 0..8
-    (RST, &[OperandNode::Literal(0..=7)]) => false,
+    (RST, &[OperandNode::Numeric(0..=7)]) => false,
 
     // 0 operands
     (

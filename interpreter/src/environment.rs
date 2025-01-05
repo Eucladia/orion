@@ -206,7 +206,7 @@ impl Environment {
       (STC, &[]) => self.assemble_instruction(addr, 0x37),
 
       // 1 operand
-      (ACI, &[OperandNode::Literal(data)]) => {
+      (ACI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0xCE);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -214,7 +214,7 @@ impl Environment {
         self.assemble_instruction(addr, 0xCE);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (SBI, &[OperandNode::Literal(data)]) => {
+      (SBI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0xDE);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -222,7 +222,7 @@ impl Environment {
         self.assemble_instruction(addr, 0xDE);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (XRI, &[OperandNode::Literal(data)]) => {
+      (XRI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0xEE);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -230,7 +230,7 @@ impl Environment {
         self.assemble_instruction(addr, 0xEE);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (CPI, &[OperandNode::Literal(data)]) => {
+      (CPI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0xFE);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -241,7 +241,7 @@ impl Environment {
       (ADD, &[OperandNode::Register(r1)]) => {
         self.assemble_instruction(addr, 0x80 + encode_register(r1))
       }
-      (ADI, &[OperandNode::Literal(data)]) => {
+      (ADI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0xC6);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -249,7 +249,7 @@ impl Environment {
         self.assemble_instruction(addr, 0xC6);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (SUI, &[OperandNode::Literal(data)]) => {
+      (SUI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0xD6);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -257,7 +257,7 @@ impl Environment {
         self.assemble_instruction(addr, 0xD6);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (ANI, &[OperandNode::Literal(data)]) => {
+      (ANI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0xE6);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -265,7 +265,7 @@ impl Environment {
         self.assemble_instruction(addr, 0xE6);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (ORI, &[OperandNode::Literal(data)]) => {
+      (ORI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0xF6);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -301,25 +301,25 @@ impl Environment {
       (DCX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_dcx(r1)),
       (POP, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_pop(r1)),
       (PUSH, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_push(r1)),
-      (STA, &[OperandNode::Literal(data)]) => {
+      (STA, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0x32);
         self.assemble_u16(addr + 1, data);
       }
-      (SHLD, &[OperandNode::Literal(data)]) => {
+      (SHLD, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0x22);
         self.assemble_u16(addr + 1, data);
       }
       (STAX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_stax(r1)),
-      (LDA, &[OperandNode::Literal(data)]) => {
+      (LDA, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0x3A);
         self.assemble_u16(addr + 1, data);
       }
       (LDAX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_ldax(r1)),
-      (LHLD, &[OperandNode::Literal(data)]) => {
+      (LHLD, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, 0x2A);
         self.assemble_u16(addr + 1, data);
       }
-      (RST, &[OperandNode::Literal(num)]) => self.assemble_instruction(addr, encode_rst(num)),
+      (RST, &[OperandNode::Numeric(num)]) => self.assemble_instruction(addr, encode_rst(num)),
       (JNZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, 0xC2);
@@ -448,11 +448,11 @@ impl Environment {
       },
 
       // 2 Operands
-      (LXI, &[OperandNode::Register(r1), OperandNode::Literal(data)]) => {
+      (LXI, &[OperandNode::Register(r1), OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, encode_lxi(r1));
         self.assemble_u16(addr + 1, data);
       }
-      (MVI, &[OperandNode::Register(r1), OperandNode::Literal(data)]) => {
+      (MVI, &[OperandNode::Register(r1), OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, encode_mvi(r1));
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }

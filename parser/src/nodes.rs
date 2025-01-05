@@ -34,7 +34,7 @@ pub enum OperandNode {
   /// For instructions that have an operand that is a register.
   Register(Register),
   /// For instructions that contain numeric literals – eg memory addresses or numbers.
-  Literal(u16),
+  Numeric(u16),
   /// For instructions that have labels.
   Identifier(SmolStr),
   /// For strings.
@@ -95,7 +95,7 @@ impl std::fmt::Display for OperandNode {
     match self {
       OperandNode::Identifier(ident) => write!(f, "{}", &ident),
       OperandNode::Register(reg) => write!(f, "{}", reg),
-      OperandNode::Literal(num) => write!(f, "{}", num),
+      OperandNode::Numeric(num) => write!(f, "{}", num),
       OperandNode::String(str) => write!(f, "{}", str),
     }
   }
