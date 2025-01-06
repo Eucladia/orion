@@ -82,14 +82,9 @@ impl<'a> Lexer<'a> {
         eat_identifier(self);
 
         let span = start..self.curr;
-        // SAFETY: This is safe because identifiers have to be ASCII, thus valid UTF-8
-        let identifier = unsafe {
-          self
-            .bytes
-            .get(span.clone())
-            .and_then(|bytes| std::str::from_utf8(bytes).ok())
-            .unwrap_unchecked()
-        };
+        // SAFETY: We know the range is valid and the characters are ASCII
+        let identifier =
+          unsafe { std::str::from_utf8_unchecked(self.bytes.get_unchecked(span.clone())) };
 
         if Instruction::is_opcode(identifier) {
           Some(Ok(create_token!(Instruction, span)))
