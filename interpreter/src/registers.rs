@@ -55,7 +55,7 @@ pub fn set_register_value(env: &mut Environment, dest_reg: Register, value: u8) 
     Register::L => env.registers.l = value,
 
     Register::M => env.write_memory(
-      env.memory_at((env.registers.h as u16) << 8 | env.registers.l as u16) as u16,
+      (env.registers.h as u16) << 8 | env.registers.l as u16,
       value,
     ),
     _ => unreachable!(),

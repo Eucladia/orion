@@ -87,6 +87,7 @@ impl Environment {
     self.write_memory(self.registers.sp, value);
   }
 
+  /// Writes the value to the address.
   pub fn write_memory(&mut self, address: u16, value: u8) {
     *self.memory.get_mut(address as usize).unwrap() = value;
   }
