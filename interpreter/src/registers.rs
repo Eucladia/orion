@@ -1,4 +1,3 @@
-use crate::Environment;
 use lexer::Register;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,46 +37,6 @@ impl Registers {
 
     self.pc
   }
-}
-
-/// Sets the value of the register.
-///
-/// If the register is [`Register::M`], then the value at the memory address
-/// of register pair H-L will be set.
-pub fn set_register_value(env: &mut Environment, dest_reg: Register, value: u8) {
-  match dest_reg {
-    Register::A => env.registers.a = value,
-    Register::B => env.registers.b = value,
-    Register::C => env.registers.c = value,
-    Register::D => env.registers.d = value,
-    Register::E => env.registers.e = value,
-    Register::H => env.registers.h = value,
-    Register::L => env.registers.l = value,
-
-    Register::M => env.write_memory(
-      (env.registers.h as u16) << 8 | env.registers.l as u16,
-      value,
-    ),
-    _ => unreachable!(),
-  }
-}
-
-/// Reads the value of the register.
-///
-/// If the register is [`Register::M`], then the value at the memory address
-/// of register pair H-L is returned.
-pub fn get_register_value(env: &Environment, reg: Register) -> Option<u8> {
-  Some(match reg {
-    Register::A => env.registers.a,
-    Register::B => env.registers.b,
-    Register::C => env.registers.c,
-    Register::D => env.registers.d,
-    Register::E => env.registers.e,
-    Register::H => env.registers.h,
-    Register::L => env.registers.l,
-    Register::M => env.memory_at((env.registers.h as u16) << 8 | env.registers.l as u16),
-    _ => unreachable!(),
-  })
 }
 
 pub const fn decode_register(byte: u8) -> Register {

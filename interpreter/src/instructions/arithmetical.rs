@@ -7,8 +7,8 @@ pub fn execute_add(env: &mut Environment, instruction_byte: u8) {
 
   // For ADD, the first 3 bits determine the register
   let register = registers::decode_register(instruction_byte & 0b111);
-  let a = registers::get_register_value(env, Register::A).unwrap();
-  let r = registers::get_register_value(env, register).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
+  let r = env.get_register_value(register).unwrap();
   let res = a.wrapping_add(r);
 
   env.update_flags_arithmetic(a, res, true);
@@ -20,7 +20,7 @@ pub fn execute_add(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_adi(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let a = registers::get_register_value(env, Register::A).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
   let res = a.wrapping_add(env.read_memory());
 
   env.update_flags_arithmetic(a, res, true);
@@ -33,8 +33,8 @@ pub fn execute_adc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let register = registers::decode_register(instruction_byte & 0b111);
-  let a = registers::get_register_value(env, Register::A).unwrap();
-  let r = registers::get_register_value(env, register).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
+  let r = env.get_register_value(register).unwrap();
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
   let res = a.wrapping_add(r).wrapping_add(carry_value);
 
@@ -47,7 +47,7 @@ pub fn execute_adc(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_aci(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let a = registers::get_register_value(env, Register::A).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
   let res = a.wrapping_add(env.read_memory()).wrapping_add(carry_value);
 
@@ -61,8 +61,8 @@ pub fn execute_sbb(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let register = registers::decode_register(instruction_byte & 0b111);
-  let a = registers::get_register_value(env, Register::A).unwrap();
-  let r = registers::get_register_value(env, register).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
+  let r = env.get_register_value(register).unwrap();
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
   let res = a.wrapping_sub(r).wrapping_sub(carry_value);
 
@@ -76,8 +76,8 @@ pub fn execute_sub(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let register = registers::decode_register(instruction_byte & 0b111);
-  let a = registers::get_register_value(env, Register::A).unwrap();
-  let r = registers::get_register_value(env, register).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
+  let r = env.get_register_value(register).unwrap();
   let res = a.wrapping_sub(r);
 
   env.update_flags_arithmetic(a, res, false);
@@ -89,7 +89,7 @@ pub fn execute_sub(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_sui(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let a = registers::get_register_value(env, Register::A).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
   let res = a.wrapping_sub(env.read_memory());
 
   env.update_flags_arithmetic(a, res, false);
@@ -101,7 +101,7 @@ pub fn execute_sui(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_sbi(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let a = registers::get_register_value(env, Register::A).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
   let res = a.wrapping_sub(env.read_memory());
 
   env.update_flags_arithmetic(a, res, false);
@@ -116,10 +116,10 @@ pub fn execute_inr(env: &mut Environment, instruction_byte: u8) {
   let old_carry = env.is_flag_set(Flags::Carry);
 
   let register = registers::decode_register((instruction_byte >> 3) & 0b111);
-  let old_value = registers::get_register_value(env, register).unwrap();
+  let old_value = env.get_register_value(register).unwrap();
   let new_value = old_value.wrapping_add(1);
 
-  registers::set_register_value(env, register, new_value);
+  env.set_register_value(register, new_value);
 
   env.update_flags_arithmetic(old_value, new_value, true);
   // INR preserves the carry flag
@@ -162,10 +162,10 @@ pub fn execute_dcr(env: &mut Environment, instruction_byte: u8) {
   let carry = env.is_flag_set(Flags::Carry);
 
   let register = registers::decode_register((instruction_byte >> 3) & 0b111);
-  let old_value = registers::get_register_value(env, register).unwrap();
+  let old_value = env.get_register_value(register).unwrap();
   let new_value = old_value.wrapping_sub(1);
 
-  registers::set_register_value(env, register, new_value);
+  env.set_register_value(register, new_value);
 
   env.update_flags_arithmetic(old_value, new_value, false);
   // DCR preserves the carry flag
@@ -276,7 +276,7 @@ pub fn execute_dcx(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_rlc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let a = registers::get_register_value(env, Register::A).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
   let rotated = a.rotate_left(1);
 
   // Only the carry flag is updated
@@ -289,7 +289,7 @@ pub fn execute_rlc(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_rrc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let a = registers::get_register_value(env, Register::A).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
   let rotated = a.rotate_right(1);
 
   // Only the carry flag is updated
@@ -302,7 +302,7 @@ pub fn execute_rrc(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_rar(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let a = registers::get_register_value(env, Register::A).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
   let rotated = (a >> 1) | (carry_value << 7);
 
@@ -314,7 +314,7 @@ pub fn execute_rar(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_ral(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let a = registers::get_register_value(env, Register::A).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
   let rotated = (a << 1) | carry_value;
 

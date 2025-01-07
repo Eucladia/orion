@@ -7,8 +7,8 @@ pub fn execute_ora(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let register = registers::decode_register(instruction_byte & 0b111);
-  let a = registers::get_register_value(env, Register::A).unwrap();
-  let r = registers::get_register_value(env, register).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
+  let r = env.get_register_value(register).unwrap();
   let res = a | r;
 
   env.update_flags_logical(res);
@@ -20,7 +20,7 @@ pub fn execute_ora(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_ori(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let a = registers::get_register_value(env, Register::A).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
   let res = a | env.read_memory();
 
   env.update_flags_logical(res);
@@ -33,8 +33,8 @@ pub fn execute_ana(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let register = registers::decode_register(instruction_byte & 0b111);
-  let a = registers::get_register_value(env, Register::A).unwrap();
-  let r = registers::get_register_value(env, register).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
+  let r = env.get_register_value(register).unwrap();
   let res = a & r;
 
   env.update_flags_logical(res);
@@ -49,7 +49,7 @@ pub fn execute_ana(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_ani(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let a = registers::get_register_value(env, Register::A).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
   let res = a & env.read_memory();
 
   env.update_flags_logical(res);
@@ -64,7 +64,7 @@ pub fn execute_ani(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_xri(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let a = registers::get_register_value(env, Register::A).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
   let res = a ^ env.read_memory();
 
   env.update_flags_logical(res);
@@ -77,8 +77,8 @@ pub fn execute_xra(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
   let register = registers::decode_register(instruction_byte & 0b111);
-  let a = registers::get_register_value(env, Register::A).unwrap();
-  let r = registers::get_register_value(env, register).unwrap();
+  let a = env.get_register_value(Register::A).unwrap();
+  let r = env.get_register_value(register).unwrap();
   let res = a ^ r;
 
   env.update_flags_logical(res);

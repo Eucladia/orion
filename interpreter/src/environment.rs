@@ -133,6 +133,46 @@ impl Environment {
     (upper as u16) << 8 | lower as u16
   }
 
+  /// Sets the value of the register.
+  ///
+  /// If the register is [`Register::M`], then the value at the memory address
+  /// of register pair H-L will be set.
+  pub fn set_register_value(&mut self, dest_reg: Register, value: u8) {
+    match dest_reg {
+      Register::A => self.registers.a = value,
+      Register::B => self.registers.b = value,
+      Register::C => self.registers.c = value,
+      Register::D => self.registers.d = value,
+      Register::E => self.registers.e = value,
+      Register::H => self.registers.h = value,
+      Register::L => self.registers.l = value,
+
+      Register::M => self.write_memory(
+        (self.registers.h as u16) << 8 | self.registers.l as u16,
+        value,
+      ),
+      _ => unreachable!(),
+    }
+  }
+
+  /// Reads the value of the register.
+  ///
+  /// If the register is [`Register::M`], then the value at the memory address
+  /// of register pair H-L is returned.
+  pub fn get_register_value(&mut self, reg: Register) -> Option<u8> {
+    Some(match reg {
+      Register::A => self.registers.a,
+      Register::B => self.registers.b,
+      Register::C => self.registers.c,
+      Register::D => self.registers.d,
+      Register::E => self.registers.e,
+      Register::H => self.registers.h,
+      Register::L => self.registers.l,
+      Register::M => self.memory_at((self.registers.h as u16) << 8 | self.registers.l as u16),
+      _ => unreachable!(),
+    })
+  }
+
   /// Gets the start of a label from its name
   pub fn get_label_address(&self, label_name: &SmolStr) -> Option<u16> {
     self.labels.get(label_name).copied()

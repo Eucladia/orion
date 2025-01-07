@@ -7,9 +7,9 @@ pub fn execute_mov(env: &mut Environment, instruction_byte: u8) {
   // The first 6 bits determine the destination and source registers in MOV
   let dest = registers::decode_register((instruction_byte >> 3) & 0b111);
   let src = registers::decode_register(instruction_byte & 0b111);
-  let src_value = registers::get_register_value(env, src).unwrap();
+  let src_value = env.get_register_value(src).unwrap();
 
-  registers::set_register_value(env, dest, src_value);
+  env.set_register_value(dest, src_value);
 
   env.registers.next_pc();
 }
@@ -21,7 +21,7 @@ pub fn execute_mvi(env: &mut Environment, instruction_byte: u8) {
   let dest = registers::decode_register((instruction_byte >> 3) & 0b111);
   let value = env.read_memory();
 
-  registers::set_register_value(env, dest, value);
+  env.set_register_value(dest, value);
 
   env.registers.next_pc();
 }
