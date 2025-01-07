@@ -39,6 +39,9 @@ impl Registers {
   }
 }
 
+/// Decodes a register from a byte.
+///
+/// This function will panic if the value is greater than 0x7
 pub const fn decode_register(byte: u8) -> Register {
   match byte {
     0 => Register::B,
@@ -49,7 +52,7 @@ pub const fn decode_register(byte: u8) -> Register {
     5 => Register::L,
     6 => Register::M,
     7 => Register::A,
-    _ => panic!("got invalid byte register"),
+    _ => panic!("called decode_register with an invalid value"),
   }
 }
 
