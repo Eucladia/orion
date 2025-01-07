@@ -1,44 +1,24 @@
 //! Data transfer instructions
-use crate::{registers, Environment};
-use lexer::Register;
+use crate::{encodings, registers, Environment};
 
 pub fn execute_mov(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let (dest, src) = if instruction_byte == 0x77 {
-    (Register::M, Register::A)
-  } else {
-    let base = instruction_byte - 0x40;
+  // The first 6 bits determine the destination and source registers in MOV
+  let dest = registers::decode_register((instruction_byte >> 3) & 0b111);
+  let src = registers::decode_register(instruction_byte & 0b111);
+  let src_value = registers::get_register_value(env, src).unwrap();
 
-    (
-      registers::decode_register(base / 8),
-      registers::decode_register(base % 8),
-    )
-  };
+  registers::set_register_value(env, dest, src_value);
 
-  let reg_value = registers::get_register_value(env, src).unwrap();
-
-  registers::set_register_value(env, dest, reg_value);
-
-  env.registers.pc = env.registers.pc.wrapping_add(1);
+  env.registers.next_pc();
 }
 
-pub fn execute_mvi(env: &mut Environment, b: u8) {
-  env.registers.ir = b;
+pub fn execute_mvi(env: &mut Environment, instruction_byte: u8) {
+  env.registers.ir = instruction_byte;
 
-  let dest = match b {
-    0x06 => Register::B,
-    0x16 => Register::D,
-    0x26 => Register::H,
-    0x36 => Register::M,
-
-    0x0E => Register::C,
-    0x1E => Register::E,
-    0x2E => Register::L,
-    0x3E => Register::A,
-    _ => unreachable!(),
-  };
-
+  // The destination register is stored in bits 345 in MVI
+  let dest = registers::decode_register((instruction_byte >> 3) & 0b111);
   let value = env.read_memory();
 
   registers::set_register_value(env, dest, value);
@@ -46,33 +26,23 @@ pub fn execute_mvi(env: &mut Environment, b: u8) {
   env.registers.next_pc();
 }
 
-pub fn execute_lxi(env: &mut Environment, byte: u8) {
-  env.registers.ir = byte;
+pub fn execute_lxi(env: &mut Environment, instruction_byte: u8) {
+  env.registers.ir = instruction_byte;
 
   let lower = env.read_memory();
   let upper = env.read_memory();
 
-  match byte {
-    // Register pair B-C
-    0x01 => {
-      env.registers.b = upper;
-      env.registers.c = lower;
-    }
-    // Register pair D-E
-    0x11 => {
-      env.registers.d = upper;
-      env.registers.e = lower;
-    }
-    // Register pair H-L
-    0x21 => {
-      env.registers.h = upper;
-      env.registers.l = lower;
-    }
-    // Stack pointer
-    0x31 => {
-      env.registers.sp = ((upper as u16) << 8) | lower as u16;
-    }
-    _ => unreachable!(),
+  if instruction_byte == encodings::LXI_B {
+    env.registers.b = upper;
+    env.registers.c = lower;
+  } else if instruction_byte == encodings::LXI_D {
+    env.registers.d = upper;
+    env.registers.e = lower;
+  } else if instruction_byte == encodings::LXI_H {
+    env.registers.h = upper;
+    env.registers.l = lower;
+  } else {
+    env.registers.sp = ((upper as u16) << 8) | lower as u16;
   }
 
   env.registers.next_pc();
@@ -81,11 +51,11 @@ pub fn execute_lxi(env: &mut Environment, byte: u8) {
 pub fn execute_ldax(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  if instruction_byte == 0x0A {
+  if instruction_byte == encodings::LDAX_B {
     let address = (env.registers.b as u16) << 8 | env.registers.c as u16;
 
     env.registers.a = env.memory_at(address);
-  } else if instruction_byte == 0x1A {
+  } else if instruction_byte == encodings::LDAX_D {
     let address = (env.registers.d as u16) << 8 | env.registers.e as u16;
 
     env.registers.a = env.memory_at(address);
@@ -107,11 +77,11 @@ pub fn execute_lda(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_stax(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  if instruction_byte == 0x02 {
+  if instruction_byte == encodings::STAX_B {
     let address = (env.registers.b as u16) << 8 | env.registers.c as u16;
 
     env.write_memory(address, env.registers.a);
-  } else if instruction_byte == 0x12 {
+  } else if instruction_byte == encodings::STAX_D {
     let address = (env.registers.d as u16) << 8 | env.registers.e as u16;
 
     env.write_memory(address, env.registers.a);
@@ -145,8 +115,8 @@ pub fn execute_shld(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_lhld(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  env.registers.h = env.read_memory();
   env.registers.l = env.read_memory();
+  env.registers.h = env.read_memory();
 
   env.registers.next_pc();
 }

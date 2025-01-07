@@ -1,3 +1,4 @@
+use crate::encodings;
 use crate::registers::Registers;
 use lexer::{instruction::Instruction, Flags, Register};
 use parser::nodes::{InstructionNode, OperandNode};
@@ -24,13 +25,7 @@ impl Environment {
   pub const MEMORY_SIZE: usize = u16::MAX as usize + 1;
 
   pub fn new() -> Self {
-    Self {
-      flags: Flags::NONE,
-      registers: Registers::default(),
-      label_indices: HashMap::new(),
-      labels: HashMap::new(),
-      memory: Box::new([0; Self::MEMORY_SIZE as usize]),
-    }
+    Self::default()
   }
 
   /// Returns true if the flags are set.
@@ -170,7 +165,10 @@ impl Environment {
     self.memory[starting_memory_index as usize..].fill(0);
   }
 
-  /// Encodes an [InstructionNode] into the specified `address` in memory, or the current internal address.
+  /// Encodes the [`InstructionNode`] into the specified spot in memory.
+  ///
+  /// If it was unable to be encoded, due to the label's address not known at
+  /// the time, there will need to be a second pass at encoding.
   pub fn encode_instruction<'a>(
     &mut self,
     assemble_index: u16,
@@ -183,95 +181,96 @@ impl Environment {
 
     match (instruction_node.instruction(), instruction_node.operands()) {
       // No operands
-      (NOP, &[]) => self.assemble_instruction(addr, 0x0),
-      (RAL, &[]) => self.assemble_instruction(addr, 0x17),
-      (RLC, &[]) => self.assemble_instruction(addr, 0x07),
-      (RRC, &[]) => self.assemble_instruction(addr, 0x0F),
-      (RAR, &[]) => self.assemble_instruction(addr, 0x1F),
-      (CMA, &[]) => self.assemble_instruction(addr, 0x2F),
-      (CMC, &[]) => self.assemble_instruction(addr, 0x3F),
-      (HLT, &[]) => self.assemble_instruction(addr, 0x76),
-      (RNZ, &[]) => self.assemble_instruction(addr, 0xC0),
-      (RNC, &[]) => self.assemble_instruction(addr, 0xD0),
-      (RPO, &[]) => self.assemble_instruction(addr, 0xE0),
-      (RP, &[]) => self.assemble_instruction(addr, 0xF0),
-      (RZ, &[]) => self.assemble_instruction(addr, 0xC8),
-      (RC, &[]) => self.assemble_instruction(addr, 0xD8),
-      (RPE, &[]) => self.assemble_instruction(addr, 0xE8),
-      (RM, &[]) => self.assemble_instruction(addr, 0xF8),
-      (RET, &[]) => self.assemble_instruction(addr, 0xC9),
-      (SPHL, &[]) => self.assemble_instruction(addr, 0xF9),
-      (PCHL, &[]) => self.assemble_instruction(addr, 0xE9),
-      (XCHG, &[]) => self.assemble_instruction(addr, 0xEB),
-      (XTHL, &[]) => self.assemble_instruction(addr, 0xE3),
-      (STC, &[]) => self.assemble_instruction(addr, 0x37),
+      (NOP, &[]) => self.assemble_instruction(addr, encodings::NOP),
+      (RAL, &[]) => self.assemble_instruction(addr, encodings::RAL),
+      (RLC, &[]) => self.assemble_instruction(addr, encodings::RLC),
+      (RRC, &[]) => self.assemble_instruction(addr, encodings::RRC),
+      (RAR, &[]) => self.assemble_instruction(addr, encodings::RAR),
+      (CMA, &[]) => self.assemble_instruction(addr, encodings::CMA),
+      (CMC, &[]) => self.assemble_instruction(addr, encodings::CMC),
+      (HLT, &[]) => self.assemble_instruction(addr, encodings::HLT),
+      (RNZ, &[]) => self.assemble_instruction(addr, encodings::RNZ),
+      (RNC, &[]) => self.assemble_instruction(addr, encodings::RNC),
+      (RPO, &[]) => self.assemble_instruction(addr, encodings::RPO),
+      (RP, &[]) => self.assemble_instruction(addr, encodings::RP),
+      (RZ, &[]) => self.assemble_instruction(addr, encodings::RZ),
+      (RC, &[]) => self.assemble_instruction(addr, encodings::RC),
+      (RPE, &[]) => self.assemble_instruction(addr, encodings::RPE),
+      (RM, &[]) => self.assemble_instruction(addr, encodings::RM),
+      (RET, &[]) => self.assemble_instruction(addr, encodings::RET),
+      (SPHL, &[]) => self.assemble_instruction(addr, encodings::SPHL),
+      (PCHL, &[]) => self.assemble_instruction(addr, encodings::PCHL),
+      (XCHG, &[]) => self.assemble_instruction(addr, encodings::XCHG),
+      (XTHL, &[]) => self.assemble_instruction(addr, encodings::XTHL),
+      (STC, &[]) => self.assemble_instruction(addr, encodings::STC),
+      (DAA, &[]) => self.assemble_instruction(addr, encodings::DAA),
 
       // 1 operand
       (ACI, &[OperandNode::Numeric(data)]) => {
-        self.assemble_instruction(addr, 0xCE);
+        self.assemble_instruction(addr, encodings::ACI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (ACI, &[OperandNode::String(ref data)]) => {
-        self.assemble_instruction(addr, 0xCE);
+        self.assemble_instruction(addr, encodings::ACI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (SBI, &[OperandNode::Numeric(data)]) => {
-        self.assemble_instruction(addr, 0xDE);
+        self.assemble_instruction(addr, encodings::SBI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (SBI, &[OperandNode::String(ref data)]) => {
-        self.assemble_instruction(addr, 0xDE);
+        self.assemble_instruction(addr, encodings::SBI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (XRI, &[OperandNode::Numeric(data)]) => {
-        self.assemble_instruction(addr, 0xEE);
+        self.assemble_instruction(addr, encodings::XRI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (XRI, &[OperandNode::String(ref data)]) => {
-        self.assemble_instruction(addr, 0xEE);
+        self.assemble_instruction(addr, encodings::XRI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (CPI, &[OperandNode::Numeric(data)]) => {
-        self.assemble_instruction(addr, 0xFE);
+        self.assemble_instruction(addr, encodings::CPI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (CPI, &[OperandNode::String(ref data)]) => {
-        self.assemble_instruction(addr, 0xFE);
+        self.assemble_instruction(addr, encodings::CPI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (ADD, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_add(r1)),
       (ADI, &[OperandNode::Numeric(data)]) => {
-        self.assemble_instruction(addr, 0xC6);
+        self.assemble_instruction(addr, encodings::ADI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (ADI, &[OperandNode::String(ref data)]) => {
-        self.assemble_instruction(addr, 0xC6);
+        self.assemble_instruction(addr, encodings::ADI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (SUI, &[OperandNode::Numeric(data)]) => {
-        self.assemble_instruction(addr, 0xD6);
+        self.assemble_instruction(addr, encodings::SUI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (SUI, &[OperandNode::String(ref data)]) => {
-        self.assemble_instruction(addr, 0xD6);
+        self.assemble_instruction(addr, encodings::SUI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (ANI, &[OperandNode::Numeric(data)]) => {
-        self.assemble_instruction(addr, 0xE6);
+        self.assemble_instruction(addr, encodings::ANI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (ANI, &[OperandNode::String(ref data)]) => {
-        self.assemble_instruction(addr, 0xE6);
+        self.assemble_instruction(addr, encodings::ANI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (ORI, &[OperandNode::Numeric(data)]) => {
-        self.assemble_instruction(addr, 0xF6);
+        self.assemble_instruction(addr, encodings::ORI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
       (ORI, &[OperandNode::String(ref data)]) => {
-        self.assemble_instruction(addr, 0xF6);
+        self.assemble_instruction(addr, encodings::ORI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
+      (ADD, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_add(r1)),
       (ADC, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_adc(r1)),
       (SUB, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_sub(r1)),
       (SBB, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_sbb(r1)),
@@ -286,147 +285,148 @@ impl Environment {
       (DCX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_dcx(r1)),
       (POP, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_pop(r1)),
       (PUSH, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_push(r1)),
+
       (STA, &[OperandNode::Numeric(data)]) => {
-        self.assemble_instruction(addr, 0x32);
+        self.assemble_instruction(addr, encodings::STA);
         self.assemble_u16(addr + 1, data);
       }
       (SHLD, &[OperandNode::Numeric(data)]) => {
-        self.assemble_instruction(addr, 0x22);
+        self.assemble_instruction(addr, encodings::SHLD);
         self.assemble_u16(addr + 1, data);
       }
       (STAX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_stax(r1)),
       (LDA, &[OperandNode::Numeric(data)]) => {
-        self.assemble_instruction(addr, 0x3A);
+        self.assemble_instruction(addr, encodings::LDA);
         self.assemble_u16(addr + 1, data);
       }
       (LDAX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_ldax(r1)),
       (LHLD, &[OperandNode::Numeric(data)]) => {
-        self.assemble_instruction(addr, 0x2A);
+        self.assemble_instruction(addr, encodings::LHLD);
         self.assemble_u16(addr + 1, data);
       }
       (RST, &[OperandNode::Numeric(num)]) => self.assemble_instruction(addr, encode_rst(num as u8)),
       (JNZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xC2);
+          self.assemble_instruction(addr, encodings::JNZ);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JNC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xD2);
+          self.assemble_instruction(addr, encodings::JNC);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JPO, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xE2);
+          self.assemble_instruction(addr, encodings::JPO);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xF2);
+          self.assemble_instruction(addr, encodings::JP);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JMP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xC3);
+          self.assemble_instruction(addr, encodings::JMP);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xCA);
+          self.assemble_instruction(addr, encodings::JZ);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xDA);
+          self.assemble_instruction(addr, encodings::JC);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JPE, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xEA);
+          self.assemble_instruction(addr, encodings::JPE);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (JM, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xFA);
+          self.assemble_instruction(addr, encodings::JM);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CNZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xC4);
+          self.assemble_instruction(addr, encodings::CNZ);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CNC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xD4);
+          self.assemble_instruction(addr, encodings::CNC);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CPO, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xE4);
+          self.assemble_instruction(addr, encodings::CPO);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xF4);
+          self.assemble_instruction(addr, encodings::CP);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xCC);
+          self.assemble_instruction(addr, encodings::CZ);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xDC);
+          self.assemble_instruction(addr, encodings::CC);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CPE, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xEC);
+          self.assemble_instruction(addr, encodings::CPE);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CM, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xFC);
+          self.assemble_instruction(addr, encodings::CM);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
       },
       (CALL, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
         Some(jmp_to) => {
-          self.assemble_instruction(addr, 0xCD);
+          self.assemble_instruction(addr, encodings::CALL);
           self.assemble_u16(addr + 1, jmp_to);
         }
         None => unassembled.push((instruction_node, addr)),
@@ -461,7 +461,7 @@ impl Default for Environment {
       registers: Registers::default(),
       label_indices: HashMap::new(),
       labels: HashMap::new(),
-      memory: Box::new([0; Environment::MEMORY_SIZE as usize]),
+      memory: Box::new([0; Environment::MEMORY_SIZE]),
     }
   }
 }
@@ -626,15 +626,15 @@ const fn encode_register(r1: Register) -> u8 {
 // NOTE: LDAX and STAX don't seem to follow an encoding pattern?
 const fn encode_ldax(r1: Register) -> u8 {
   match r1 {
-    Register::B => 0x0A,
-    Register::D => 0x1A,
+    Register::B => encodings::LDAX_B,
+    Register::D => encodings::LDAX_D,
     _ => unreachable!(),
   }
 }
 const fn encode_stax(r1: Register) -> u8 {
   match r1 {
-    Register::B => 0x02,
-    Register::D => 0x12,
+    Register::B => encodings::STAX_B,
+    Register::D => encodings::STAX_D,
     _ => unreachable!(),
   }
 }

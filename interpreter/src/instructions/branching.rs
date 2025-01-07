@@ -5,7 +5,8 @@ use lexer::{Flags, Register};
 pub fn execute_cmp(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let register = registers::decode_register(instruction_byte - 0xB8);
+  // The register is encoded in the lower 3 bits
+  let register = registers::decode_register(instruction_byte & 0b111);
   let a = registers::get_register_value(env, Register::A).unwrap();
   let r = registers::get_register_value(env, register).unwrap();
 

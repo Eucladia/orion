@@ -2,10 +2,11 @@
 use crate::{registers, Environment};
 use lexer::{Flags, Register};
 
+// The first three bits are the register for these instructions
 pub fn execute_ora(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let register = registers::decode_register(instruction_byte - 0xB0);
+  let register = registers::decode_register(instruction_byte & 0b111);
   let a = registers::get_register_value(env, Register::A).unwrap();
   let r = registers::get_register_value(env, register).unwrap();
   let res = a | r;
@@ -31,7 +32,7 @@ pub fn execute_ori(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_ana(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let register = registers::decode_register(instruction_byte - 0xA0);
+  let register = registers::decode_register(instruction_byte & 0b111);
   let a = registers::get_register_value(env, Register::A).unwrap();
   let r = registers::get_register_value(env, register).unwrap();
   let res = a & r;
@@ -75,7 +76,7 @@ pub fn execute_xri(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_xra(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let register = registers::decode_register(instruction_byte - 0xA8);
+  let register = registers::decode_register(instruction_byte & 0b111);
   let a = registers::get_register_value(env, Register::A).unwrap();
   let r = registers::get_register_value(env, register).unwrap();
   let res = a ^ r;

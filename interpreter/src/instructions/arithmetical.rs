@@ -1,11 +1,12 @@
 //! Arithmetical instructions
-use crate::{registers, Environment};
+use crate::{encodings, registers, Environment};
 use lexer::{Flags, Register};
 
 pub fn execute_add(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let register = registers::decode_register(instruction_byte - 0x80);
+  // For ADD, the first 3 bits determine the register
+  let register = registers::decode_register(instruction_byte & 0b111);
   let a = registers::get_register_value(env, Register::A).unwrap();
   let r = registers::get_register_value(env, register).unwrap();
   let res = a.wrapping_add(r);
@@ -31,7 +32,7 @@ pub fn execute_adi(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_adc(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let register = registers::decode_register(instruction_byte - 0x88);
+  let register = registers::decode_register(instruction_byte & 0b111);
   let a = registers::get_register_value(env, Register::A).unwrap();
   let r = registers::get_register_value(env, register).unwrap();
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
@@ -59,7 +60,7 @@ pub fn execute_aci(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_sbb(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let register = registers::decode_register(instruction_byte - 0x98);
+  let register = registers::decode_register(instruction_byte & 0b111);
   let a = registers::get_register_value(env, Register::A).unwrap();
   let r = registers::get_register_value(env, register).unwrap();
   let carry_value = env.is_flag_set(Flags::Carry) as u8;
@@ -74,7 +75,7 @@ pub fn execute_sbb(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_sub(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let register = registers::decode_register(instruction_byte - 0x90);
+  let register = registers::decode_register(instruction_byte & 0b111);
   let a = registers::get_register_value(env, Register::A).unwrap();
   let r = registers::get_register_value(env, register).unwrap();
   let res = a.wrapping_sub(r);
@@ -84,6 +85,7 @@ pub fn execute_sub(env: &mut Environment, instruction_byte: u8) {
   env.registers.a = res;
   env.registers.next_pc();
 }
+
 pub fn execute_sui(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
@@ -95,6 +97,7 @@ pub fn execute_sui(env: &mut Environment, instruction_byte: u8) {
   env.registers.a = res;
   env.registers.next_pc();
 }
+
 pub fn execute_sbi(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
@@ -110,79 +113,43 @@ pub fn execute_sbi(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_inr(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  let carry = env.is_flag_set(Flags::Carry);
+  let old_carry = env.is_flag_set(Flags::Carry);
 
-  if instruction_byte == 0x04 {
-    let old_value = env.registers.b;
+  let register = registers::decode_register((instruction_byte >> 3) & 0b111);
+  let old_value = registers::get_register_value(env, register).unwrap();
+  let new_value = old_value.wrapping_add(1);
 
-    env.registers.b = old_value.wrapping_add(1);
-    env.update_flags_arithmetic(old_value, env.registers.b, true);
-  } else if instruction_byte == 0x14 {
-    let old_value = env.registers.d;
+  registers::set_register_value(env, register, new_value);
 
-    env.registers.d = old_value.wrapping_add(1);
-    env.update_flags_arithmetic(old_value, env.registers.d, true);
-  } else if instruction_byte == 0x24 {
-    let old_value = env.registers.h;
-
-    env.registers.h = old_value.wrapping_add(1);
-    env.update_flags_arithmetic(old_value, env.registers.h, true);
-  } else if instruction_byte == 0x34 {
-    let address = (env.registers.h as u16) << 8 | env.registers.l as u16;
-    let value = env.memory_at(address);
-    let new_value = value.wrapping_add(1);
-
-    env.write_memory(address, new_value);
-    env.update_flags_arithmetic(value, new_value, true);
-  } else if instruction_byte == 0x0C {
-    let old_value = env.registers.c;
-
-    env.registers.c = old_value.wrapping_add(1);
-    env.update_flags_arithmetic(old_value, env.registers.c, true);
-  } else if instruction_byte == 0x1C {
-    let old_value = env.registers.e;
-
-    env.registers.e = old_value.wrapping_add(1);
-    env.update_flags_arithmetic(old_value, env.registers.e, true);
-  } else if instruction_byte == 0x2C {
-    let old_value = env.registers.l;
-
-    env.registers.l = old_value.wrapping_add(1);
-    env.update_flags_arithmetic(old_value, env.registers.l, true);
-  } else if instruction_byte == 0x3C {
-    let old_value = env.registers.a;
-
-    env.registers.a = old_value.wrapping_add(1);
-    env.update_flags_arithmetic(old_value, env.registers.a, true);
-  }
-
+  env.update_flags_arithmetic(old_value, new_value, true);
   // INR preserves the carry flag
-  env.set_flag(Flags::Carry, carry);
+  env.set_flag(Flags::Carry, old_carry);
+
   env.registers.next_pc();
 }
 
 pub fn execute_inx(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  if instruction_byte == 0x03 {
+  if instruction_byte == encodings::INX_B {
     let curr_value = (env.registers.b as u16) << 8 | env.registers.c as u16;
     let updated_value = curr_value.wrapping_add(1);
 
     env.registers.b = (updated_value >> 8) as u8;
     env.registers.c = (updated_value & 0xFF) as u8;
-  } else if instruction_byte == 0x13 {
+  } else if instruction_byte == encodings::INX_D {
     let curr_value = (env.registers.d as u16) << 8 | env.registers.e as u16;
     let updated_value = curr_value.wrapping_add(1);
 
     env.registers.d = (updated_value >> 8) as u8;
     env.registers.e = (updated_value & 0xFF) as u8;
-  } else if instruction_byte == 0x23 {
+  } else if instruction_byte == encodings::INX_H {
     let curr_value = (env.registers.h as u16) << 8 | env.registers.l as u16;
     let updated_value = curr_value.wrapping_add(1);
 
     env.registers.h = (updated_value >> 8) as u8;
     env.registers.l = (updated_value & 0xFF) as u8;
-  } else if instruction_byte == 0x33 {
+  } else if instruction_byte == encodings::INX_SP {
     env.registers.sp = env.registers.sp.wrapping_add(1);
   }
 
@@ -194,59 +161,23 @@ pub fn execute_dcr(env: &mut Environment, instruction_byte: u8) {
 
   let carry = env.is_flag_set(Flags::Carry);
 
-  if instruction_byte == 0x05 {
-    let old_value = env.registers.b;
+  let register = registers::decode_register((instruction_byte >> 3) & 0b111);
+  let old_value = registers::get_register_value(env, register).unwrap();
+  let new_value = old_value.wrapping_sub(1);
 
-    env.registers.b = old_value.wrapping_sub(1);
-    env.update_flags_arithmetic(old_value, env.registers.b, false);
-  } else if instruction_byte == 0x15 {
-    let old_value = env.registers.d;
+  registers::set_register_value(env, register, new_value);
 
-    env.registers.d = old_value.wrapping_sub(1);
-    env.update_flags_arithmetic(old_value, env.registers.d, false);
-  } else if instruction_byte == 0x25 {
-    let old_value = env.registers.h;
-
-    env.registers.h = old_value.wrapping_sub(1);
-    env.update_flags_arithmetic(old_value, env.registers.h, false);
-  } else if instruction_byte == 0x35 {
-    let address = (env.registers.h as u16) << 8 | env.registers.l as u16;
-    let value = env.memory_at(address);
-    let new_value = value.wrapping_sub(1);
-
-    env.write_memory(address, new_value);
-    env.update_flags_arithmetic(value, new_value, false);
-  } else if instruction_byte == 0x0D {
-    let old_value = env.registers.c;
-
-    env.registers.c = old_value.wrapping_sub(1);
-    env.update_flags_arithmetic(old_value, env.registers.c, false);
-  } else if instruction_byte == 0x1D {
-    let old_value = env.registers.e;
-
-    env.registers.e = old_value.wrapping_sub(1);
-    env.update_flags_arithmetic(old_value, env.registers.e, false);
-  } else if instruction_byte == 0x2D {
-    let old_value = env.registers.l;
-
-    env.registers.l = old_value.wrapping_sub(1);
-    env.update_flags_arithmetic(old_value, env.registers.l, false);
-  } else if instruction_byte == 0x3D {
-    let old_value = env.registers.a;
-
-    env.registers.a = old_value.wrapping_sub(1);
-    env.update_flags_arithmetic(old_value, env.registers.a, false);
-  }
-
+  env.update_flags_arithmetic(old_value, new_value, false);
   // DCR preserves the carry flag
   env.set_flag(Flags::Carry, carry);
+
   env.registers.next_pc();
 }
 
 pub fn execute_dad(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  if instruction_byte == 0x09 {
+  if instruction_byte == encodings::DAD_B {
     let bc_value = (env.registers.b as u16) << 8 | env.registers.c as u16;
     let hl_value = (env.registers.h as u16) << 8 | env.registers.l as u16;
     let sum = bc_value.wrapping_add(hl_value);
@@ -254,7 +185,7 @@ pub fn execute_dad(env: &mut Environment, instruction_byte: u8) {
     env.set_flag(Flags::Carry, sum < hl_value);
     env.registers.h = (sum >> 8) as u8;
     env.registers.l = (sum & 0xFF) as u8;
-  } else if instruction_byte == 0x19 {
+  } else if instruction_byte == encodings::DAD_D {
     let de_value = (env.registers.d as u16) << 8 | env.registers.e as u16;
     let hl_value = (env.registers.h as u16) << 8 | env.registers.l as u16;
     let sum = de_value.wrapping_add(hl_value);
@@ -262,14 +193,14 @@ pub fn execute_dad(env: &mut Environment, instruction_byte: u8) {
     env.set_flag(Flags::Carry, sum < hl_value);
     env.registers.h = (sum >> 8) as u8;
     env.registers.l = (sum & 0xFF) as u8;
-  } else if instruction_byte == 0x29 {
+  } else if instruction_byte == encodings::DAD_H {
     let hl_value = (env.registers.h as u16) << 8 | env.registers.l as u16;
     let sum = hl_value.wrapping_add(hl_value);
 
     env.set_flag(Flags::Carry, sum < hl_value);
     env.registers.h = (sum >> 8) as u8;
     env.registers.l = (sum & 0xFF) as u8;
-  } else if instruction_byte == 0x39 {
+  } else if instruction_byte == encodings::DAD_SP {
     let hl_value = (env.registers.h as u16) << 8 | env.registers.l as u16;
     let sum = env.registers.sp.wrapping_add(hl_value);
 
@@ -314,25 +245,25 @@ pub fn execute_daa(env: &mut Environment, instruction_byte: u8) {
 pub fn execute_dcx(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
-  if instruction_byte == 0x0B {
+  if instruction_byte == encodings::DCX_B {
     let curr_value = (env.registers.b as u16) << 8 | env.registers.c as u16;
     let updated_value = curr_value.wrapping_sub(1);
 
     env.registers.b = (updated_value >> 8) as u8;
     env.registers.c = (updated_value & 0xFF) as u8;
-  } else if instruction_byte == 0x1B {
+  } else if instruction_byte == encodings::DCX_D {
     let curr_value = (env.registers.d as u16) << 8 | env.registers.e as u16;
     let updated_value = curr_value.wrapping_sub(1);
 
     env.registers.d = (updated_value >> 8) as u8;
     env.registers.e = (updated_value & 0xFF) as u8;
-  } else if instruction_byte == 0x2B {
+  } else if instruction_byte == encodings::DCX_H {
     let curr_value = (env.registers.h as u16) << 8 | env.registers.l as u16;
     let updated_value = curr_value.wrapping_sub(1);
 
     env.registers.h = (updated_value >> 8) as u8;
     env.registers.l = (updated_value & 0xFF) as u8;
-  } else if instruction_byte == 0x3B {
+  } else if instruction_byte == encodings::DCX_SP {
     let updated_value = env.registers.sp.wrapping_sub(1);
 
     env.registers.b = (updated_value >> 8) as u8;

@@ -1,3 +1,4 @@
+pub mod encodings;
 mod environment;
 mod instructions;
 mod interpreter;

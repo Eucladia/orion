@@ -40,6 +40,10 @@ impl Registers {
   }
 }
 
+/// Sets the value of the register.
+///
+/// If the register is [`Register::M`], then the value at the memory address
+/// of register pair H-L will be set.
 pub fn set_register_value(env: &mut Environment, dest_reg: Register, value: u8) {
   match dest_reg {
     Register::A => env.registers.a = value,
@@ -58,6 +62,10 @@ pub fn set_register_value(env: &mut Environment, dest_reg: Register, value: u8) 
   }
 }
 
+/// Reads the value of the register.
+///
+/// If the register is [`Register::M`], then the value at the memory address
+/// of register pair H-L is returned.
 pub fn get_register_value(env: &Environment, reg: Register) -> Option<u8> {
   Some(match reg {
     Register::A => env.registers.a,
