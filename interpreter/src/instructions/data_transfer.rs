@@ -41,7 +41,7 @@ pub fn execute_lxi(env: &mut Environment, instruction_byte: u8) {
   } else if instruction_byte == encodings::LXI_H {
     env.registers.h = upper;
     env.registers.l = lower;
-  } else {
+  } else if instruction_byte == encodings::LXI_SP {
     env.registers.sp = ((upper as u16) << 8) | lower as u16;
   }
 
