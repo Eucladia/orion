@@ -36,10 +36,10 @@ pub enum ExpressionNode {
   String(SmolStr),
   Identifier(SmolStr),
   Number(u16),
-  Parenthesized(Box<ExpressionNode>),
+  Paren(Box<ExpressionNode>),
   Unary {
     op: Operator,
-    operand: Box<ExpressionNode>,
+    expr: Box<ExpressionNode>,
   },
   Binary {
     op: Operator,
@@ -60,6 +60,8 @@ pub enum Operator {
   ShiftRight,
   Not,
   And,
+  High,
+  Low,
   Or,
   Xor,
   Eq,
@@ -83,24 +85,6 @@ pub enum OperandNode {
   String(SmolStr),
   /// An expression node that gets assembled, before encoding.
   Expression(ExpressionNode),
-}
-
-impl Operator {
-  /// Returns the precedence of the operator, with larger numbers representing higher precedence.
-  pub fn precedence(self) -> u8 {
-    match self {
-      Operator::Or | Operator::Xor => 1,
-      Operator::And => 2,
-      Operator::Not => 3,
-      Operator::Eq | Operator::Ne | Operator::Lt | Operator::Le | Operator::Gt | Operator::Ge => 4,
-      Operator::Addition | Operator::Subtraction => 5,
-      Operator::Multiplication
-      | Operator::Modulo
-      | Operator::Division
-      | Operator::ShiftLeft
-      | Operator::ShiftRight => 6,
-    }
-  }
 }
 
 impl ProgramNode {
@@ -167,6 +151,9 @@ impl TryFrom<&str> for Operator {
       x if x.eq_ignore_ascii_case("shr") => Operator::ShiftRight,
       x if x.eq_ignore_ascii_case("shl") => Operator::ShiftLeft,
 
+      x if x.eq_ignore_ascii_case("high") => Operator::Low,
+      x if x.eq_ignore_ascii_case("low") => Operator::High,
+
       x if x.eq_ignore_ascii_case("not") => Operator::Not,
       x if x.eq_ignore_ascii_case("and") => Operator::And,
       x if x.eq_ignore_ascii_case("or") => Operator::Or,
@@ -178,6 +165,7 @@ impl TryFrom<&str> for Operator {
       x if x.eq_ignore_ascii_case("le") => Operator::Le,
       x if x.eq_ignore_ascii_case("gt") => Operator::Gt,
       x if x.eq_ignore_ascii_case("ge") => Operator::Ge,
+
       _ => return Err(()),
     })
   }
@@ -236,9 +224,9 @@ impl std::fmt::Display for ExpressionNode {
       ExpressionNode::Number(num) => write!(f, "{}", num),
       ExpressionNode::Identifier(s) => write!(f, "{}", s),
       ExpressionNode::String(s) => write!(f, "{}", s),
-      ExpressionNode::Unary { op, operand } => write!(f, "{}{}", op, operand),
+      ExpressionNode::Unary { op, expr } => write!(f, "{}{}", op, expr),
       ExpressionNode::Binary { op, left, right } => write!(f, "{} {} {}", left, op, right),
-      ExpressionNode::Parenthesized(inner) => inner.fmt(f),
+      ExpressionNode::Paren(inner) => write!(f, "({})", inner),
     }
   }
 }
@@ -255,6 +243,8 @@ impl std::fmt::Display for Operator {
       Operator::ShiftRight => write!(f, "SHR"),
       Operator::Not => write!(f, "NOT"),
       Operator::And => write!(f, "AND"),
+      Operator::High => write!(f, "HIGH"),
+      Operator::Low => write!(f, "LOW"),
       Operator::Or => write!(f, "OR"),
       Operator::Xor => write!(f, "XOR"),
       Operator::Eq => write!(f, "EQ"),

@@ -138,9 +138,8 @@ impl<'a> Parser<'a> {
             self.peek_token().as_ref().map(Token::kind),
             Some(TokenKind::Operator)
           ) {
-            operands.push(OperandNode::Expression(
-              self.parse_expr(Some(ExpressionNode::Number(number)), 0)?,
-            ))
+            self.token_index -= 1;
+            operands.push(OperandNode::Expression(self.parse_expr()?))
           } else {
             operands.push(OperandNode::Numeric(number))
           }
@@ -156,9 +155,8 @@ impl<'a> Parser<'a> {
             self.peek_token().as_ref().map(Token::kind),
             Some(TokenKind::Operator)
           ) {
-            operands.push(OperandNode::Expression(
-              self.parse_expr(Some(ExpressionNode::Identifier(ident)), 0)?,
-            ))
+            self.token_index -= 1;
+            operands.push(OperandNode::Expression(self.parse_expr()?))
           } else {
             operands.push(OperandNode::Identifier(ident))
           }
@@ -173,9 +171,8 @@ impl<'a> Parser<'a> {
             self.peek_token().as_ref().map(Token::kind),
             Some(TokenKind::Operator)
           ) {
-            operands.push(OperandNode::Expression(
-              self.parse_expr(Some(ExpressionNode::String(parsed_str)), 0)?,
-            ))
+            self.token_index -= 1;
+            operands.push(OperandNode::Expression(self.parse_expr()?))
           } else {
             operands.push(OperandNode::String(parsed_str))
           }
@@ -207,9 +204,7 @@ impl<'a> Parser<'a> {
           // the expression across the parenthesis
           self.token_index -= 1;
 
-          operands.push(OperandNode::Expression(ExpressionNode::Parenthesized(
-            Box::new(self.parse_expr(None, 0)?),
-          )));
+          operands.push(OperandNode::Expression(self.parse_expr()?));
           last_token = token;
           last_token_operand = true;
         }
@@ -230,6 +225,8 @@ impl<'a> Parser<'a> {
 
     // Make sure the next non-comment token, if any, is a linebreak
     let next_token = self.next_token();
+
+    dbg!(&next_token);
 
     if !matches!(
       next_token.as_ref().map(Token::kind),
@@ -269,7 +266,7 @@ impl<'a> Parser<'a> {
     }
   }
 
-  /// Gets the next token that isn't spaces or comments.
+  /// Gets the next token that isn't whitespace or a comment.
   fn next_token(&mut self) -> Option<Token> {
     loop {
       let token = self.tokens.get(self.token_index)?;
@@ -298,49 +295,158 @@ impl<'a> Parser<'a> {
     }
   }
 
-  fn parse_expr(
-    &mut self,
-    lhs: Option<ExpressionNode>,
-    precedence: u8,
-  ) -> ParseResult<ExpressionNode> {
-    let mut left = match lhs {
-      Some(x) => x,
-      None => match self.parse_primary() {
-        Ok(val) => val,
-        Err(e) => return Err(e),
-      },
-    };
+  fn parse_expr(&mut self) -> ParseResult<ExpressionNode> {
+    // Start parsing starting from OR or XOR
+    let mut lhs = self.parse_logical_and()?;
 
-    while let Some(next_token) = self.peek_token() {
-      if !matches!(next_token.kind(), TokenKind::Operator) {
+    while let Some(tok) = self.next_token() {
+      let op = Operator::try_from(self.source.get(tok.span()).unwrap()).ok();
+
+      if !matches!(op, Some(Operator::Or | Operator::Xor)) {
+        // Not the proper token, so go back
+        self.token_index -= 1;
         break;
       }
 
-      let op = self
-        .source
-        .get(next_token.span())
-        .and_then(|s| Operator::try_from(s).ok())
-        .unwrap();
+      let rhs = self.parse_logical_and()?;
 
-      if op.precedence() < precedence {
-        break;
-      }
-
-      self.next_token();
-
-      let rhs = self.parse_expr(None, op.precedence() + 1)?;
-
-      left = ExpressionNode::Binary {
-        op,
-        left: Box::new(left),
+      lhs = ExpressionNode::Binary {
+        left: Box::new(lhs),
+        op: op.unwrap(),
         right: Box::new(rhs),
       };
     }
 
-    Ok(left)
+    Ok(lhs)
   }
 
-  fn parse_primary(&mut self) -> ParseResult<ExpressionNode> {
+  fn parse_logical_and(&mut self) -> ParseResult<ExpressionNode> {
+    let mut lhs = self.parse_relational()?;
+
+    while let Some(tok) = self.next_token() {
+      let op = Operator::try_from(self.source.get(tok.span()).unwrap()).ok();
+
+      if !matches!(op, Some(Operator::And)) {
+        self.token_index -= 1;
+        break;
+      }
+
+      let rhs = self.parse_relational()?;
+
+      lhs = ExpressionNode::Binary {
+        left: Box::new(lhs),
+        op: op.unwrap(),
+        right: Box::new(rhs),
+      };
+    }
+
+    Ok(lhs)
+  }
+
+  fn parse_relational(&mut self) -> ParseResult<ExpressionNode> {
+    let mut lhs = self.parse_addition()?;
+
+    while let Some(tok) = self.next_token() {
+      let op = Operator::try_from(self.source.get(tok.span()).unwrap()).ok();
+
+      if !matches!(
+        op,
+        Some(
+          Operator::Eq | Operator::Ne | Operator::Lt | Operator::Le | Operator::Gt | Operator::Ge
+        )
+      ) {
+        self.token_index -= 1;
+        break;
+      }
+
+      let rhs = self.parse_addition()?;
+
+      lhs = ExpressionNode::Binary {
+        left: Box::new(lhs),
+        op: op.unwrap(),
+        right: Box::new(rhs),
+      };
+    }
+
+    Ok(lhs)
+  }
+
+  fn parse_addition(&mut self) -> ParseResult<ExpressionNode> {
+    let mut lhs = self.parse_multiplication()?;
+
+    while let Some(tok) = self.next_token() {
+      let op = Operator::try_from(self.source.get(tok.span()).unwrap()).ok();
+
+      if !matches!(op, Some(Operator::Addition)) {
+        self.token_index -= 1;
+        break;
+      }
+
+      let rhs = self.parse_multiplication()?;
+
+      lhs = ExpressionNode::Binary {
+        left: Box::new(lhs),
+        op: op.unwrap(),
+        right: Box::new(rhs),
+      };
+    }
+
+    Ok(lhs)
+  }
+
+  fn parse_multiplication(&mut self) -> ParseResult<ExpressionNode> {
+    let mut lhs = self.parse_unary()?;
+
+    while let Some(tok) = self.next_token() {
+      let op = Operator::try_from(self.source.get(tok.span()).unwrap()).ok();
+
+      if !matches!(op, Some(Operator::Multiplication)) {
+        self.token_index -= 1;
+        break;
+      }
+
+      let rhs = self.parse_unary()?;
+
+      lhs = ExpressionNode::Binary {
+        left: Box::new(lhs),
+        op: op.unwrap(),
+        right: Box::new(rhs),
+      };
+    }
+
+    Ok(lhs)
+  }
+
+  fn parse_unary(&mut self) -> ParseResult<ExpressionNode> {
+    let tok = self.next_token();
+
+    if tok.is_none() {
+      return Err(ParseError {
+        start_pos: self.source.len(),
+        kind: ParserErrorKind::ExpectedOperand,
+      });
+    }
+
+    let tok = tok.unwrap();
+    let op = Operator::try_from(self.source.get(tok.span()).unwrap()).ok();
+
+    if matches!(
+      op,
+      Some(Operator::Addition | Operator::Subtraction | Operator::High | Operator::Low)
+    ) {
+      let expr = self.parse_unary()?;
+
+      Ok(ExpressionNode::Unary {
+        op: op.unwrap(),
+        expr: Box::new(expr),
+      })
+    } else {
+      self.token_index -= 1;
+      self.parse_factor()
+    }
+  }
+
+  fn parse_factor(&mut self) -> ParseResult<ExpressionNode> {
     match self.peek_token() {
       Some(tok) if matches!(tok.kind(), TokenKind::Identifier) => {
         self.next_token();
@@ -365,11 +471,11 @@ impl<'a> Parser<'a> {
       Some(tok) if matches!(tok.kind(), TokenKind::LeftParenthesis) => {
         self.next_token();
 
-        let expr = self.parse_expr(None, 0)?;
+        let expr = self.parse_expr()?;
 
         match self.next_token() {
           Some(t) if matches!(t.kind(), TokenKind::RightParenthesis) => {
-            Ok(ExpressionNode::Parenthesized(Box::new(expr)))
+            Ok(ExpressionNode::Paren(Box::new(expr)))
           }
           Some(t) => Err(ParseError {
             start_pos: t.span().start,
@@ -700,9 +806,14 @@ mod tests {
 
   #[test]
   fn expr_operand() {
-    let parsed = crate::parse("LXI H, ($ + 6) * 2 / 1 + 'A'").unwrap();
+    let s = "LXI H, ($ + ($ + 6) * 2 + 'A')";
 
-    dbg!(parsed);
+    println!("{}", s);
+
+    let parsed = crate::parse(s).unwrap();
+
+    dbg!(&parsed);
+    dbg!(parsed.to_string());
 
     assert!(false);
   }
