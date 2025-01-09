@@ -10,7 +10,9 @@ pub struct ProgramNode {
 /// A node.
 #[derive(Debug, Clone)]
 pub enum Node {
+  /// An instruction node.
   Instruction(InstructionNode),
+  /// A label node.
   Label(LabelNode),
 }
 
@@ -28,6 +30,46 @@ pub struct InstructionNode {
   instruction: Instruction,
 }
 
+/// A node representation an expression.
+#[derive(Debug, Clone)]
+pub enum ExpressionNode {
+  String(SmolStr),
+  Identifier(SmolStr),
+  Number(u16),
+  Parenthesized(Box<ExpressionNode>),
+  Unary {
+    op: Operator,
+    operand: Box<ExpressionNode>,
+  },
+  Binary {
+    op: Operator,
+    left: Box<ExpressionNode>,
+    right: Box<ExpressionNode>,
+  },
+}
+
+/// Possible operators that can be applied.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Operator {
+  Addition,
+  Subtraction,
+  Division,
+  Multiplication,
+  Modulo,
+  ShiftLeft,
+  ShiftRight,
+  Not,
+  And,
+  Or,
+  Xor,
+  Eq,
+  Ne,
+  Lt,
+  Le,
+  Ge,
+  Gt,
+}
+
 /// A node representing the operands of an instruction.
 #[derive(Debug, Clone)]
 pub enum OperandNode {
@@ -39,6 +81,26 @@ pub enum OperandNode {
   Identifier(SmolStr),
   /// For strings.
   String(SmolStr),
+  /// An expression node that gets assembled, before encoding.
+  Expression(ExpressionNode),
+}
+
+impl Operator {
+  /// Returns the precedence of the operator, with larger numbers representing higher precedence.
+  pub fn precedence(self) -> u8 {
+    match self {
+      Operator::Or | Operator::Xor => 1,
+      Operator::And => 2,
+      Operator::Not => 3,
+      Operator::Eq | Operator::Ne | Operator::Lt | Operator::Le | Operator::Gt | Operator::Ge => 4,
+      Operator::Addition | Operator::Subtraction => 5,
+      Operator::Multiplication
+      | Operator::Modulo
+      | Operator::Division
+      | Operator::ShiftLeft
+      | Operator::ShiftRight => 6,
+    }
+  }
 }
 
 impl ProgramNode {
@@ -54,17 +116,19 @@ impl ProgramNode {
 }
 
 impl LabelNode {
+  /// Creates a new [`LabelNode`]
   pub fn new(name: SmolStr) -> Self {
     Self { name }
   }
 
+  /// The name of this label, without the colon.
   pub fn label_name(&self) -> SmolStr {
     self.name.clone()
   }
 }
 
 impl InstructionNode {
-  /// Creates an [InstructionNode] from the given instruction and operands
+  /// Creates an [`InstructionNode`] from the given instruction and operands
   pub fn from_operands(instruction: Instruction, operands: Vec<OperandNode>) -> Self {
     Self {
       instruction,
@@ -72,7 +136,7 @@ impl InstructionNode {
     }
   }
 
-  /// Creates an [InstructionNode] from the given instruction.
+  /// Creates an [`InstructionNode`] from the given instruction.
   pub fn new(instruction: Instruction) -> Self {
     const MAX_OPERANDS: usize = 2;
 
@@ -90,6 +154,35 @@ impl InstructionNode {
   }
 }
 
+impl TryFrom<&str> for Operator {
+  type Error = ();
+
+  fn try_from(value: &str) -> Result<Self, Self::Error> {
+    Ok(match value {
+      x if x.eq_ignore_ascii_case("+") => Operator::Addition,
+      x if x.eq_ignore_ascii_case("*") => Operator::Multiplication,
+      x if x.eq_ignore_ascii_case("/") => Operator::Division,
+      x if x.eq_ignore_ascii_case("-") => Operator::Subtraction,
+      x if x.eq_ignore_ascii_case("mod") => Operator::Modulo,
+      x if x.eq_ignore_ascii_case("shr") => Operator::ShiftRight,
+      x if x.eq_ignore_ascii_case("shl") => Operator::ShiftLeft,
+
+      x if x.eq_ignore_ascii_case("not") => Operator::Not,
+      x if x.eq_ignore_ascii_case("and") => Operator::And,
+      x if x.eq_ignore_ascii_case("or") => Operator::Or,
+      x if x.eq_ignore_ascii_case("xor") => Operator::Xor,
+
+      x if x.eq_ignore_ascii_case("eq") => Operator::Eq,
+      x if x.eq_ignore_ascii_case("ne") => Operator::Ne,
+      x if x.eq_ignore_ascii_case("lt") => Operator::Lt,
+      x if x.eq_ignore_ascii_case("le") => Operator::Le,
+      x if x.eq_ignore_ascii_case("gt") => Operator::Gt,
+      x if x.eq_ignore_ascii_case("ge") => Operator::Ge,
+      _ => return Err(()),
+    })
+  }
+}
+
 impl std::fmt::Display for OperandNode {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {
@@ -97,6 +190,7 @@ impl std::fmt::Display for OperandNode {
       OperandNode::Register(reg) => write!(f, "{}", reg),
       OperandNode::Numeric(num) => write!(f, "{}", num),
       OperandNode::String(str) => write!(f, "{}", str),
+      OperandNode::Expression(expr) => expr.fmt(f),
     }
   }
 }
@@ -116,19 +210,15 @@ impl std::fmt::Display for ProgramNode {
 
           let op_count = inst_node.operands().len();
 
-          // There are only at most 2 valid operands for instructions
-          if op_count == 2 {
-            writeln!(
-              f,
-              " {}, {}",
-              inst_node.operands.first().unwrap(),
-              inst_node.operands.get(1).unwrap()
-            )?;
-          } else if op_count == 1 {
-            writeln!(f, " {}", inst_node.operands.first().unwrap(),)?;
-          } else {
-            writeln!(f)?;
+          if op_count != 0 {
+            for i in 0..op_count - 1 {
+              write!(f, " {},", inst_node.operands.get(i).unwrap())?;
+            }
+
+            write!(f, " {}", inst_node.operands.last().unwrap())?;
           }
+
+          writeln!(f)?;
         }
         Node::Label(label) => {
           writeln!(f, "{}", label)?;
@@ -137,5 +227,42 @@ impl std::fmt::Display for ProgramNode {
     }
 
     Ok(())
+  }
+}
+
+impl std::fmt::Display for ExpressionNode {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      ExpressionNode::Number(num) => write!(f, "{}", num),
+      ExpressionNode::Identifier(s) => write!(f, "{}", s),
+      ExpressionNode::String(s) => write!(f, "{}", s),
+      ExpressionNode::Unary { op, operand } => write!(f, "{}{}", op, operand),
+      ExpressionNode::Binary { op, left, right } => write!(f, "{} {} {}", left, op, right),
+      ExpressionNode::Parenthesized(inner) => inner.fmt(f),
+    }
+  }
+}
+
+impl std::fmt::Display for Operator {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Operator::Addition => write!(f, "+"),
+      Operator::Subtraction => write!(f, "-"),
+      Operator::Division => write!(f, "/"),
+      Operator::Multiplication => write!(f, "*"),
+      Operator::Modulo => write!(f, "MOD"),
+      Operator::ShiftLeft => write!(f, "SHL"),
+      Operator::ShiftRight => write!(f, "SHR"),
+      Operator::Not => write!(f, "NOT"),
+      Operator::And => write!(f, "AND"),
+      Operator::Or => write!(f, "OR"),
+      Operator::Xor => write!(f, "XOR"),
+      Operator::Eq => write!(f, "EQ"),
+      Operator::Ne => write!(f, "NE"),
+      Operator::Lt => write!(f, "LT"),
+      Operator::Le => write!(f, "LE"),
+      Operator::Ge => write!(f, "GE"),
+      Operator::Gt => write!(f, "GT"),
+    }
   }
 }

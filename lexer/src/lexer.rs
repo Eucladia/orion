@@ -66,6 +66,21 @@ impl<'a> Lexer<'a> {
 
         Some(Ok(create_token!(Whitespace, start..self.curr)))
       }
+      ByteTokenType::LEFT_PAREN => {
+        self.advance();
+
+        Some(Ok(create_token!(LeftParenthesis, start..self.curr)))
+      }
+      ByteTokenType::RIGHT_PAREN => {
+        self.advance();
+
+        Some(Ok(create_token!(RightParenthesis, start..self.curr)))
+      }
+      ByteTokenType::PLUS | ByteTokenType::MINUS | ByteTokenType::STAR | ByteTokenType::SLASH => {
+        self.advance();
+
+        Some(Ok(create_token!(Operator, start..self.curr)))
+      }
       ByteTokenType::LINEBREAK => {
         self.advance();
 
@@ -90,6 +105,8 @@ impl<'a> Lexer<'a> {
           Some(Ok(create_token!(Instruction, span)))
         } else if Register::is_register(identifier) {
           Some(Ok(create_token!(Register, span)))
+        } else if is_operator(identifier) {
+          Some(Ok(create_token!(Operator, span)))
         } else {
           // NOTE: This will include `$`, which aren't valid identifiers,
           // but that will get handled in the parser
@@ -131,6 +148,25 @@ impl<'a> Lexer<'a> {
       }
     }
   }
+}
+
+fn is_operator(identifier: &str) -> bool {
+  // Arithmetic
+  identifier.eq_ignore_ascii_case("mod")
+    || identifier.eq_ignore_ascii_case("shl")
+    || identifier.eq_ignore_ascii_case("shr")
+    // Logical comparisons
+    || identifier.eq_ignore_ascii_case("not")
+    || identifier.eq_ignore_ascii_case("and")
+    || identifier.eq_ignore_ascii_case("or")
+    || identifier.eq_ignore_ascii_case("xor")
+    // Equality
+    || identifier.eq_ignore_ascii_case("eq")
+    || identifier.eq_ignore_ascii_case("ne")
+    || identifier.eq_ignore_ascii_case("lt")
+    || identifier.eq_ignore_ascii_case("le")
+    || identifier.eq_ignore_ascii_case("gt")
+    || identifier.eq_ignore_ascii_case("ge")
 }
 
 fn eat_string(lexer: &mut Lexer) -> LexResult<()> {
@@ -213,7 +249,7 @@ macro_rules! create_token {
   };
 }
 
-#[allow(clippy::upper_case_acronyms)]
+#[allow(clippy::upper_case_acronyms, non_camel_case_types)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
 enum ByteTokenType {
@@ -225,6 +261,12 @@ enum ByteTokenType {
   WHITESPACE,
   ALPHABETIC,
   QUOTE,
+  PLUS,
+  MINUS,
+  STAR,
+  SLASH,
+  RIGHT_PAREN,
+  LEFT_PAREN,
   INVALID,
 }
 
@@ -249,6 +291,15 @@ const BYTE_TOKEN_LOOKUP: [ByteTokenType; 256] = {
   default[b';' as usize] = ByteTokenType::COMMENT;
   // Quote
   default[b'\'' as usize] = ByteTokenType::QUOTE;
+  // Parenthesis
+  default[b'(' as usize] = ByteTokenType::LEFT_PAREN;
+  default[b')' as usize] = ByteTokenType::RIGHT_PAREN;
+
+  // Arithmetic operators
+  default[b'+' as usize] = ByteTokenType::PLUS;
+  default[b'-' as usize] = ByteTokenType::MINUS;
+  default[b'*' as usize] = ByteTokenType::STAR;
+  default[b'/' as usize] = ByteTokenType::SLASH;
 
   // Numbers
   let mut i = b'0';
@@ -387,7 +438,7 @@ mod tests {
   #[test]
   fn gibberish() {
     assert_eq!(
-      get_tokens!("`~~~_+="),
+      get_tokens!("`~~~_="),
       Ok(vec![
         create_token!(Unknown, 0..1),
         create_token!(Unknown, 1..2),
@@ -395,7 +446,6 @@ mod tests {
         create_token!(Unknown, 3..4),
         create_token!(Unknown, 4..5),
         create_token!(Unknown, 5..6),
-        create_token!(Unknown, 6..7),
       ])
     )
   }

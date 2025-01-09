@@ -57,6 +57,18 @@ pub enum TokenKind {
   ///
   /// The registers are `A`, `B`, `C`, `D`, `E`, `H`, `L`, and a psuedo-register `M`.
   Register,
+  /// An operator.
+  ///
+  /// These include arithmetical operators - `+`, `-`, `*`, `/`, `MOD`, `SHR`, and `SHL`.
+  /// It also includs logical operators -  `NOT`, `AND`,`OR`, `XOR`, `EQ`, `NE`, `LT`,
+  // `LE`, `GT`, and `GE`.
+  ///
+  /// Arithmetic operators are evaluated by the assembler and then hardcoded.
+  Operator,
+  /// A left parenthesis, `(`.
+  LeftParenthesis,
+  /// A right parenthesis, `)`.
+  RightParenthesis,
   /// An unknown token.
   ///
   /// This is just here for the purposes of being loseless.

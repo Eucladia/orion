@@ -1,4 +1,6 @@
-use crate::nodes::{InstructionNode, LabelNode, Node, OperandNode, ProgramNode};
+use crate::nodes::{
+  ExpressionNode, InstructionNode, LabelNode, Node, OperandNode, Operator, ProgramNode,
+};
 use crate::unwrap;
 
 use lexer::instruction::Instruction;
@@ -124,52 +126,71 @@ impl<'a> Parser<'a> {
     let num_operands = instruction.num_operands();
     let mut operands = Vec::with_capacity(num_operands);
     let mut last_token_operand = false;
+    // TODO: last token function
     let mut last_token = instruction_token.clone();
 
     while operands.len() < num_operands {
       match self.next_non_whitespace_token() {
+        Some(token) if matches!(token.kind(), TokenKind::Numeric) => {
+          let number = parse_number(self.source, &token)?;
+
+          if matches!(
+            self.peek_token().as_ref().map(Token::kind),
+            Some(TokenKind::Operator)
+          ) {
+            operands.push(OperandNode::Expression(
+              self.parse_expr(Some(ExpressionNode::Number(number)), 0)?,
+            ))
+          } else {
+            operands.push(OperandNode::Numeric(number))
+          }
+
+          last_token = token;
+          last_token_operand = true;
+        }
+        Some(token) if matches!(token.kind(), TokenKind::Identifier) => {
+          // SAFETY: We have a valid `Identifier` token produced by the lexer and an immutable str
+          let ident = SmolStr::new(unwrap!(self.source.get(token.span())));
+
+          if matches!(
+            self.peek_token().as_ref().map(Token::kind),
+            Some(TokenKind::Operator)
+          ) {
+            operands.push(OperandNode::Expression(
+              self.parse_expr(Some(ExpressionNode::Identifier(ident)), 0)?,
+            ))
+          } else {
+            operands.push(OperandNode::Identifier(ident))
+          }
+
+          last_token = token;
+          last_token_operand = true;
+        }
+        Some(token) if matches!(token.kind(), TokenKind::String) => {
+          let parsed_str = parse_string(self.source.as_bytes(), token.span());
+
+          if matches!(
+            self.peek_token().as_ref().map(Token::kind),
+            Some(TokenKind::Operator)
+          ) {
+            operands.push(OperandNode::Expression(
+              self.parse_expr(Some(ExpressionNode::String(parsed_str)), 0)?,
+            ))
+          } else {
+            operands.push(OperandNode::String(parsed_str))
+          }
+
+          last_token = token;
+          last_token_operand = true;
+        }
         Some(token) if matches!(token.kind(), TokenKind::Register) => {
           // SAFETY: We have a valid `Register` token produced from the lexer and an immutable str
           let reg_str = unwrap!(self.get_source_content(token.span()));
           let reg = unwrap!(Register::from_string(reg_str));
 
           operands.push(OperandNode::Register(reg));
-          last_token_operand = true;
           last_token = token;
-        }
-        Some(token) if matches!(token.kind(), TokenKind::Numeric) => {
-          // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
-          let mut num_str = unwrap!(self.get_source_content(token.span()));
-          // SAFETY: We're guaranteed at least one byte for `Literal`s.
-          let last_byte = unwrap!(num_str.as_bytes().last()).to_ascii_lowercase();
-          let mut base = None;
-
-          if matches!(last_byte, b'h' | b'o' | b'q' | b'b' | b'd') {
-            // SAFETY: We have at least one byte in this token
-            num_str = unwrap!(num_str.get(..num_str.len() - 1));
-            base = Some(last_byte);
-          }
-
-          let number = parse_number(num_str, base, token.span())?;
-
-          operands.push(OperandNode::Numeric(number));
           last_token_operand = true;
-          last_token = token;
-        }
-        Some(token) if matches!(token.kind(), TokenKind::Identifier) => {
-          // SAFETY: We have a valid `Identifier` token produced by the lexer and an immutable str
-          let ident = unwrap!(self.get_source_content(token.span()));
-
-          operands.push(OperandNode::Identifier(SmolStr::new(ident)));
-          last_token_operand = true;
-          last_token = token;
-        }
-        Some(token) if matches!(token.kind(), TokenKind::String) => {
-          let parsed_str = parse_string(self.source.as_bytes(), token.span());
-
-          operands.push(OperandNode::String(parsed_str));
-          last_token_operand = true;
-          last_token = token;
         }
         Some(token) if matches!(token.kind(), TokenKind::Comma) => {
           if !last_token_operand {
@@ -180,6 +201,17 @@ impl<'a> Parser<'a> {
           }
 
           last_token_operand = false;
+        }
+        Some(token) if matches!(token.kind(), TokenKind::LeftParenthesis) => {
+          // Decrement the token index so that we can properly recursively
+          // the expression across the parenthesis
+          self.token_index -= 1;
+
+          operands.push(OperandNode::Expression(ExpressionNode::Parenthesized(
+            Box::new(self.parse_expr(None, 0)?),
+          )));
+          last_token = token;
+          last_token_operand = true;
         }
         Some(token) => {
           return Err(ParseError {
@@ -222,7 +254,22 @@ impl<'a> Parser<'a> {
     }
   }
 
-  /// Gets the next token that isn't whitespace or a comment.
+  /// Peeks the next token that isn't spaces or comments.
+  fn peek_token(&mut self) -> Option<Token> {
+    let mut index = self.token_index;
+
+    loop {
+      let token = self.tokens.get(index)?;
+
+      index += 1;
+
+      if !matches!(token.kind(), TokenKind::Whitespace | TokenKind::Comment) {
+        return Some(token.clone());
+      }
+    }
+  }
+
+  /// Gets the next token that isn't spaces or comments.
   fn next_token(&mut self) -> Option<Token> {
     loop {
       let token = self.tokens.get(self.token_index)?;
@@ -235,7 +282,7 @@ impl<'a> Parser<'a> {
     }
   }
 
-  /// Gets the enxt token that isn't whitespace, a linebreak, or a comment.
+  /// Gets the next token that isn't spaces, linebreaks, or comments.
   fn next_non_whitespace_token(&mut self) -> Option<Token> {
     loop {
       let token = self.tokens.get(self.token_index)?;
@@ -248,6 +295,101 @@ impl<'a> Parser<'a> {
       ) {
         return Some(token.clone());
       }
+    }
+  }
+
+  fn parse_expr(
+    &mut self,
+    lhs: Option<ExpressionNode>,
+    precedence: u8,
+  ) -> ParseResult<ExpressionNode> {
+    let mut left = match lhs {
+      Some(x) => x,
+      None => match self.parse_primary() {
+        Ok(val) => val,
+        Err(e) => return Err(e),
+      },
+    };
+
+    while let Some(next_token) = self.peek_token() {
+      if !matches!(next_token.kind(), TokenKind::Operator) {
+        break;
+      }
+
+      let op = self
+        .source
+        .get(next_token.span())
+        .and_then(|s| Operator::try_from(s).ok())
+        .unwrap();
+
+      if op.precedence() < precedence {
+        break;
+      }
+
+      self.next_token();
+
+      let rhs = self.parse_expr(None, op.precedence() + 1)?;
+
+      left = ExpressionNode::Binary {
+        op,
+        left: Box::new(left),
+        right: Box::new(rhs),
+      };
+    }
+
+    Ok(left)
+  }
+
+  fn parse_primary(&mut self) -> ParseResult<ExpressionNode> {
+    match self.peek_token() {
+      Some(tok) if matches!(tok.kind(), TokenKind::Identifier) => {
+        self.next_token();
+
+        Ok(ExpressionNode::Identifier(SmolStr::new(
+          self.source.get(tok.span()).unwrap(),
+        )))
+      }
+      Some(tok) if matches!(tok.kind(), TokenKind::String) => {
+        // TODO: Check limitations of string length
+        self.next_token();
+
+        Ok(ExpressionNode::String(SmolStr::new(
+          self.source.get(tok.span()).unwrap(),
+        )))
+      }
+      Some(tok) if matches!(tok.kind(), TokenKind::Numeric) => {
+        self.next_token();
+
+        Ok(ExpressionNode::Number(parse_number(self.source, &tok)?))
+      }
+      Some(tok) if matches!(tok.kind(), TokenKind::LeftParenthesis) => {
+        self.next_token();
+
+        let expr = self.parse_expr(None, 0)?;
+
+        match self.next_token() {
+          Some(t) if matches!(t.kind(), TokenKind::RightParenthesis) => {
+            Ok(ExpressionNode::Parenthesized(Box::new(expr)))
+          }
+          Some(t) => Err(ParseError {
+            start_pos: t.span().start,
+            kind: ParserErrorKind::InvalidOperand,
+          }),
+
+          None => Err(ParseError {
+            start_pos: tok.span().start,
+            kind: ParserErrorKind::ExpectedOperand,
+          }),
+        }
+      }
+      Some(tok) => Err(ParseError {
+        start_pos: tok.span().start,
+        kind: ParserErrorKind::InvalidOperand,
+      }),
+      None => Err(ParseError {
+        start_pos: self.source.len(),
+        kind: ParserErrorKind::ExpectedOperand,
+      }),
     }
   }
 }
@@ -283,7 +425,7 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
     // Register-d16 operands
     (
       LXI,
-      &[OperandNode::Register(Register::B | Register::D | Register::H | Register::SP), OperandNode::Numeric(_)],
+      &[OperandNode::Register(Register::B | Register::D | Register::H | Register::SP), OperandNode::Numeric(_) | OperandNode::Expression(_)],
     ) => false,
 
     // Register-d8 operands
@@ -499,7 +641,19 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
   }
 }
 
-fn parse_number(num: &str, base: Option<u8>, token_span: Range<usize>) -> ParseResult<u16> {
+fn parse_number(src: &str, token: &Token) -> ParseResult<u16> {
+  // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
+  let mut num_str = unwrap!(src.get(token.span()));
+  // SAFETY: We're guaranteed at least one byte for `Literal`s.
+  let last_byte = unwrap!(num_str.as_bytes().last()).to_ascii_lowercase();
+  let mut base = None;
+
+  if matches!(last_byte, b'h' | b'o' | b'q' | b'b' | b'd') {
+    // SAFETY: We have at least one byte in this token
+    num_str = unwrap!(num_str.get(..num_str.len() - 1));
+    base = Some(last_byte);
+  }
+
   let radix = match base {
     Some(b'b') => 2,
     Some(b'o' | b'q') => 8,
@@ -510,9 +664,9 @@ fn parse_number(num: &str, base: Option<u8>, token_span: Range<usize>) -> ParseR
     Some(_) => unreachable!("invalid numeric suffix"),
   };
 
-  u16::from_str_radix(num, radix).map_err(|err| match err.kind() {
+  u16::from_str_radix(num_str, radix).map_err(|err| match err.kind() {
     IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => ParseError {
-      start_pos: token_span.start,
+      start_pos: token.span().start,
       kind: ParserErrorKind::InvalidNumber,
     },
     // Any other cases should be unreachable, we really only care about fitting
@@ -542,6 +696,15 @@ mod tests {
       )
       .unwrap();
     };
+  }
+
+  #[test]
+  fn expr_operand() {
+    let parsed = crate::parse("LXI H, ($ + 6) * 2 / 1 + 'A'").unwrap();
+
+    dbg!(parsed);
+
+    assert!(false);
   }
 
   #[test]
