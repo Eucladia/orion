@@ -23,7 +23,12 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-  pub fn new(source: &'a str, tokens: Vec<Token>) -> Self {
+  pub fn new(source: &'a str, mut tokens: Vec<Token>) -> Self {
+    // Get rid of the EOF token
+    if matches!(tokens.last().map(Token::kind), Some(TokenKind::EndOfFile)) {
+      tokens.pop();
+    }
+
     Self {
       source,
       tokens,
@@ -32,9 +37,14 @@ impl<'a> Parser<'a> {
   }
 
   pub fn from_source(source: &'a str) -> LexResult<Self> {
+    let mut tokens = lexer::lex(source)?;
+
+    // Get rid of the EOF token
+    tokens.pop();
+
     Ok(Self {
       source,
-      tokens: lexer::lex(source)?,
+      tokens,
       token_index: 0,
     })
   }
@@ -85,7 +95,7 @@ impl<'a> Parser<'a> {
         }
       }
       TokenKind::Instruction => {
-        let instruction_node = self.parse_instruction(&token);
+        let instruction_node = self.parse_instruction(token);
 
         Some(match instruction_node {
           Ok(node) => Ok(Node::Instruction(node)),
@@ -117,7 +127,7 @@ impl<'a> Parser<'a> {
     }
   }
 
-  fn parse_instruction(&mut self, instruction_token: &Token) -> ParseResult<InstructionNode> {
+  fn parse_instruction(&mut self, instruction_token: Token) -> ParseResult<InstructionNode> {
     // SAFETY: We have an immutable str and the lexer produced this `Instruction` token,
     // so this str is still valid
     let instruction_str = unwrap!(self.get_source_content(instruction_token.span()));
@@ -126,11 +136,9 @@ impl<'a> Parser<'a> {
     let num_operands = instruction.num_operands();
     let mut operands = Vec::with_capacity(num_operands);
     let mut last_token_operand = false;
-    // TODO: last token function
-    let mut last_token = instruction_token.clone();
 
     while operands.len() < num_operands {
-      match self.next_non_whitespace_token() {
+      match self.next_token() {
         Some(token) if matches!(token.kind(), TokenKind::Numeric) => {
           let number = parse_number(self.source, &token)?;
 
@@ -139,12 +147,12 @@ impl<'a> Parser<'a> {
             Some(TokenKind::Operator)
           ) {
             self.token_index -= 1;
+
             operands.push(OperandNode::Expression(self.parse_expr()?))
           } else {
             operands.push(OperandNode::Numeric(number))
           }
 
-          last_token = token;
           last_token_operand = true;
         }
         Some(token) if matches!(token.kind(), TokenKind::Identifier) => {
@@ -156,12 +164,11 @@ impl<'a> Parser<'a> {
             Some(TokenKind::Operator)
           ) {
             self.token_index -= 1;
+
             operands.push(OperandNode::Expression(self.parse_expr()?))
           } else {
             operands.push(OperandNode::Identifier(ident))
           }
-
-          last_token = token;
           last_token_operand = true;
         }
         Some(token) if matches!(token.kind(), TokenKind::String) => {
@@ -172,12 +179,12 @@ impl<'a> Parser<'a> {
             Some(TokenKind::Operator)
           ) {
             self.token_index -= 1;
+
             operands.push(OperandNode::Expression(self.parse_expr()?))
           } else {
             operands.push(OperandNode::String(parsed_str))
           }
 
-          last_token = token;
           last_token_operand = true;
         }
         Some(token) if matches!(token.kind(), TokenKind::Register) => {
@@ -186,7 +193,6 @@ impl<'a> Parser<'a> {
           let reg = unwrap!(Register::from_string(reg_str));
 
           operands.push(OperandNode::Register(reg));
-          last_token = token;
           last_token_operand = true;
         }
         Some(token) if matches!(token.kind(), TokenKind::Comma) => {
@@ -200,15 +206,13 @@ impl<'a> Parser<'a> {
           last_token_operand = false;
         }
         Some(token) if matches!(token.kind(), TokenKind::LeftParenthesis) => {
-          // Decrement the token index so that we can properly recursively
-          // the expression across the parenthesis
           self.token_index -= 1;
 
           operands.push(OperandNode::Expression(self.parse_expr()?));
-          last_token = token;
           last_token_operand = true;
         }
         Some(token) => {
+          dbg!(&token);
           return Err(ParseError {
             start_pos: token.span().start,
             kind: ParserErrorKind::InvalidOperand,
@@ -223,22 +227,25 @@ impl<'a> Parser<'a> {
       }
     }
 
-    // Make sure the next non-comment token, if any, is a linebreak
-    let next_token = self.next_token();
+    // We have a valid statement if it's not the last statement or if the statement is
+    // terminated with a linebreak.
+    //
+    // `peek_token` can also return `None`, if it saw a linebreak.
+    let got_linebreak = self.peek_token().is_none() && self.token_index < self.tokens.len();
 
-    dbg!(&next_token);
+    if self.peek_non_whitespace_token().is_some() && !got_linebreak {
+      let prev_token = self
+        .previous_token()
+        .expect("previous token shouldn't be empty");
 
-    if !matches!(
-      next_token.as_ref().map(Token::kind),
-      Some(TokenKind::EndOfFile | TokenKind::Linebreak) | None
-    ) {
       return Err(ParseError {
         // Point to the end of the last token
-        start_pos: last_token.span().end,
+        start_pos: prev_token.span().end,
         kind: ParserErrorKind::ExpectedLinebreak,
       });
     }
 
+    // TODO: Move to assembler
     // Check if the types to the instruction are valid
     if instruction_type_error(&instruction, &operands) {
       Err(ParseError {
@@ -251,12 +258,38 @@ impl<'a> Parser<'a> {
     }
   }
 
-  /// Peeks the next token that isn't spaces or comments.
-  fn peek_token(&mut self) -> Option<Token> {
+  /// Gets the last non-whitespace token, without modifying the internal counter
+  fn previous_token(&self) -> Option<Token> {
+    let mut index = self.token_index;
+
+    loop {
+      if index == 0 {
+        return None;
+      }
+
+      let token = self.tokens.get(index)?;
+
+      index -= 1;
+
+      if !matches!(
+        token.kind(),
+        TokenKind::Linebreak | TokenKind::Whitespace | TokenKind::Comment
+      ) {
+        return Some(token.clone());
+      }
+    }
+  }
+
+  /// Peeks the next non-whitespace token, on the current line.
+  fn peek_token(&self) -> Option<Token> {
     let mut index = self.token_index;
 
     loop {
       let token = self.tokens.get(index)?;
+
+      if matches!(token.kind(), TokenKind::Linebreak) {
+        return None;
+      }
 
       index += 1;
 
@@ -266,12 +299,34 @@ impl<'a> Parser<'a> {
     }
   }
 
-  /// Gets the next token that isn't whitespace or a comment.
+  /// Peeks the next non-whitespace token.
+  fn peek_non_whitespace_token(&self) -> Option<Token> {
+    let mut index = self.token_index;
+
+    loop {
+      let token = self.tokens.get(index)?;
+
+      index += 1;
+
+      if !matches!(
+        token.kind(),
+        TokenKind::Linebreak | TokenKind::Whitespace | TokenKind::Comment
+      ) {
+        return Some(token.clone());
+      }
+    }
+  }
+
+  /// Gets the next non-whitespace token, on the current line.
   fn next_token(&mut self) -> Option<Token> {
     loop {
       let token = self.tokens.get(self.token_index)?;
 
       self.token_index += 1;
+
+      if matches!(token.kind(), TokenKind::Linebreak) {
+        return None;
+      }
 
       if !matches!(token.kind(), TokenKind::Whitespace | TokenKind::Comment) {
         return Some(token.clone());
@@ -279,7 +334,7 @@ impl<'a> Parser<'a> {
     }
   }
 
-  /// Gets the next token that isn't spaces, linebreaks, or comments.
+  /// Gets the next non-whitespace token.
   fn next_non_whitespace_token(&mut self) -> Option<Token> {
     loop {
       let token = self.tokens.get(self.token_index)?;
@@ -805,17 +860,30 @@ mod tests {
   }
 
   #[test]
-  fn expr_operand() {
-    let s = "LXI H, ($ + ($ + 6) * 2 + 'A')";
+  fn not_enough_operands() {
+    assert_eq!(
+      crate::parse("MVI").unwrap_err(),
+      types::Error::Parser(ParseError {
+        start_pos: 3,
+        kind: ParserErrorKind::ExpectedOperand
+      })
+    );
+  }
 
-    println!("{}", s);
-
-    let parsed = crate::parse(s).unwrap();
-
-    dbg!(&parsed);
-    dbg!(parsed.to_string());
-
-    assert!(false);
+  #[test]
+  fn expr_as_operand() {
+    assert!(
+      crate::parse("LXI H, ($ + ($ + 6) * 2 + 'A')").is_ok(),
+      "multi parens operand"
+    );
+    assert!(
+      crate::parse("LXI H, $ + ($ + 6) * 2 + 'A'").is_ok(),
+      "single parens operand"
+    );
+    assert!(
+      crate::parse("LXI H, $ + $ + 6 * 2 + 'A'").is_ok(),
+      "expression"
+    );
   }
 
   #[test]
@@ -900,6 +968,10 @@ mod tests {
     assert!(
       crate::parse("MVI A, 01H").is_ok(),
       "single statement should be valid without linebreaks"
+    );
+    assert!(
+      crate::parse("MVI A, 01H\nHLT").is_ok(),
+      "multiple statements should still be valid"
     );
   }
 

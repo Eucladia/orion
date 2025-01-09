@@ -23,7 +23,7 @@ pub struct LabelNode {
 }
 
 /// A node representing an instruction.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionNode {
   // TODO: SmallVec or just use an array?
   pub operands: Vec<OperandNode>,
@@ -31,7 +31,7 @@ pub struct InstructionNode {
 }
 
 /// A node representation an expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionNode {
   String(SmolStr),
   Identifier(SmolStr),
@@ -73,7 +73,7 @@ pub enum Operator {
 }
 
 /// A node representing the operands of an instruction.
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum OperandNode {
   /// For instructions that have an operand that is a register.
   Register(Register),
