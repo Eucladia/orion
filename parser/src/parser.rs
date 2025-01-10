@@ -212,7 +212,6 @@ impl<'a> Parser<'a> {
           last_token_operand = true;
         }
         Some(token) => {
-          dbg!(&token);
           return Err(ParseError {
             start_pos: token.span().start,
             kind: ParserErrorKind::InvalidOperand,
@@ -260,7 +259,7 @@ impl<'a> Parser<'a> {
 
   /// Gets the last non-whitespace token, without modifying the internal counter
   fn previous_token(&self) -> Option<Token> {
-    let mut index = self.token_index;
+    let mut index = self.token_index.min(self.tokens.len() - 1);
 
     loop {
       if index == 0 {
