@@ -32,7 +32,7 @@ pub enum TokenKind {
   Linebreak,
   /// A token representing a token.
   ///
-  /// Note that the token's span includes double single quotes for escaped single quotes.
+  /// Note that the token's span includes the single quotes.
   String,
   /// The end of the input source.
   EndOfFile,

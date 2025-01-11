@@ -223,7 +223,7 @@ impl std::fmt::Display for ExpressionNode {
     match self {
       ExpressionNode::Number(num) => write!(f, "{}", num),
       ExpressionNode::Identifier(s) => write!(f, "{}", s),
-      ExpressionNode::String(s) => write!(f, "{}", s),
+      ExpressionNode::String(s) => write!(f, "'{}'", s),
       ExpressionNode::Unary { op, expr } => write!(f, "{}{}", op, expr),
       ExpressionNode::Binary { op, left, right } => write!(f, "{} {} {}", left, op, right),
       ExpressionNode::Paren(inner) => write!(f, "({})", inner),

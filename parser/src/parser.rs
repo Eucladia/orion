@@ -172,7 +172,7 @@ impl<'a> Parser<'a> {
           last_token_operand = true;
         }
         Some(token) if matches!(token.kind(), TokenKind::String) => {
-          let parsed_str = parse_string(self.source.as_bytes(), token.span());
+          let parsed_str = parse_string(self.source, token.span());
 
           if matches!(
             self.peek_token().as_ref().map(Token::kind),
@@ -513,9 +513,10 @@ impl<'a> Parser<'a> {
         // TODO: Check limitations of string length
         self.next_token();
 
-        Ok(ExpressionNode::String(SmolStr::new(
-          self.source.get(tok.span()).unwrap(),
-        )))
+        Ok(ExpressionNode::String(SmolStr::new(parse_string(
+          self.source,
+          tok.span(),
+        ))))
       }
       Some(tok) if matches!(tok.kind(), TokenKind::Numeric) => {
         self.next_token();
@@ -554,9 +555,10 @@ impl<'a> Parser<'a> {
   }
 }
 
-fn parse_string(source_bytes: &[u8], span: Range<usize>) -> SmolStr {
+/// Parses a string from a `String` [`Token`].
+fn parse_string(source: &str, span: Range<usize>) -> SmolStr {
   let mut str = SmolStrBuilder::new();
-  let contents = source_bytes.get(span.start + 1..span.end - 1).unwrap();
+  let contents = source.as_bytes().get(span.start + 1..span.end - 1).unwrap();
   let mut escaped_quote = false;
 
   for &byte in contents.iter() {
