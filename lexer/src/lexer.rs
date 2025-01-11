@@ -193,22 +193,20 @@ fn eat_string(lexer: &mut Lexer) -> LexResult<()> {
 
 // Eats a comment until it finds a linebreak
 fn eat_comment(lexer: &mut Lexer) {
-  while lexer
-    .next_byte()
-    .map_or(false, |b| b != b'\n' && b != b'\r')
-  {}
+  while lexer.next_byte().is_some_and(|b| b != b'\n' && b != b'\r') {}
 }
 
 // Eats a numerical literal. The suffix, if present, is not included
 fn eat_numerical_literal(lexer: &mut Lexer) {
-  while lexer.next_byte().map_or(false, |b| b.is_ascii_digit()) {}
+  while lexer.next_byte().is_some_and(|b| b.is_ascii_digit()) {}
 }
 
 // Eats whitespace
 fn eat_whitespace(lexer: &mut Lexer) {
-  while lexer.next_byte().map_or(false, |b| {
-    b.is_ascii_whitespace() && b != b'\n' && b != b'\r'
-  }) {}
+  while lexer
+    .next_byte()
+    .is_some_and(|b| b.is_ascii_whitespace() && b != b'\n' && b != b'\r')
+  {}
 }
 
 // Eats any kind of identifier
@@ -217,7 +215,7 @@ fn eat_identifier(lexer: &mut Lexer) {
   // but the rest can be alphanumeric or `?`
   while lexer
     .next_byte()
-    .map_or(false, |b| b.is_ascii_alphanumeric() || b == b'?')
+    .is_some_and(|b| b.is_ascii_alphanumeric() || b == b'?')
   {}
 }
 
