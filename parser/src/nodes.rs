@@ -185,7 +185,7 @@ impl std::fmt::Display for OperandNode {
 
 impl std::fmt::Display for LabelNode {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    write!(f, "{}", self.label_name())
+    write!(f, "{}:", self.label_name())
   }
 }
 
