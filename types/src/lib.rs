@@ -52,7 +52,7 @@ pub enum ParserErrorKind {
   ReservedIdentifier,
 
   #[error("the length of the label name is invalid")]
-  LabelNameSizeInvalid,
+  InvalidLabelLength,
 
   #[error("unexpected token")]
   UnexpectedToken,

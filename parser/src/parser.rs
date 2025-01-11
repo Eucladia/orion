@@ -84,7 +84,7 @@ impl<'a> Parser<'a> {
           if node.label_name().len() > MAX_LABEL_NAME {
             Some(Err(ParseError {
               start_pos: token.span().start,
-              kind: ParserErrorKind::LabelNameSizeInvalid,
+              kind: ParserErrorKind::InvalidLabelLength,
             }))
           } else {
             Some(Ok(Node::Label(node)))
