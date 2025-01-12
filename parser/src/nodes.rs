@@ -2,13 +2,13 @@ use lexer::{instruction::Instruction, Register};
 use smol_str::SmolStr;
 
 /// The root node for a source file.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramNode {
   children: Vec<Node>,
 }
 
 /// A node.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Node {
   /// An instruction node.
   Instruction(InstructionNode),
@@ -17,7 +17,7 @@ pub enum Node {
 }
 
 /// A node representing a label.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LabelNode {
   name: SmolStr,
 }

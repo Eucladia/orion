@@ -140,8 +140,6 @@ impl<'a> Parser<'a> {
     while operands.len() < num_operands {
       match self.next_token() {
         Some(token) if matches!(token.kind(), TokenKind::Numeric) => {
-          let number = parse_number(self.source, &token)?;
-
           if matches!(
             self.peek_token().as_ref().map(Token::kind),
             Some(TokenKind::Operator)
@@ -150,15 +148,12 @@ impl<'a> Parser<'a> {
 
             operands.push(OperandNode::Expression(self.parse_expr()?))
           } else {
-            operands.push(OperandNode::Numeric(number))
+            operands.push(OperandNode::Numeric(parse_number(self.source, &token)?))
           }
 
           last_token_operand = true;
         }
         Some(token) if matches!(token.kind(), TokenKind::Identifier) => {
-          // SAFETY: We have a valid `Identifier` token produced by the lexer and an immutable str
-          let ident = SmolStr::new(unwrap!(self.source.get(token.span())));
-
           if matches!(
             self.peek_token().as_ref().map(Token::kind),
             Some(TokenKind::Operator)
@@ -167,13 +162,15 @@ impl<'a> Parser<'a> {
 
             operands.push(OperandNode::Expression(self.parse_expr()?))
           } else {
-            operands.push(OperandNode::Identifier(ident))
+            // SAFETY: We have a valid `Identifier` token produced by the lexer and an immutable str
+            operands.push(OperandNode::Identifier(SmolStr::new(unwrap!(self
+              .source
+              .get(token.span())))))
           }
+
           last_token_operand = true;
         }
         Some(token) if matches!(token.kind(), TokenKind::String) => {
-          let parsed_str = parse_string(self.source, token.span());
-
           if matches!(
             self.peek_token().as_ref().map(Token::kind),
             Some(TokenKind::Operator)
@@ -182,7 +179,7 @@ impl<'a> Parser<'a> {
 
             operands.push(OperandNode::Expression(self.parse_expr()?))
           } else {
-            operands.push(OperandNode::String(parsed_str))
+            operands.push(OperandNode::String(parse_string(self.source, &token)?))
           }
 
           last_token_operand = true;
@@ -515,8 +512,8 @@ impl<'a> Parser<'a> {
 
         Ok(ExpressionNode::String(SmolStr::new(parse_string(
           self.source,
-          tok.span(),
-        ))))
+          &tok,
+        )?)))
       }
       Some(tok) if matches!(tok.kind(), TokenKind::Numeric) => {
         self.next_token();
@@ -555,8 +552,18 @@ impl<'a> Parser<'a> {
   }
 }
 
-/// Parses a string from a `String` [`Token`].
-fn parse_string(source: &str, span: Range<usize>) -> SmolStr {
+/// Parses a string from a `String` [`Token`], failing if the string is
+/// longer than 128 characters.
+fn parse_string(source: &str, token: &Token) -> ParseResult<SmolStr> {
+  let span = token.span();
+
+  if span.end - span.start - 2 > 128 {
+    return Err(ParseError {
+      start_pos: span.start,
+      kind: ParserErrorKind::InvalidStringLength,
+    });
+  }
+
   let mut str = SmolStrBuilder::new();
   let contents = source.as_bytes().get(span.start + 1..span.end - 1).unwrap();
   let mut escaped_quote = false;
@@ -574,7 +581,7 @@ fn parse_string(source: &str, span: Range<usize>) -> SmolStr {
     }
   }
 
-  str.finish()
+  Ok(str.finish())
 }
 
 fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> bool {
@@ -587,7 +594,7 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
     // Register-d16 operands
     (
       LXI,
-      &[OperandNode::Register(Register::B | Register::D | Register::H | Register::SP), OperandNode::Numeric(_) | OperandNode::Expression(_)],
+      &[OperandNode::Register(Register::B | Register::D | Register::H | Register::SP), OperandNode::String(_) | OperandNode::Numeric(_) | OperandNode::Expression(_)],
     ) => false,
 
     // Register-d8 operands
@@ -858,6 +865,19 @@ mod tests {
       )
       .unwrap();
     };
+  }
+
+  #[test]
+  fn invalid_length_strings() {
+    assert!(crate::parse(&format!("LXI H, '{}'", "A".repeat(128))).is_ok());
+
+    assert_eq!(
+      crate::parse(&format!("LXI H, '{}'", "A".repeat(129))),
+      Err(types::Error::Parser(ParseError {
+        start_pos: 7,
+        kind: ParserErrorKind::InvalidStringLength
+      }))
+    );
   }
 
   #[test]

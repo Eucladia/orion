@@ -54,6 +54,9 @@ pub enum ParserErrorKind {
   #[error("the length of the label name is invalid")]
   InvalidLabelLength,
 
+  #[error("the length of the string is invalid")]
+  InvalidStringLength,
+
   #[error("unexpected token")]
   UnexpectedToken,
 
