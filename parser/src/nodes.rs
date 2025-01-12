@@ -30,17 +30,27 @@ pub struct InstructionNode {
   instruction: Instruction,
 }
 
-/// A node representation an expression.
+/// A node representating an expression that gets evalauted during assemble time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionNode {
+  /// A string literal.
   String(SmolStr),
+  /// An identifier.
   Identifier(SmolStr),
-  Number(u16),
+  /// A numeric literal.
+  ///
+  /// This is an i32 because unary minus is allowed.
+  Number(i32),
+  /// An expression wrapped in parenthesis.
   Paren(Box<ExpressionNode>),
+  /// A unary expression.
+  ///
+  /// The unary operators are `+`, `-`, `HIGH`, and `LOW`.
   Unary {
     op: Operator,
     expr: Box<ExpressionNode>,
   },
+  /// A binary expression.
   Binary {
     op: Operator,
     left: Box<ExpressionNode>,
@@ -75,15 +85,15 @@ pub enum Operator {
 /// A node representing the operands of an instruction.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum OperandNode {
-  /// For instructions that have an operand that is a register.
+  /// For register operands.
   Register(Register),
-  /// For instructions that contain numeric literals – eg memory addresses or numbers.
+  /// For numeric literals.
   Numeric(u16),
-  /// For instructions that have labels.
+  /// For identifiers.
   Identifier(SmolStr),
   /// For strings.
   String(SmolStr),
-  /// An expression node that gets assembled, before encoding.
+  /// An expression node that gets computed during assemble time.
   Expression(ExpressionNode),
 }
 

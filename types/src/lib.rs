@@ -81,4 +81,10 @@ pub enum ParserErrorKind {
 pub enum AssemblerError {
   #[error("the label was already defined")]
   LabelRedefined,
+
+  #[error("the identifier was not defined yet")]
+  IdentifierNotDefined,
+
+  #[error("the data was not 2 bytes")]
+  ExpectedTwoByteData,
 }

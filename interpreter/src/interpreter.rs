@@ -27,7 +27,7 @@ impl Interpreter {
         Node::Instruction(insn) => {
           self
             .env
-            .encode_instruction(self.assemble_index, insn, &mut unassembled);
+            .encode_instruction(self.assemble_index, insn, &mut unassembled)?;
 
           self.assemble_index += instruction_bytes_occupied(&insn.instruction()) as u16;
         }
@@ -64,7 +64,7 @@ impl Interpreter {
       for elem in unassembled.iter() {
         self
           .env
-          .encode_instruction(elem.1, elem.0, &mut new_unassembled);
+          .encode_instruction(elem.1, elem.0, &mut new_unassembled)?;
       }
     }
 

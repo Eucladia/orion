@@ -1,8 +1,9 @@
 use crate::encodings;
 use crate::registers::Registers;
 use lexer::{instruction::Instruction, Flags, Register};
-use parser::nodes::{InstructionNode, OperandNode};
+use parser::nodes::{ExpressionNode, InstructionNode, OperandNode, Operator};
 use smol_str::SmolStr;
+use types::{AssemblerError, AssemblerResult};
 
 use std::collections::HashMap;
 
@@ -215,7 +216,7 @@ impl Environment {
     assemble_index: u16,
     instruction_node: &'a InstructionNode,
     unassembled: &mut Vec<(&'a InstructionNode, u16)>,
-  ) {
+  ) -> AssemblerResult<()> {
     use Instruction::*;
 
     let addr = Self::INSTRUCTION_STARTING_ADDRESS + assemble_index;
@@ -478,6 +479,32 @@ impl Environment {
         self.assemble_instruction(addr, encode_lxi(r1));
         self.assemble_u16(addr + 1, data);
       }
+      (LXI, &[OperandNode::Register(r1), OperandNode::Identifier(ref label)]) => {
+        if let Some(label_addr) = self.get_label_address(label) {
+          self.assemble_instruction(addr, encode_lxi(r1));
+          self.assemble_u16(addr + 1, label_addr);
+        } else {
+          return Err(AssemblerError::IdentifierNotDefined);
+        }
+      }
+      (LXI, &[OperandNode::Register(r1), OperandNode::String(ref str)]) => {
+        if str.len() == 2 {
+          let bytes = str.as_bytes();
+          let data = (bytes[0] as u16) << 8 | bytes[1] as u16;
+
+          self.assemble_instruction(addr, encode_lxi(r1));
+          self.assemble_u16(addr + 1, data);
+        } else {
+          return Err(AssemblerError::ExpectedTwoByteData);
+        }
+      }
+      (LXI, &[OperandNode::Register(r1), OperandNode::Expression(ref expr)]) => {
+        let res = evaluate_expression(self, expr)? as u16;
+
+        self.assemble_instruction(addr, encode_lxi(r1));
+        self.assemble_u16(addr + 1, res);
+      }
+
       (MVI, &[OperandNode::Register(r1), OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, encode_mvi(r1));
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
@@ -492,6 +519,8 @@ impl Environment {
 
       (instruction, _) => panic!("missing case when assembling {instruction}"),
     }
+
+    Ok(())
   }
 }
 
@@ -504,6 +533,85 @@ impl Default for Environment {
       labels: HashMap::new(),
       memory: Box::new([0; Environment::MEMORY_SIZE]),
     }
+  }
+}
+
+fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssemblerResult<i32> {
+  match expr {
+    ExpressionNode::Number(num) => Ok(*num),
+    ExpressionNode::String(str) => {
+      // TODO: Can we evaluate strings that are more than 2 bytes?
+      if str.len() > 2 {
+        Err(AssemblerError::ExpectedTwoByteData)
+      } else {
+        let bytes = str.as_bytes();
+        let b1 = bytes.first().copied().unwrap_or(0);
+        let b2 = bytes.get(1).copied().unwrap_or(0);
+
+        Ok(((b1 as i32) << 8) | b2 as i32)
+      }
+    }
+    ExpressionNode::Identifier(ref label) => match env.get_label_address(label) {
+      Some(addr) => Ok(addr as i32),
+      None => Err(AssemblerError::IdentifierNotDefined),
+    },
+    ExpressionNode::Paren(child_expr) => evaluate_expression(env, child_expr),
+    ExpressionNode::Unary {
+      op,
+      expr: child_expr,
+    } => match op {
+      Operator::Addition => evaluate_expression(env, child_expr),
+      Operator::Subtraction => Ok(-evaluate_expression(env, child_expr)?),
+      Operator::High => Ok((evaluate_expression(env, child_expr)? >> 8) & 0xFF),
+      Operator::Low => Ok(evaluate_expression(env, child_expr)? & 0xFF),
+      Operator::Not => Ok(!evaluate_expression(env, child_expr)?),
+      _ => unreachable!(),
+    },
+    ExpressionNode::Binary { op, left, right } => match op {
+      Operator::Addition => Ok(evaluate_expression(env, left)? + evaluate_expression(env, right)?),
+      Operator::Subtraction => {
+        Ok(evaluate_expression(env, left)? - evaluate_expression(env, right)?)
+      }
+      Operator::Division => Ok(evaluate_expression(env, left)? / evaluate_expression(env, right)?),
+      Operator::Multiplication => {
+        Ok(evaluate_expression(env, left)? * evaluate_expression(env, right)?)
+      }
+
+      Operator::Modulo => Ok(evaluate_expression(env, left)? % evaluate_expression(env, right)?),
+      Operator::ShiftLeft => {
+        Ok(evaluate_expression(env, left)? << evaluate_expression(env, right)?)
+      }
+      Operator::ShiftRight => {
+        Ok(evaluate_expression(env, left)? >> evaluate_expression(env, right)?)
+      }
+      Operator::And => Ok(evaluate_expression(env, left)? & evaluate_expression(env, right)?),
+      Operator::Or => Ok(evaluate_expression(env, left)? | evaluate_expression(env, right)?),
+      Operator::Xor => Ok(evaluate_expression(env, left)? ^ evaluate_expression(env, right)?),
+
+      Operator::Eq => {
+        Ok((evaluate_expression(env, left)? == evaluate_expression(env, right)?) as i32)
+      }
+      Operator::Ne => {
+        Ok((evaluate_expression(env, left)? != evaluate_expression(env, right)?) as i32)
+      }
+      // NOTE: Relational comparisons compare the bits, not the values
+      Operator::Lt => Ok(
+        ((evaluate_expression(env, left)? as u32) < evaluate_expression(env, right)? as u32) as i32,
+      ),
+      Operator::Le => Ok(
+        ((evaluate_expression(env, left)? as u32) <= evaluate_expression(env, right)? as u32)
+          as i32,
+      ),
+      Operator::Gt => Ok(
+        ((evaluate_expression(env, left)? as u32) > evaluate_expression(env, right)? as u32) as i32,
+      ),
+      Operator::Ge => Ok(
+        ((evaluate_expression(env, left)? as u32) >= evaluate_expression(env, right)? as u32)
+          as i32,
+      ),
+      // `NOT`, `HIGH`, `LOW `are handled in the unary section
+      Operator::Not | Operator::High | Operator::Low => unreachable!(),
+    },
   }
 }
 

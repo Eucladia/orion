@@ -483,7 +483,9 @@ impl<'a> Parser<'a> {
 
     if matches!(
       op,
-      Some(Operator::Addition | Operator::Subtraction | Operator::High | Operator::Low)
+      Some(
+        Operator::Addition | Operator::Subtraction | Operator::High | Operator::Low | Operator::Not
+      )
     ) {
       let expr = self.parse_unary()?;
 
@@ -518,7 +520,10 @@ impl<'a> Parser<'a> {
       Some(tok) if matches!(tok.kind(), TokenKind::Numeric) => {
         self.next_token();
 
-        Ok(ExpressionNode::Number(parse_number(self.source, &tok)?))
+        Ok(ExpressionNode::Number(parse_expression_number(
+          self.source,
+          &tok,
+        )?))
       }
       Some(tok) if matches!(tok.kind(), TokenKind::LeftParenthesis) => {
         self.next_token();
@@ -557,6 +562,7 @@ impl<'a> Parser<'a> {
 fn parse_string(source: &str, token: &Token) -> ParseResult<SmolStr> {
   let span = token.span();
 
+  // Don't include the starting and opening quotes
   if span.end - span.start - 2 > 128 {
     return Err(ParseError {
       start_pos: span.start,
@@ -570,7 +576,7 @@ fn parse_string(source: &str, token: &Token) -> ParseResult<SmolStr> {
 
   for &byte in contents.iter() {
     if byte == b'\'' {
-      // If we had a `'` before, then we should insert this `'`.
+      // We should insert this `'` because it's escaped
       if escaped_quote {
         str.push(byte as char);
       }
@@ -594,7 +600,10 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
     // Register-d16 operands
     (
       LXI,
-      &[OperandNode::Register(Register::B | Register::D | Register::H | Register::SP), OperandNode::String(_) | OperandNode::Numeric(_) | OperandNode::Expression(_)],
+      &[OperandNode::Register(Register::B | Register::D | Register::H | Register::SP), OperandNode::Identifier(_)
+      | OperandNode::String(_)
+      | OperandNode::Numeric(_)
+      | OperandNode::Expression(_)],
     ) => false,
 
     // Register-d8 operands
@@ -810,6 +819,39 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
   }
 }
 
+/// Parses a number for an expression, the number must be within [-0xFFFF, 0xFFFF]
+fn parse_expression_number(src: &str, token: &Token) -> ParseResult<i32> {
+  // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
+  let mut num_str = unwrap!(src.get(token.span()));
+  // SAFETY: We're guaranteed at least one byte for `Literal`s.
+  let last_byte = unwrap!(num_str.as_bytes().last()).to_ascii_lowercase();
+  let mut base = None;
+
+  if matches!(last_byte, b'h' | b'o' | b'q' | b'b' | b'd') {
+    // SAFETY: We have at least one byte in this token
+    num_str = unwrap!(num_str.get(..num_str.len() - 1));
+    base = Some(last_byte);
+  }
+
+  let radix = match base {
+    Some(b'b') => 2,
+    Some(b'o' | b'q') => 8,
+    Some(b'd') | None => 10,
+    Some(b'h') => 16,
+    // Could never happen since `TokenKind::Literal` for numbers includes and
+    // validates the suffix
+    Some(_) => unreachable!("invalid numeric suffix"),
+  };
+
+  match i32::from_str_radix(num_str, radix) {
+    Ok(x) if (-0xFFFF..0xFFFF).contains(&x) => Ok(x),
+    _ => Err(ParseError {
+      start_pos: token.span().start,
+      kind: ParserErrorKind::InvalidNumber,
+    }),
+  }
+}
+/// Parses a number.
 fn parse_number(src: &str, token: &Token) -> ParseResult<u16> {
   // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
   let mut num_str = unwrap!(src.get(token.span()));
