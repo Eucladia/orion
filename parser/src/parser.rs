@@ -254,18 +254,18 @@ impl<'a> Parser<'a> {
     }
   }
 
-  /// Gets the last non-whitespace token, without modifying the internal counter
+  /// Peeks the previous non-whitespace token, without modifying the internal counter
   fn previous_token(&self) -> Option<Token> {
-    let mut index = self.token_index.min(self.tokens.len() - 1);
+    let mut index = self.token_index.min(self.tokens.len());
 
     loop {
       if index == 0 {
         return None;
       }
 
-      let token = self.tokens.get(index)?;
-
       index -= 1;
+
+      let token = self.tokens.get(index)?;
 
       if !matches!(
         token.kind(),
@@ -318,11 +318,11 @@ impl<'a> Parser<'a> {
     loop {
       let token = self.tokens.get(self.token_index)?;
 
-      self.token_index += 1;
-
       if matches!(token.kind(), TokenKind::Linebreak) {
         return None;
       }
+
+      self.token_index += 1;
 
       if !matches!(token.kind(), TokenKind::Whitespace | TokenKind::Comment) {
         return Some(token.clone());
@@ -509,7 +509,6 @@ impl<'a> Parser<'a> {
         )))
       }
       Some(tok) if matches!(tok.kind(), TokenKind::String) => {
-        // TODO: Check limitations of string length
         self.next_token();
 
         Ok(ExpressionNode::String(SmolStr::new(parse_string(

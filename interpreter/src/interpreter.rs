@@ -390,7 +390,8 @@ mod tests {
   #[test]
   fn d8_operands() {
     run_asm!(
-      "MVI A, 01000001B\nMVI B, 'A'\nMVI C, 41H\nMVI D, 101Q\nMVI E, 65\nMVI H, 5 + 30 * 2",
+      "MVI A, 01000001B\nMVI B, 'A'\nMVI C, 41H\nMVI D, 101Q\nMVI E, 65\
+\nMVI H, 5 + 30 * 2\nMVI L, 5 + (-30 * -2)",
       |int: &mut Interpreter| {
         [
           int.env.registers.a,
@@ -399,6 +400,7 @@ mod tests {
           int.env.registers.d,
           int.env.registers.e,
           int.env.registers.h,
+          int.env.registers.l,
         ]
         .iter()
         .all(|x| *x == b'A')
