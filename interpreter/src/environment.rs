@@ -551,10 +551,16 @@ fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssemblerRes
         Ok(((b1 as i32) << 8) | b2 as i32)
       }
     }
-    ExpressionNode::Identifier(ref label) => match env.get_label_address(label) {
-      Some(addr) => Ok(addr as i32),
-      None => Err(AssemblerError::IdentifierNotDefined),
-    },
+    ExpressionNode::Identifier(ref label) => {
+      if label == "$" {
+        Ok(env.registers.pc as i32)
+      } else {
+        match env.get_label_address(label) {
+          Some(addr) => Ok(addr as i32),
+          None => Err(AssemblerError::IdentifierNotDefined),
+        }
+      }
+    }
     ExpressionNode::Paren(child_expr) => evaluate_expression(env, child_expr),
     ExpressionNode::Unary {
       op,
