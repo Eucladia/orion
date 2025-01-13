@@ -27,19 +27,19 @@ impl<'a> Lexer<'a> {
     }
   }
 
-  // Returns the current byte
+  /// Returns the current byte.
   fn current_byte(&self) -> Option<u8> {
     self.bytes.get(self.curr).copied()
   }
 
-  // Advances the cursor
+  /// Advances the cursor.
   fn advance(&mut self) {
     if self.curr < self.bytes.len() {
       self.curr += 1;
     }
   }
 
-  // Advances the cursor and returns that underlying byte
+  /// Advances the cursor and returns that underlying byte.
   fn next_byte(&mut self) -> Option<u8> {
     self.curr += 1;
     self.bytes.get(self.curr).copied()
@@ -116,14 +116,6 @@ impl<'a> Lexer<'a> {
       ByteTokenType::NUMERIC => {
         eat_numerical_literal(self);
 
-        // Check to see if there's a hex, octal, binary, or decimal suffix
-        if matches!(
-          self.current_byte().as_ref().map(u8::to_ascii_lowercase),
-          Some(b'h' | b'o' | b'q' | b'b' | b'd')
-        ) {
-          self.advance();
-        }
-
         Some(Ok(create_token!(Numeric, start..self.curr)))
       }
       ByteTokenType::COMMENT => {
@@ -196,9 +188,24 @@ fn eat_comment(lexer: &mut Lexer) {
   while lexer.next_byte().is_some_and(|b| b != b'\n' && b != b'\r') {}
 }
 
-// Eats a numerical literal. The suffix, if present, is not included
+// Eats a potential numerical literal, without checking for the validity of the number.
 fn eat_numerical_literal(lexer: &mut Lexer) {
-  while lexer.next_byte().is_some_and(|b| b.is_ascii_digit()) {}
+  while lexer.next_byte().is_some_and(|b| {
+    let b = b.to_ascii_lowercase();
+
+    // Check if it's a number or a hex number or valid numeric suffix
+    // Valid suffixes include b, d, h, o, and q
+    b.is_ascii_digit()
+      || b == b'a'
+      || b == b'b'
+      || b == b'c'
+      || b == b'd'
+      || b == b'e'
+      || b == b'f'
+      || b == b'h'
+      || b == b'o'
+      || b == b'q'
+  }) {}
 }
 
 // Eats whitespace

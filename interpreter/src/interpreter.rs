@@ -376,11 +376,7 @@ mod tests {
 
   /// Runs an assembly program
   macro_rules! run_asm {
-    (
-          $src:literal,
-          $func:expr,
-          $err:literal
-      ) => {
+    ($src:literal, $func:expr, $err:literal) => {{
       let mut int = Interpreter::new(parser::parse($src).unwrap());
 
       int.assemble().unwrap();
@@ -388,11 +384,31 @@ mod tests {
       while int.execute().is_some() {}
 
       assert!($func(&mut int));
-    };
+    }};
   }
 
   #[test]
   fn d8_operands() {
+    run_asm!(
+      "MVI A, 01000001B\nMVI B, 'A'\nMVI C, 41H\nMVI D, 101Q\nMVI E, 65\nMVI H, 5 + 30 * 2",
+      |int: &mut Interpreter| {
+        [
+          int.env.registers.a,
+          int.env.registers.b,
+          int.env.registers.c,
+          int.env.registers.d,
+          int.env.registers.e,
+          int.env.registers.h,
+        ]
+        .iter()
+        .all(|x| *x == b'A')
+      },
+      "MVI w/ 'A' d8"
+    )
+  }
+
+  #[test]
+  fn one_byte_ascii_operands() {
     run_asm!(
       "MVI B, 'A'",
       |int: &mut Interpreter| int.env.registers.b == b'A',

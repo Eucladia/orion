@@ -606,7 +606,7 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
       | OperandNode::Expression(_)],
     ) => false,
 
-    // Register-d8 operands
+    // Register, d8 operands
     (
       MVI,
       &[OperandNode::Register(
@@ -632,8 +632,21 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
         | Register::L
         | Register::M,
       ), OperandNode::String(ref x)],
-      // MVI can only take a d8, so we only want 1 ASCII character
+      // We only want 1 ASCII character
     ) if x.len() == 1 => false,
+    (
+      MVI,
+      &[OperandNode::Register(
+        Register::A
+        | Register::B
+        | Register::C
+        | Register::D
+        | Register::E
+        | Register::H
+        | Register::L
+        | Register::M,
+      ), OperandNode::Identifier(_) | OperandNode::Expression(_)],
+    ) => false,
 
     // Register operands
     (STAX, &[OperandNode::Register(Register::B | Register::D)]) => false,
@@ -787,23 +800,39 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
     (CM, &[OperandNode::Identifier(_)]) => false,
     (CALL, &[OperandNode::Identifier(_)]) => false,
 
-    // d8 operands
+    // d8 operands, can be in the form of a literal, label, 1 byte string, or expression
     (ADI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (ADI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
+    (ADI, &[OperandNode::Identifier(_) | OperandNode::Expression(_)]) => false,
+
     (SUI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (SUI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
+    (SUI, &[OperandNode::Identifier(_) | OperandNode::Expression(_)]) => false,
+
     (ANI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (ANI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
+    (ANI, &[OperandNode::Identifier(_) | OperandNode::Expression(_)]) => false,
+
     (ORI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (ORI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
+    (ORI, &[OperandNode::Identifier(_) | OperandNode::Expression(_)]) => false,
+
     (ACI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (ACI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
+    (ACI, &[OperandNode::Identifier(_) | OperandNode::Expression(_)]) => false,
+
     (SBI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (SBI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
+    (SBI, &[OperandNode::Identifier(_) | OperandNode::Expression(_)]) => false,
+
     (XRI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (XRI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
+    (XRI, &[OperandNode::Identifier(_) | OperandNode::Expression(_)]) => false,
+
     (CPI, &[OperandNode::Numeric(x)]) if x <= u8::MAX as u16 => false,
     (CPI, &[OperandNode::String(ref x)]) if x.len() == 1 => false,
+    (CPI, &[OperandNode::Identifier(_) | OperandNode::Expression(_)]) => false,
+
     // Special instruction that only takes 0..8
     (RST, &[OperandNode::Numeric(0..=7)]) => false,
 
@@ -876,10 +905,12 @@ fn parse_number(src: &str, token: &Token) -> ParseResult<u16> {
   };
 
   u16::from_str_radix(num_str, radix).map_err(|err| match err.kind() {
-    IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => ParseError {
-      start_pos: token.span().start,
-      kind: ParserErrorKind::InvalidNumber,
-    },
+    IntErrorKind::InvalidDigit | IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => {
+      ParseError {
+        start_pos: token.span().start,
+        kind: ParserErrorKind::InvalidNumber,
+      }
+    }
     // Any other cases should be unreachable, we really only care about fitting
     // the number into a u16
     _ => unreachable!("invalid integer parsing"),
@@ -907,6 +938,18 @@ mod tests {
       )
       .unwrap();
     };
+  }
+
+  #[test]
+  fn numeric_literals() {
+    assert!(crate::parse("MVI A, 0FHB").is_err(), "extra suffix");
+    assert!(crate::parse("MVI A, 0FH").is_ok(), "valid hex");
+    assert!(crate::parse("MVI A, 0").is_ok(), "hex");
+    assert!(crate::parse("MVI A, 0H").is_ok(), "0 hex");
+    assert!(
+      crate::parse("MVI A, 0qqBoH").is_err(),
+      "invalid hex with other suffix"
+    );
   }
 
   #[test]
@@ -983,17 +1026,13 @@ mod tests {
 
   #[test]
   fn invalid_op_types() {
-    assert_eq!(
-      crate::parse("MVI A, BOO").unwrap_err(),
-      types::Error::Parser(ParseError {
-        start_pos: 0,
-        kind: ParserErrorKind::InvalidOperandType,
-      }),
-      "using identifier instead of d8"
+    assert!(
+      crate::parse("MVI A, BOO").is_ok(),
+      "using identifier as d8 operand"
     );
 
     assert_eq!(
-      crate::parse("MVI A, FFFFH").unwrap_err(),
+      crate::parse("MVI A, 0FFFFH").unwrap_err(),
       types::Error::Parser(ParseError {
         start_pos: 0,
         kind: ParserErrorKind::InvalidOperandType,

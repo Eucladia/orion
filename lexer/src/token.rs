@@ -42,9 +42,12 @@ pub enum TokenKind {
   Comma,
   /// The colon character, `:`.
   Colon,
-  /// A numeric literal.
+  /// A potentially valid numeric literal.
   ///
   /// Numeric literals may end in a `B`, `D, `Q`, `O` or `H` suffix.
+  ///
+  /// For hex literals, the first number must start with a number - eg:
+  /// 0xFF would be written as `0FFH`.
   Numeric,
   /// An identifier.
   ///

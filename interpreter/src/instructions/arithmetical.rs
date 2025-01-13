@@ -2,6 +2,7 @@
 use crate::{encodings, registers, Environment};
 use lexer::{Flags, Register};
 
+/// ADD <register>
 pub fn execute_add(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 
@@ -17,6 +18,7 @@ pub fn execute_add(env: &mut Environment, instruction_byte: u8) {
   env.registers.next_pc();
 }
 
+/// ADI <d8>
 pub fn execute_adi(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;
 

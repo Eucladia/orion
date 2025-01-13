@@ -256,6 +256,25 @@ impl Environment {
         self.assemble_instruction(addr, encodings::ACI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
+      (ACI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+        Some(addr) if addr <= u8::MAX as u16 => {
+          self.assemble_instruction(addr, encodings::ACI);
+          self.assemble_instruction(addr + 1, addr as u8);
+        }
+        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
+        None => return Err(AssemblerError::IdentifierNotDefined),
+      },
+      (ACI, &[OperandNode::Expression(ref expr)]) => {
+        let val = evaluate_expression(self, expr)? as u16;
+
+        if val > u8::MAX as u16 {
+          return Err(AssemblerError::ExpectedOneByteData);
+        }
+
+        self.assemble_instruction(addr, encodings::ACI);
+        self.assemble_instruction(addr + 1, val as u8);
+      }
+
       (SBI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, encodings::SBI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
@@ -264,6 +283,25 @@ impl Environment {
         self.assemble_instruction(addr, encodings::SBI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
+      (SBI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+        Some(addr) if addr <= u8::MAX as u16 => {
+          self.assemble_instruction(addr, encodings::SBI);
+          self.assemble_instruction(addr + 1, addr as u8);
+        }
+        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
+        None => return Err(AssemblerError::IdentifierNotDefined),
+      },
+      (SBI, &[OperandNode::Expression(ref expr)]) => {
+        let val = evaluate_expression(self, expr)? as u16;
+
+        if val > u8::MAX as u16 {
+          return Err(AssemblerError::ExpectedOneByteData);
+        }
+
+        self.assemble_instruction(addr, encodings::SBI);
+        self.assemble_instruction(addr + 1, val as u8);
+      }
+
       (XRI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, encodings::XRI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
@@ -272,6 +310,25 @@ impl Environment {
         self.assemble_instruction(addr, encodings::XRI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
+      (XRI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+        Some(addr) if addr <= u8::MAX as u16 => {
+          self.assemble_instruction(addr, encodings::XRI);
+          self.assemble_instruction(addr + 1, addr as u8);
+        }
+        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
+        None => return Err(AssemblerError::IdentifierNotDefined),
+      },
+      (XRI, &[OperandNode::Expression(ref expr)]) => {
+        let val = evaluate_expression(self, expr)? as u16;
+
+        if val > u8::MAX as u16 {
+          return Err(AssemblerError::ExpectedOneByteData);
+        }
+
+        self.assemble_instruction(addr, encodings::XRI);
+        self.assemble_instruction(addr + 1, val as u8);
+      }
+
       (CPI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, encodings::CPI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
@@ -280,6 +337,25 @@ impl Environment {
         self.assemble_instruction(addr, encodings::CPI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
+      (CPI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+        Some(addr) if addr <= u8::MAX as u16 => {
+          self.assemble_instruction(addr, encodings::CPI);
+          self.assemble_instruction(addr + 1, addr as u8);
+        }
+        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
+        None => return Err(AssemblerError::IdentifierNotDefined),
+      },
+      (CPI, &[OperandNode::Expression(ref expr)]) => {
+        let val = evaluate_expression(self, expr)? as u16;
+
+        if val > u8::MAX as u16 {
+          return Err(AssemblerError::ExpectedOneByteData);
+        }
+
+        self.assemble_instruction(addr, encodings::CPI);
+        self.assemble_instruction(addr + 1, val as u8);
+      }
+
       (ADI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, encodings::ADI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
@@ -288,6 +364,25 @@ impl Environment {
         self.assemble_instruction(addr, encodings::ADI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
+      (ADI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+        Some(addr) if addr <= u8::MAX as u16 => {
+          self.assemble_instruction(addr, encodings::ADI);
+          self.assemble_instruction(addr + 1, addr as u8);
+        }
+        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
+        None => return Err(AssemblerError::IdentifierNotDefined),
+      },
+      (ADI, &[OperandNode::Expression(ref expr)]) => {
+        let val = evaluate_expression(self, expr)? as u16;
+
+        if val > u8::MAX as u16 {
+          return Err(AssemblerError::ExpectedOneByteData);
+        }
+
+        self.assemble_instruction(addr, encodings::ADI);
+        self.assemble_instruction(addr + 1, val as u8);
+      }
+
       (SUI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, encodings::SUI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
@@ -296,6 +391,25 @@ impl Environment {
         self.assemble_instruction(addr, encodings::SUI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
+      (SUI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+        Some(addr) if addr <= u8::MAX as u16 => {
+          self.assemble_instruction(addr, encodings::SUI);
+          self.assemble_instruction(addr + 1, addr as u8);
+        }
+        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
+        None => return Err(AssemblerError::IdentifierNotDefined),
+      },
+      (SUI, &[OperandNode::Expression(ref expr)]) => {
+        let val = evaluate_expression(self, expr)? as u16;
+
+        if val > u8::MAX as u16 {
+          return Err(AssemblerError::ExpectedOneByteData);
+        }
+
+        self.assemble_instruction(addr, encodings::SUI);
+        self.assemble_instruction(addr + 1, val as u8);
+      }
+
       (ANI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, encodings::ANI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
@@ -304,6 +418,25 @@ impl Environment {
         self.assemble_instruction(addr, encodings::ANI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
+      (ANI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+        Some(addr) if addr <= u8::MAX as u16 => {
+          self.assemble_instruction(addr, encodings::ANI);
+          self.assemble_instruction(addr + 1, addr as u8);
+        }
+        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
+        None => return Err(AssemblerError::IdentifierNotDefined),
+      },
+      (ANI, &[OperandNode::Expression(ref expr)]) => {
+        let val = evaluate_expression(self, expr)? as u16;
+
+        if val > u8::MAX as u16 {
+          return Err(AssemblerError::ExpectedOneByteData);
+        }
+
+        self.assemble_instruction(addr, encodings::ANI);
+        self.assemble_instruction(addr + 1, val as u8);
+      }
+
       (ORI, &[OperandNode::Numeric(data)]) => {
         self.assemble_instruction(addr, encodings::ORI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
@@ -312,6 +445,25 @@ impl Environment {
         self.assemble_instruction(addr, encodings::ORI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
+      (ORI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+        Some(addr) if addr <= u8::MAX as u16 => {
+          self.assemble_instruction(addr, encodings::ORI);
+          self.assemble_instruction(addr + 1, addr as u8);
+        }
+        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
+        None => return Err(AssemblerError::IdentifierNotDefined),
+      },
+      (ORI, &[OperandNode::Expression(ref expr)]) => {
+        let val = evaluate_expression(self, expr)? as u16;
+
+        if val > u8::MAX as u16 {
+          return Err(AssemblerError::ExpectedOneByteData);
+        }
+
+        self.assemble_instruction(addr, encodings::ORI);
+        self.assemble_instruction(addr + 1, val as u8);
+      }
+
       (ADD, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_add(r1)),
       (ADC, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_adc(r1)),
       (SUB, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_sub(r1)),
@@ -513,6 +665,27 @@ impl Environment {
         self.assemble_instruction(addr, encode_mvi(r1));
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
+      (MVI, &[OperandNode::Register(r1), OperandNode::Identifier(ref ident)]) => {
+        match self.get_label_address(ident) {
+          Some(addr) if addr <= u8::MAX as u16 => {
+            self.assemble_instruction(addr, encode_mvi(r1));
+            self.assemble_instruction(addr + 1, addr as u8);
+          }
+          Some(_) => return Err(AssemblerError::ExpectedOneByteData),
+          None => return Err(AssemblerError::IdentifierNotDefined),
+        }
+      }
+      (MVI, &[OperandNode::Register(r1), OperandNode::Expression(ref expr)]) => {
+        let val = evaluate_expression(self, expr)? as u16;
+
+        if val > u8::MAX as u16 {
+          return Err(AssemblerError::ExpectedOneByteData);
+        }
+
+        self.assemble_instruction(addr, encode_mvi(r1));
+        self.assemble_instruction(addr + 1, val as u8);
+      }
+
       (MOV, &[OperandNode::Register(r1), OperandNode::Register(r2)]) => {
         self.assemble_instruction(addr, encode_mov(r1, r2));
       }

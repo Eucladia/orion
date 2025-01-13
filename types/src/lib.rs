@@ -87,4 +87,7 @@ pub enum AssemblerError {
 
   #[error("the data was not 2 bytes")]
   ExpectedTwoByteData,
+
+  #[error("the data was not 1 byte")]
+  ExpectedOneByteData,
 }
