@@ -682,7 +682,10 @@ impl Environment {
         self.assemble_u16(addr + 1, data);
       }
       (LXI, &[OperandNode::Register(r1), OperandNode::Identifier(ref label)]) => {
-        if let Some(label_addr) = self.get_label_address(label) {
+        if label == "$" {
+          self.assemble_instruction(addr, encode_lxi(r1));
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(label_addr) = self.get_label_address(label) {
           self.assemble_instruction(addr, encode_lxi(r1));
           self.assemble_u16(addr + 1, label_addr);
         } else if !recoding {
@@ -781,7 +784,7 @@ fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssemblerRes
     }
     ExpressionNode::Identifier(ref label) => {
       if label == "$" {
-        Ok(env.registers.pc as i32)
+        Ok(env.assemble_index as i32)
       } else {
         match env.get_label_address(label) {
           Some(addr) => Ok(addr as i32),

@@ -396,7 +396,40 @@ mod tests {
   }
 
   #[test]
-  fn labels_as_d16() {
+  fn using_dollar_sign_as_operand() {
+    run_asm!(
+      "LXI B, $\nHLT",
+      |int: &mut Interpreter| int.env.registers.b == 0x0 && int.env.registers.c == 0x0,
+      "expected LXI to work with $"
+    )
+    .unwrap();
+
+    run_asm!(
+      "NOP\nLXI B, $\nHLT",
+      |int: &mut Interpreter| int.env.registers.b == 0x0 && int.env.registers.c == 0x1,
+      "expected LXI to work with $"
+    )
+    .unwrap();
+
+    run_asm!(
+      "LXI B, $ + 6\nNOP\nNOP\nNOP\nHLT",
+      |int: &mut Interpreter| int.env.registers.b == 0x0 && int.env.registers.c == 0x6,
+      "expected LXI to work with $ as an expression"
+    )
+    .unwrap();
+
+    run_asm!(
+      "LXI H, $ + 6\nNOP\nNOP\nMOV A, M\nHLT",
+      |int: &mut Interpreter| int.env.registers.h == 0x0
+        && int.env.registers.l == 0x6
+        && int.env.registers.a == 0x7F,
+      "expected LXI to work with $ as an expression and HLT instruction to be loaded"
+    )
+    .unwrap();
+  }
+
+  #[test]
+  fn lxi_d16_operands() {
     run_asm!(
       "LXI B, FOO\nFOO:\nHLT",
       |int: &mut Interpreter| int.env.registers.b == 0x0 && int.env.registers.c == 0x5,
@@ -420,6 +453,24 @@ mod tests {
       .unwrap_err(),
       AssemblerError::IdentifierNotDefined
     );
+
+    run_asm!(
+      "LXI B,'AB'\nHLT",
+      |int: &mut Interpreter| int.env.registers.b == b'A' && int.env.registers.c == b'B',
+      "expected LXI to work 2 byte string"
+    )
+    .unwrap();
+
+    run_asm!(
+      "LXI B,'AB' + 5\nHLT",
+      |int: &mut Interpreter| {
+        let data = ((b'A' as u16) << 8 | b'B' as u16) + 5;
+
+        int.env.registers.b == (data >> 8) as u8 && int.env.registers.c == data as u8
+      },
+      "expected LXI to work 2 byte string expression"
+    )
+    .unwrap();
   }
 
   #[test]
