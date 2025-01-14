@@ -139,6 +139,36 @@ impl<'a> Parser<'a> {
 
     while operands.len() < num_operands {
       match self.next_token() {
+        Some(token)
+          if matches!(token.kind(), TokenKind::Operator)
+            // The only valid unary operator is minus
+            && matches!(self.source.get(token.span()), Some("-")) =>
+        {
+          match self.next_token() {
+            Some(next_token) => {
+              if matches!(
+                self.peek_token().as_ref().map(Token::kind),
+                Some(TokenKind::Operator)
+              ) {
+                self.token_index -= 1;
+
+                operands.push(OperandNode::Expression(self.parse_expr()?))
+              } else {
+                let num = 0_u16.wrapping_sub(parse_number(self.source, &next_token)?);
+
+                operands.push(OperandNode::Numeric(num))
+              }
+
+              last_token_operand = true;
+            }
+            None => {
+              return Err(ParseError {
+                start_pos: token.span().end,
+                kind: ParserErrorKind::ExpectedOperand,
+              })
+            }
+          }
+        }
         Some(token) if matches!(token.kind(), TokenKind::Numeric) => {
           if matches!(
             self.peek_token().as_ref().map(Token::kind),
@@ -948,6 +978,11 @@ mod tests {
     assert!(crate::parse("MVI A, 0FH").is_ok(), "valid hex");
     assert!(crate::parse("MVI A, 0").is_ok(), "hex");
     assert!(crate::parse("MVI A, 0H").is_ok(), "0 hex");
+    // TODO: -0 should be valid, but because of type checking in the parser, its not
+    assert!(
+      crate::parse("MVI A, +0").is_err(),
+      "unary + should be invalid"
+    );
     assert!(
       crate::parse("MVI A, 0qqBoH").is_err(),
       "invalid hex with other suffix"
