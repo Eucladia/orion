@@ -847,8 +847,10 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
   }
 }
 
-/// Parses a number for an expression, the number must be within [-0xFFFF, 0xFFFF]
-fn parse_expression_number(src: &str, token: &Token) -> ParseResult<i32> {
+/// Parses a number for an expression.
+// Expression parsing needs to be handled separately because
+// there can be negative numbers allowed.
+fn parse_expression_number(src: &str, token: &Token) -> ParseResult<u16> {
   // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
   let mut num_str = unwrap!(src.get(token.span()));
   // SAFETY: We're guaranteed at least one byte for `Literal`s.
@@ -872,13 +874,14 @@ fn parse_expression_number(src: &str, token: &Token) -> ParseResult<i32> {
   };
 
   match i32::from_str_radix(num_str, radix) {
-    Ok(x) if (-0xFFFF..0xFFFF).contains(&x) => Ok(x),
+    Ok(x) if (-0xFFFF..=0xFFFF).contains(&x) => Ok(x as u16),
     _ => Err(ParseError {
       start_pos: token.span().start,
       kind: ParserErrorKind::InvalidNumber,
     }),
   }
 }
+
 /// Parses a number.
 fn parse_number(src: &str, token: &Token) -> ParseResult<u16> {
   // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str

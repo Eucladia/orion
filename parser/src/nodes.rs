@@ -38,9 +38,7 @@ pub enum ExpressionNode {
   /// An identifier.
   Identifier(SmolStr),
   /// A numeric literal.
-  ///
-  /// This is an i32 because unary minus is allowed.
-  Number(i32),
+  Number(u16),
   /// An expression wrapped in parenthesis.
   Paren(Box<ExpressionNode>),
   /// A unary expression.

@@ -767,7 +767,7 @@ impl Default for Environment {
   }
 }
 
-fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssemblerResult<i32> {
+fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssemblerResult<u16> {
   match expr {
     ExpressionNode::Number(num) => Ok(*num),
     ExpressionNode::String(str) => {
@@ -776,18 +776,18 @@ fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssemblerRes
         Err(AssemblerError::ExpectedTwoByteData)
       } else {
         let bytes = str.as_bytes();
-        let b1 = bytes.first().copied().unwrap_or(0);
-        let b2 = bytes.get(1).copied().unwrap_or(0);
+        let b1 = bytes.first().copied().unwrap_or(0) as u16;
+        let b2 = bytes.get(1).copied().unwrap_or(0) as u16;
 
-        Ok(((b1 as i32) << 8) | b2 as i32)
+        Ok((b1 << 8) | b2)
       }
     }
     ExpressionNode::Identifier(ref label) => {
       if label == "$" {
-        Ok(env.assemble_index as i32)
+        Ok(env.assemble_index)
       } else {
         match env.get_label_address(label) {
-          Some(addr) => Ok(addr as i32),
+          Some(addr) => Ok(addr),
           None => Err(AssemblerError::IdentifierNotDefined),
         }
       }
@@ -798,54 +798,57 @@ fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssemblerRes
       expr: child_expr,
     } => match op {
       Operator::Addition => evaluate_expression(env, child_expr),
-      Operator::Subtraction => Ok(-evaluate_expression(env, child_expr)?),
-      Operator::High => Ok((evaluate_expression(env, child_expr)? >> 8) & 0xFF),
+      // Handle unary subtraction via wraparound
+      Operator::Subtraction => Ok(0_u16.wrapping_sub(evaluate_expression(env, child_expr)?)),
+      Operator::High => Ok(evaluate_expression(env, child_expr)? >> 8),
       Operator::Low => Ok(evaluate_expression(env, child_expr)? & 0xFF),
       Operator::Not => Ok(!evaluate_expression(env, child_expr)?),
       _ => unreachable!(),
     },
     ExpressionNode::Binary { op, left, right } => match op {
-      Operator::Addition => Ok(evaluate_expression(env, left)? + evaluate_expression(env, right)?),
-      Operator::Subtraction => {
-        Ok(evaluate_expression(env, left)? - evaluate_expression(env, right)?)
+      Operator::Addition => {
+        Ok(evaluate_expression(env, left)?.wrapping_add(evaluate_expression(env, right)?))
       }
-      Operator::Division => Ok(evaluate_expression(env, left)? / evaluate_expression(env, right)?),
+      Operator::Subtraction => {
+        Ok(evaluate_expression(env, left)?.wrapping_sub(evaluate_expression(env, right)?))
+      }
+      Operator::Division => {
+        Ok(evaluate_expression(env, left)?.wrapping_div(evaluate_expression(env, right)?))
+      }
       Operator::Multiplication => {
-        Ok(evaluate_expression(env, left)? * evaluate_expression(env, right)?)
+        Ok(evaluate_expression(env, left)?.wrapping_mul(evaluate_expression(env, right)?))
       }
 
       Operator::Modulo => Ok(evaluate_expression(env, left)? % evaluate_expression(env, right)?),
       Operator::ShiftLeft => {
-        Ok(evaluate_expression(env, left)? << evaluate_expression(env, right)?)
+        Ok(evaluate_expression(env, left)?.wrapping_shl(evaluate_expression(env, right)? as u32))
       }
       Operator::ShiftRight => {
-        Ok(evaluate_expression(env, left)? >> evaluate_expression(env, right)?)
+        Ok(evaluate_expression(env, left)?.wrapping_shr(evaluate_expression(env, right)? as u32))
       }
       Operator::And => Ok(evaluate_expression(env, left)? & evaluate_expression(env, right)?),
       Operator::Or => Ok(evaluate_expression(env, left)? | evaluate_expression(env, right)?),
       Operator::Xor => Ok(evaluate_expression(env, left)? ^ evaluate_expression(env, right)?),
 
       Operator::Eq => {
-        Ok((evaluate_expression(env, left)? == evaluate_expression(env, right)?) as i32)
+        Ok((evaluate_expression(env, left)? == evaluate_expression(env, right)?) as u16)
       }
       Operator::Ne => {
-        Ok((evaluate_expression(env, left)? != evaluate_expression(env, right)?) as i32)
+        Ok((evaluate_expression(env, left)? != evaluate_expression(env, right)?) as u16)
       }
       // NOTE: Relational comparisons compare the bits, not the values
-      Operator::Lt => Ok(
-        ((evaluate_expression(env, left)? as u32) < evaluate_expression(env, right)? as u32) as i32,
-      ),
-      Operator::Le => Ok(
-        ((evaluate_expression(env, left)? as u32) <= evaluate_expression(env, right)? as u32)
-          as i32,
-      ),
-      Operator::Gt => Ok(
-        ((evaluate_expression(env, left)? as u32) > evaluate_expression(env, right)? as u32) as i32,
-      ),
-      Operator::Ge => Ok(
-        ((evaluate_expression(env, left)? as u32) >= evaluate_expression(env, right)? as u32)
-          as i32,
-      ),
+      Operator::Lt => {
+        Ok((evaluate_expression(env, left)? < evaluate_expression(env, right)?) as u16)
+      }
+      Operator::Le => {
+        Ok((evaluate_expression(env, left)? <= evaluate_expression(env, right)?) as u16)
+      }
+      Operator::Gt => {
+        Ok((evaluate_expression(env, left)? > evaluate_expression(env, right)?) as u16)
+      }
+      Operator::Ge => {
+        Ok((evaluate_expression(env, left)? >= evaluate_expression(env, right)?) as u16)
+      }
       // `NOT`, `HIGH`, `LOW `are handled in the unary section
       Operator::Not | Operator::High | Operator::Low => unreachable!(),
     },
