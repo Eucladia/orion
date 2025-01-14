@@ -10,7 +10,7 @@ pub use interpreter::Interpreter;
 use lexer::instruction::Instruction;
 
 /// Returns the number of bytes this isntruction occupies in memory
-pub fn instruction_bytes_occupied(ins: &Instruction) -> u8 {
+pub fn instruction_bytes_occupied(ins: Instruction) -> u8 {
   match ins {
     // 0 operand instructions
     Instruction::NOP => 1,

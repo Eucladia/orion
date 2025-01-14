@@ -1,11 +1,10 @@
-use crate::{encodings, instruction_bytes_occupied, instructions, Environment};
+use crate::{encodings, instructions, Environment};
 use parser::nodes::{Node, ProgramNode};
 use types::AssemblerError;
 
 #[derive(Debug)]
 pub struct Interpreter {
   node: ProgramNode,
-  assemble_index: u16,
   env: Environment,
 }
 
@@ -13,7 +12,6 @@ impl Interpreter {
   pub fn new(ast: ProgramNode) -> Self {
     Self {
       node: ast,
-      assemble_index: 0,
       env: Environment::new(),
     }
   }
@@ -27,9 +25,7 @@ impl Interpreter {
         Node::Instruction(insn) => {
           self
             .env
-            .encode_instruction(self.assemble_index, insn, &mut unassembled)?;
-
-          self.assemble_index += instruction_bytes_occupied(&insn.instruction()) as u16;
+            .encode_instruction(self.env.assemble_index, insn, &mut unassembled, false)?;
         }
         Node::Label(label) => {
           let label_name = label.label_name();
@@ -39,41 +35,38 @@ impl Interpreter {
           }
 
           // The label is to be inserted at the current address will be the address to go to
-          let lower = (self.assemble_index & 0xFF) as u8;
-          let upper = (self.assemble_index >> 8) as u8;
+          let lower = (self.env.assemble_index & 0xFF) as u8;
+          let upper = (self.env.assemble_index >> 8) as u8;
 
-          let addr = Environment::INSTRUCTION_STARTING_ADDRESS + self.assemble_index;
+          let addr = Environment::INSTRUCTION_STARTING_ADDRESS + self.env.assemble_index;
 
           self.env.assemble_instruction(addr, lower);
           self.env.assemble_instruction(addr + 1, upper);
           // Make this index (and the next) as a label index
           self.env.label_indices.insert(addr, label_name.clone());
 
-          self.assemble_index += 2;
+          self.env.assemble_index += 2;
 
           // Point this label to the instruction's that should be executed
-          self.env.add_label(label_name, self.assemble_index);
+          self.env.add_label(label_name, self.env.assemble_index);
         }
       };
     }
 
-    // It's okay to create a new vec since we expect to have everything assembled after this second pass.
+    // Everything should be assembled after this second pass
     let mut new_unassembled = vec![];
 
     if !unassembled.is_empty() {
       for elem in unassembled.iter() {
         self
           .env
-          .encode_instruction(elem.1, elem.0, &mut new_unassembled)?;
+          .encode_instruction(elem.1, elem.0, &mut new_unassembled, true)?;
       }
     }
 
     for n in 0..30 {
       eprintln!("0x{:X}: 0x{:X}", n, self.env.memory_at(n));
     }
-
-    // TODO: Change this to an error
-    assert_eq!(new_unassembled.len(), 0);
 
     Ok(())
   }
@@ -84,14 +77,14 @@ impl Interpreter {
   pub fn reset(&mut self, wipe_encoded: bool) {
     if wipe_encoded {
       self.env.reset(0);
-      self.assemble_index = 0;
+      self.env.assemble_index = 0;
     } else {
-      self.env.reset(self.assemble_index);
+      self.env.reset(self.env.assemble_index);
     }
   }
 
   fn fetch_instruction(&mut self) -> Option<u8> {
-    if self.env.registers.pc >= self.assemble_index {
+    if self.env.registers.pc >= self.env.assemble_index {
       return None;
     }
 
@@ -328,6 +321,7 @@ impl Interpreter {
 mod tests {
   use super::Interpreter;
   use lexer::Flags;
+  use types::{AssemblerError, AssemblerResult};
 
   /// Runs an assembly file, making sure that the expected memory values are set.
   macro_rules! run_file {
@@ -337,22 +331,28 @@ mod tests {
           [$($expect_addr:literal => $expect_value:literal),*]
       ) => {
         {
-          let src = include_str!(concat!("../../test_files/", $src, ".asm"));
-          let mut int = Interpreter::new(parser::parse(src).unwrap());
+          let r: AssemblerResult<Interpreter> = {
+            let src = include_str!(concat!("../../test_files/", $src, ".asm"));
+            let mut int = Interpreter::new(parser::parse(src).unwrap());
 
-          int.assemble().unwrap();
+            if let Err(e) = int.assemble() {
+               Err(e)
+            } else {
+              $(
+                int.env.write_memory($write_addr, $write_value);
+              )*
 
-          $(
-            int.env.write_memory($write_addr, $write_value);
-          )*
+              while int.execute().is_some() {}
 
-          while int.execute().is_some() {}
+              $(
+                assert_eq!(int.env.memory_at($expect_addr), $expect_value);
+              )*
 
-          $(
-            assert_eq!(int.env.memory_at($expect_addr), $expect_value);
-          )*
+              Ok(int)
+            }
+          };
 
-          int
+          r
         }
       };
       (
@@ -377,14 +377,49 @@ mod tests {
   /// Runs an assembly program
   macro_rules! run_asm {
     ($src:literal, $func:expr, $err:literal) => {{
-      let mut int = Interpreter::new(parser::parse($src).unwrap());
+      let r: AssemblerResult<()> = {
+        let mut int = Interpreter::new(parser::parse($src).unwrap());
 
-      int.assemble().unwrap();
+        if let Err(e) = int.assemble() {
+          Err(e)
+        } else {
+          while int.execute().is_some() {}
 
-      while int.execute().is_some() {}
+          assert!($func(&mut int), $err);
 
-      assert!($func(&mut int));
+          Ok(())
+        }
+      };
+
+      r
     }};
+  }
+
+  #[test]
+  fn labels_as_d16() {
+    run_asm!(
+      "LXI B, FOO\nFOO:\nHLT",
+      |int: &mut Interpreter| int.env.registers.b == 0x0 && int.env.registers.c == 0x5,
+      "expected LXI to work with future defined label"
+    )
+    .unwrap();
+
+    run_asm!(
+      "FOO:\nNOP\nLXI B, FOO\nHLT",
+      |int: &mut Interpreter| int.env.registers.b == 0x0 && int.env.registers.c == 0x2,
+      "expected LXI to work with previously defined label"
+    )
+    .unwrap();
+
+    assert_eq!(
+      run_asm!(
+        "LXI B, FOO\nHLT",
+        |_int: &mut Interpreter| false,
+        "expected LXI to not work with undefined labels"
+      )
+      .unwrap_err(),
+      AssemblerError::IdentifierNotDefined
+    );
   }
 
   #[test]
@@ -407,6 +442,7 @@ mod tests {
       },
       "MVI w/ 'A' d8"
     )
+    .unwrap();
   }
 
   #[test]
@@ -415,50 +451,64 @@ mod tests {
       "MVI B, 'A'",
       |int: &mut Interpreter| int.env.registers.b == b'A',
       "invalid MVI w/ d8"
-    );
+    )
+    .unwrap();
 
     run_asm!(
       "STC\nMVI A, 03H\nACI 'A'",
       |int: &mut Interpreter| int.env.registers.a == b'A' + 0x3 + 0x1,
       "invalid ACI w/ d8"
-    );
+    )
+    .unwrap();
 
     run_asm!(
       "MVI A, 50H\nSBI 'A'",
       |int: &mut Interpreter| int.env.registers.a == 0x50 - b'A',
       "invalid SBI w/ d8"
-    );
+    )
+    .unwrap();
+
     run_asm!(
       "MVI A, 03H\nXRI 'A'",
       |int: &mut Interpreter| int.env.registers.a == b'A' ^ 0x3,
       "invalid XRI w/ d8"
-    );
+    )
+    .unwrap();
+
     run_asm!(
       "MVI A, 03H\nCPI 'A'",
       |int: &mut Interpreter| int.env.is_flag_set(Flags::Carry) && int.env.is_flag_set(Flags::Sign),
       "invalid CPI w/ d8"
-    );
+    )
+    .unwrap();
 
     run_asm!(
       "MVI A, 03H\nADI 'A'",
       |int: &mut Interpreter| int.env.registers.a == 0x3 + b'A',
       "invalid ADI w/ d8"
-    );
+    )
+    .unwrap();
+
     run_asm!(
       "MVI A, 68H\nSUI 'A'",
       |int: &mut Interpreter| int.env.registers.a == 0x68 - b'A',
       "invalid SUI with d8"
-    );
+    )
+    .unwrap();
+
     run_asm!(
       "MVI A, 03H\nANI 'A'",
       |int: &mut Interpreter| int.env.registers.a == 0x3 & b'A',
       "invalid ANI w/ d8"
-    );
+    )
+    .unwrap();
+
     run_asm!(
       "MVI A, 03H\nORI 'A'",
       |int: &mut Interpreter| int.env.registers.a == 0x3 | b'A',
       "invalid ORI w/ d8"
-    );
+    )
+    .unwrap();
   }
 
   // Test files
@@ -471,7 +521,8 @@ mod tests {
         0x2045 => 0x5, 0x2046 =>  0x60
       ],
       [0x2070 => 0x4]
-    );
+    )
+    .unwrap();
   }
 
   #[test]
@@ -479,14 +530,16 @@ mod tests {
     // Test a positive number
     let mut interpreter = run_file!(
       "pos_or_neg", [0x2050 => 0x17], [0x2055 => 0x0]
-    );
+    )
+    .unwrap();
 
     interpreter.reset(false);
 
     // Test a negative number
     run_file!(
       "pos_or_neg", [0x2050 => 0xD6], [0x2055 => 0x1]
-    );
+    )
+    .unwrap();
   }
 
   #[test]
@@ -495,32 +548,33 @@ mod tests {
       "sum_of_array",
       [0x02050 => 0x1, 0x2051 => 0x2, 0x2052 => 0x3, 0x2053 => 0x04, 0x2054 => 0xA],
       [0x3000 => 0x14, 0x3001 => 0x0]
-    );
+    )
+    .unwrap();
   }
 
   #[test]
   fn ones_comp() {
-    run_file!("ones_complement", [], [0x50 => 0x7A]);
+    run_file!("ones_complement", [], [0x50 => 0x7A]).unwrap();
   }
 
   #[test]
   fn twos_comp() {
-    run_file!("twos_complement", [], [0x50 => 0x9B]);
+    run_file!("twos_complement", [], [0x50 => 0x9B]).unwrap();
   }
 
   #[test]
   fn add_two_bytes() {
-    run_file!("add_two_bytes", [0x2000 => 0x10, 0x2001 => 0x10], [0x2002 => 0x20]);
+    run_file!("add_two_bytes", [0x2000 => 0x10, 0x2001 => 0x10], [0x2002 => 0x20]).unwrap();
   }
 
   #[test]
   fn max_array_value() {
-    run_file!("max_array_value", [0x0050 => 0x92, 0x0051 => 0xB4], [0x0060 => 0xB4]);
+    run_file!("max_array_value", [0x0050 => 0x92, 0x0051 => 0xB4], [0x0060 => 0xB4]).unwrap();
   }
 
   #[test]
   fn num_zeros_in_byte() {
-    run_file!("num_zeros_in_byte", [0x0030 => 0xF2], [0x0040 => 0x3]);
+    run_file!("num_zeros_in_byte", [0x0030 => 0xF2], [0x0040 => 0x3]).unwrap();
   }
 
   #[test]
@@ -531,7 +585,8 @@ mod tests {
         0x0034 => 0x45, 0x0035 => 0x33, 0x0036 => 0x7
       ],
       [0x0040 => 0x7]
-    );
+    )
+    .unwrap();
   }
 
   #[test]
@@ -545,6 +600,7 @@ mod tests {
         0x0060 => 0x1
       ],
       [0x0070 => 0x3]
-    );
+    )
+    .unwrap();
   }
 }

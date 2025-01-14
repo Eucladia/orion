@@ -89,9 +89,9 @@ pub enum OperandNode {
   Register(Register),
   /// For numeric literals.
   Numeric(u16),
-  /// For identifiers.
+  /// For identifiers such as labels and reserved identifiers (`$`).
   Identifier(SmolStr),
-  /// For strings.
+  /// For operands enclosed in single quotes.
   String(SmolStr),
   /// An expression node that gets computed during assemble time.
   Expression(ExpressionNode),
