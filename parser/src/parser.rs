@@ -103,8 +103,6 @@ impl<'a> Parser<'a> {
         })
       }
 
-      TokenKind::EndOfFile => None,
-
       _ => Some(Err(ParseError {
         start_pos: token.span().start,
         kind: ParserErrorKind::UnexpectedToken,
