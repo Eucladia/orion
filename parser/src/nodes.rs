@@ -1,5 +1,6 @@
 use lexer::{instruction::Instruction, Register};
 use smol_str::SmolStr;
+use std::ops::Range;
 
 /// The root node for a source file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,19 +21,52 @@ pub enum Node {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LabelNode {
   name: SmolStr,
+  span: Range<usize>,
 }
 
 /// A node representing an instruction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionNode {
   // TODO: SmallVec or just use an array?
-  pub operands: Vec<OperandNode>,
+  operands: Vec<OperandNode>,
   instruction: Instruction,
+  span: Range<usize>,
+}
+
+/// A node representing the operands of an instruction.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct OperandNode {
+  /// The operand itself.
+  pub operand: Operand,
+  /// The span of this operand node.
+  pub span: Range<usize>,
+}
+
+/// A type of value that can be passed as an operand.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Operand {
+  /// For register operands.
+  Register(Register),
+  /// For numeric literals.
+  Numeric(u16),
+  /// For identifiers such as labels and reserved identifiers (`$`).
+  Identifier(SmolStr),
+  /// For operands enclosed in single quotes.
+  String(SmolStr),
+  /// An expression node that gets computed during assemble time.
+  Expression(ExpressionNode),
 }
 
 /// A node representating an expression that gets evalauted during assemble time.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExpressionNode {
+pub struct ExpressionNode {
+  expr: Expression,
+  span: Range<usize>,
+}
+
+/// A king of expression.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Expression {
   /// A string literal.
   String(SmolStr),
   /// An identifier.
@@ -99,21 +133,6 @@ pub enum Operator {
   Gt,
 }
 
-/// A node representing the operands of an instruction.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum OperandNode {
-  /// For register operands.
-  Register(Register),
-  /// For numeric literals.
-  Numeric(u16),
-  /// For identifiers such as labels and reserved identifiers (`$`).
-  Identifier(SmolStr),
-  /// For operands enclosed in single quotes.
-  String(SmolStr),
-  /// An expression node that gets computed during assemble time.
-  Expression(ExpressionNode),
-}
-
 impl ProgramNode {
   /// Creates a new [`ProgramNode`] from the given nodes
   pub fn new(nodes: Vec<Node>) -> Self {
@@ -128,30 +147,59 @@ impl ProgramNode {
 
 impl LabelNode {
   /// Creates a new [`LabelNode`]
-  pub fn new(name: SmolStr) -> Self {
-    Self { name }
+  pub fn new(name: SmolStr, span: Range<usize>) -> Self {
+    Self { name, span }
   }
 
-  /// The name of this label, without the colon.
+  /// The name of this label, excluding the colon.
   pub fn label_name(&self) -> SmolStr {
     self.name.clone()
+  }
+
+  /// The span of this node in the source, including the colon.
+  pub fn span(&self) -> Range<usize> {
+    self.span.clone()
+  }
+}
+
+impl OperandNode {
+  /// Creates a new [`OperandNode`].
+  pub fn new(op: Operand, span: Range<usize>) -> Self {
+    Self { operand: op, span }
+  }
+}
+
+impl ExpressionNode {
+  /// Creates a new [`ExpressionNode`].
+  pub fn new(expr: Expression, span: Range<usize>) -> Self {
+    Self { expr, span }
+  }
+
+  /// The [`Expression`] of this node.
+  pub fn value(&self) -> &Expression {
+    &self.expr
   }
 }
 
 impl InstructionNode {
+  /// Creates an [`InstructionNode`] from the given instruction.
+  pub fn new(instruction: Instruction, span: Range<usize>) -> Self {
+    const MAX_OPERANDS: usize = 2;
+
+    Self::from_operands(instruction, Vec::with_capacity(MAX_OPERANDS), span)
+  }
+
   /// Creates an [`InstructionNode`] from the given instruction and operands
-  pub fn from_operands(instruction: Instruction, operands: Vec<OperandNode>) -> Self {
+  pub fn from_operands(
+    instruction: Instruction,
+    operands: Vec<OperandNode>,
+    span: Range<usize>,
+  ) -> Self {
     Self {
+      span,
       instruction,
       operands,
     }
-  }
-
-  /// Creates an [`InstructionNode`] from the given instruction.
-  pub fn new(instruction: Instruction) -> Self {
-    const MAX_OPERANDS: usize = 2;
-
-    Self::from_operands(instruction, Vec::with_capacity(MAX_OPERANDS))
   }
 
   /// The [`Instruction`] of this node.
@@ -162,6 +210,11 @@ impl InstructionNode {
   /// The operands of this node.
   pub fn operands(&self) -> &[OperandNode] {
     &self.operands
+  }
+
+  /// The span of this instruction, in the source.
+  pub fn span(&self) -> Range<usize> {
+    self.span.clone()
   }
 }
 
@@ -198,24 +251,6 @@ impl TryFrom<&str> for Operator {
   }
 }
 
-impl std::fmt::Display for OperandNode {
-  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    match self {
-      OperandNode::Identifier(ident) => write!(f, "{}", &ident),
-      OperandNode::Register(reg) => write!(f, "{}", reg),
-      OperandNode::Numeric(num) => write!(f, "{}", num),
-      OperandNode::String(str) => write!(f, "{}", str),
-      OperandNode::Expression(expr) => expr.fmt(f),
-    }
-  }
-}
-
-impl std::fmt::Display for LabelNode {
-  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    write!(f, "{}:", self.label_name())
-  }
-}
-
 impl std::fmt::Display for ProgramNode {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     for node in self.children() {
@@ -245,15 +280,45 @@ impl std::fmt::Display for ProgramNode {
   }
 }
 
+impl std::fmt::Display for OperandNode {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    write!(f, "{}", self.operand)
+  }
+}
+
 impl std::fmt::Display for ExpressionNode {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}", self.expr)
+  }
+}
+
+impl std::fmt::Display for LabelNode {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    write!(f, "{}:", self.label_name())
+  }
+}
+
+impl std::fmt::Display for Operand {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {
-      ExpressionNode::Number(num) => write!(f, "{}", num),
-      ExpressionNode::Identifier(s) => write!(f, "{}", s),
-      ExpressionNode::String(s) => write!(f, "'{}'", s),
-      ExpressionNode::Unary { op, expr } => write!(f, "{}{}", op, expr),
-      ExpressionNode::Binary { op, left, right } => write!(f, "{} {} {}", left, op, right),
-      ExpressionNode::Paren(inner) => write!(f, "({})", inner),
+      Operand::Identifier(ident) => write!(f, "{}", &ident),
+      Operand::Register(reg) => write!(f, "{}", reg),
+      Operand::Numeric(num) => write!(f, "{}", num),
+      Operand::String(str) => write!(f, "{}", str),
+      Operand::Expression(expr) => expr.fmt(f),
+    }
+  }
+}
+
+impl std::fmt::Display for Expression {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Expression::Number(num) => write!(f, "{}", num),
+      Expression::Identifier(s) => write!(f, "{}", s),
+      Expression::String(s) => write!(f, "'{}'", s),
+      Expression::Unary { op, expr } => write!(f, "{}{}", op, expr),
+      Expression::Binary { op, left, right } => write!(f, "{} {} {}", left, op, right),
+      Expression::Paren(inner) => write!(f, "({})", inner),
     }
   }
 }

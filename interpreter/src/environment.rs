@@ -1,7 +1,7 @@
 use crate::registers::Registers;
 use crate::{encodings, instruction_bytes_occupied};
 use lexer::{instruction::Instruction, Flags, Register};
-use parser::nodes::{ExpressionNode, InstructionNode, OperandNode, Operator};
+use parser::nodes::{Expression, ExpressionNode, InstructionNode, Operand, OperandNode, Operator};
 use smol_str::SmolStr;
 use types::{AssembleResult, AssemblerError};
 
@@ -256,15 +256,33 @@ impl Environment {
       (DAA, &[]) => self.assemble_instruction(addr, encodings::DAA),
 
       // 1 operand
-      (ACI, &[OperandNode::Numeric(data)]) => {
+      (
+        ACI,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::ACI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
-      (ACI, &[OperandNode::String(ref data)]) => {
+      (
+        ACI,
+        &[OperandNode {
+          operand: Operand::String(ref data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::ACI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (ACI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+      (
+        ACI,
+        &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ..
+        }],
+      ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::ACI);
           self.assemble_instruction(addr + 1, addr as u8);
@@ -275,7 +293,13 @@ impl Environment {
           unassembled.push((instruction_node, addr));
         }
       },
-      (ACI, &[OperandNode::Expression(ref expr)]) => {
+      (
+        ACI,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
@@ -286,15 +310,33 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
 
-      (SBI, &[OperandNode::Numeric(data)]) => {
+      (
+        SBI,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::SBI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
-      (SBI, &[OperandNode::String(ref data)]) => {
+      (
+        SBI,
+        &[OperandNode {
+          operand: Operand::String(ref data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::SBI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (SBI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+      (
+        SBI,
+        &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ..
+        }],
+      ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::SBI);
           self.assemble_instruction(addr + 1, addr as u8);
@@ -305,7 +347,13 @@ impl Environment {
           unassembled.push((instruction_node, addr));
         }
       },
-      (SBI, &[OperandNode::Expression(ref expr)]) => {
+      (
+        SBI,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
@@ -316,15 +364,33 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
 
-      (XRI, &[OperandNode::Numeric(data)]) => {
+      (
+        XRI,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::XRI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
-      (XRI, &[OperandNode::String(ref data)]) => {
+      (
+        XRI,
+        &[OperandNode {
+          operand: Operand::String(ref data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::XRI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (XRI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+      (
+        XRI,
+        &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ..
+        }],
+      ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::XRI);
           self.assemble_instruction(addr + 1, addr as u8);
@@ -335,7 +401,13 @@ impl Environment {
           unassembled.push((instruction_node, addr));
         }
       },
-      (XRI, &[OperandNode::Expression(ref expr)]) => {
+      (
+        XRI,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
@@ -346,15 +418,33 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
 
-      (CPI, &[OperandNode::Numeric(data)]) => {
+      (
+        CPI,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::CPI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
-      (CPI, &[OperandNode::String(ref data)]) => {
+      (
+        CPI,
+        &[OperandNode {
+          operand: Operand::String(ref data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::CPI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (CPI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+      (
+        CPI,
+        &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ..
+        }],
+      ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::CPI);
           self.assemble_instruction(addr + 1, addr as u8);
@@ -365,7 +455,13 @@ impl Environment {
           unassembled.push((instruction_node, addr));
         }
       },
-      (CPI, &[OperandNode::Expression(ref expr)]) => {
+      (
+        CPI,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
@@ -376,15 +472,33 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
 
-      (ADI, &[OperandNode::Numeric(data)]) => {
+      (
+        ADI,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::ADI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
-      (ADI, &[OperandNode::String(ref data)]) => {
+      (
+        ADI,
+        &[OperandNode {
+          operand: Operand::String(ref data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::ADI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (ADI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+      (
+        ADI,
+        &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ..
+        }],
+      ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::ADI);
           self.assemble_instruction(addr + 1, addr as u8);
@@ -395,7 +509,13 @@ impl Environment {
           unassembled.push((instruction_node, addr));
         }
       },
-      (ADI, &[OperandNode::Expression(ref expr)]) => {
+      (
+        ADI,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
@@ -406,15 +526,33 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
 
-      (SUI, &[OperandNode::Numeric(data)]) => {
+      (
+        SUI,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::SUI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
-      (SUI, &[OperandNode::String(ref data)]) => {
+      (
+        SUI,
+        &[OperandNode {
+          operand: Operand::String(ref data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::SUI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (SUI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+      (
+        SUI,
+        &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ..
+        }],
+      ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::SUI);
           self.assemble_instruction(addr + 1, addr as u8);
@@ -425,7 +563,13 @@ impl Environment {
           unassembled.push((instruction_node, addr));
         }
       },
-      (SUI, &[OperandNode::Expression(ref expr)]) => {
+      (
+        SUI,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
@@ -436,15 +580,33 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
 
-      (ANI, &[OperandNode::Numeric(data)]) => {
+      (
+        ANI,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::ANI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
-      (ANI, &[OperandNode::String(ref data)]) => {
+      (
+        ANI,
+        &[OperandNode {
+          operand: Operand::String(ref data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::ANI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (ANI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+      (
+        ANI,
+        &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ..
+        }],
+      ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::ANI);
           self.assemble_instruction(addr + 1, addr as u8);
@@ -455,7 +617,13 @@ impl Environment {
           unassembled.push((instruction_node, addr));
         }
       },
-      (ANI, &[OperandNode::Expression(ref expr)]) => {
+      (
+        ANI,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
@@ -466,15 +634,33 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
 
-      (ORI, &[OperandNode::Numeric(data)]) => {
+      (
+        ORI,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::ORI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
-      (ORI, &[OperandNode::String(ref data)]) => {
+      (
+        ORI,
+        &[OperandNode {
+          operand: Operand::String(ref data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::ORI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (ORI, &[OperandNode::Identifier(ref ident)]) => match self.get_label_address(ident) {
+      (
+        ORI,
+        &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ..
+        }],
+      ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::ORI);
           self.assemble_instruction(addr + 1, addr as u8);
@@ -485,7 +671,13 @@ impl Environment {
           unassembled.push((instruction_node, addr));
         }
       },
-      (ORI, &[OperandNode::Expression(ref expr)]) => {
+      (
+        ORI,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
@@ -496,42 +688,180 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
 
-      (ADD, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_add(r1)),
-      (ADC, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_adc(r1)),
-      (SUB, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_sub(r1)),
-      (SBB, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_sbb(r1)),
-      (ANA, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_ana(r1)),
-      (XRA, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_xra(r1)),
-      (ORA, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_ora(r1)),
-      (CMP, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_cmp(r1)),
-      (INX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_inx(r1)),
-      (INR, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_inr(r1)),
-      (DCR, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_dcr(r1)),
-      (DAD, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_dad(r1)),
-      (DCX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_dcx(r1)),
-      (POP, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_pop(r1)),
-      (PUSH, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_push(r1)),
+      (
+        ADD,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_add(r1)),
+      (
+        ADC,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_adc(r1)),
+      (
+        SUB,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_sub(r1)),
+      (
+        SBB,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_sbb(r1)),
+      (
+        ANA,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_ana(r1)),
+      (
+        XRA,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_xra(r1)),
+      (
+        ORA,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_ora(r1)),
+      (
+        CMP,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_cmp(r1)),
+      (
+        INX,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_inx(r1)),
+      (
+        INR,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_inr(r1)),
+      (
+        DCR,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_dcr(r1)),
+      (
+        DAD,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_dad(r1)),
+      (
+        DCX,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_dcx(r1)),
+      (
+        POP,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_pop(r1)),
+      (
+        PUSH,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_push(r1)),
 
-      (STA, &[OperandNode::Numeric(data)]) => {
+      (
+        STA,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::STA);
         self.assemble_u16(addr + 1, data);
       }
-      (SHLD, &[OperandNode::Numeric(data)]) => {
+      (
+        SHLD,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::SHLD);
         self.assemble_u16(addr + 1, data);
       }
-      (STAX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_stax(r1)),
-      (LDA, &[OperandNode::Numeric(data)]) => {
+      (
+        STAX,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_stax(r1)),
+      (
+        LDA,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::LDA);
         self.assemble_u16(addr + 1, data);
       }
-      (LDAX, &[OperandNode::Register(r1)]) => self.assemble_instruction(addr, encode_ldax(r1)),
-      (LHLD, &[OperandNode::Numeric(data)]) => {
+      (
+        LDAX,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_ldax(r1)),
+      (
+        LHLD,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encodings::LHLD);
         self.assemble_u16(addr + 1, data);
       }
-      (RST, &[OperandNode::Numeric(num)]) => self.assemble_instruction(addr, encode_rst(num as u8)),
-      (JNZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        RST,
+        &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => self.assemble_instruction(addr, encode_rst(num as u8)),
+      (
+        JNZ,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JNZ);
           self.assemble_u16(addr + 1, jmp_to);
@@ -539,7 +869,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (JNC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        JNC,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JNC);
           self.assemble_u16(addr + 1, jmp_to);
@@ -547,7 +883,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (JPO, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        JPO,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JPO);
           self.assemble_u16(addr + 1, jmp_to);
@@ -555,7 +897,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (JP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        JP,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JP);
           self.assemble_u16(addr + 1, jmp_to);
@@ -563,7 +911,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (JMP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        JMP,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JMP);
           self.assemble_u16(addr + 1, jmp_to);
@@ -571,7 +925,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (JZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        JZ,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JZ);
           self.assemble_u16(addr + 1, jmp_to);
@@ -579,7 +939,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (JC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        JC,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JC);
           self.assemble_u16(addr + 1, jmp_to);
@@ -587,7 +953,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (JPE, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        JPE,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JPE);
           self.assemble_u16(addr + 1, jmp_to);
@@ -595,7 +967,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (JM, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        JM,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JM);
           self.assemble_u16(addr + 1, jmp_to);
@@ -603,7 +981,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (CNZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        CNZ,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CNZ);
           self.assemble_u16(addr + 1, jmp_to);
@@ -611,7 +995,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (CNC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        CNC,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CNC);
           self.assemble_u16(addr + 1, jmp_to);
@@ -619,7 +1009,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (CPO, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        CPO,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CPO);
           self.assemble_u16(addr + 1, jmp_to);
@@ -627,7 +1023,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (CP, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        CP,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CP);
           self.assemble_u16(addr + 1, jmp_to);
@@ -635,7 +1037,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (CZ, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        CZ,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CZ);
           self.assemble_u16(addr + 1, jmp_to);
@@ -643,7 +1051,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (CC, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        CC,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CC);
           self.assemble_u16(addr + 1, jmp_to);
@@ -651,7 +1065,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (CPE, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        CPE,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CPE);
           self.assemble_u16(addr + 1, jmp_to);
@@ -659,7 +1079,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (CM, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        CM,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CM);
           self.assemble_u16(addr + 1, jmp_to);
@@ -667,7 +1093,13 @@ impl Environment {
         None if recoding => return Err(AssemblerError::IdentifierNotDefined),
         None => unassembled.push((instruction_node, addr)),
       },
-      (CALL, &[OperandNode::Identifier(ref label)]) => match self.get_label_address(label) {
+      (
+        CALL,
+        &[OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CALL);
           self.assemble_u16(addr + 1, jmp_to);
@@ -677,11 +1109,29 @@ impl Environment {
       },
 
       // 2 Operands
-      (LXI, &[OperandNode::Register(r1), OperandNode::Numeric(data)]) => {
+      (
+        LXI,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }, OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encode_lxi(r1));
         self.assemble_u16(addr + 1, data);
       }
-      (LXI, &[OperandNode::Register(r1), OperandNode::Identifier(ref label)]) => {
+      (
+        LXI,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }, OperandNode {
+          operand: Operand::Identifier(ref label),
+          ..
+        }],
+      ) => {
         if label == "$" {
           self.assemble_instruction(addr, encode_lxi(r1));
           self.assemble_u16(addr + 1, self.assemble_index);
@@ -694,7 +1144,16 @@ impl Environment {
           return Err(AssemblerError::IdentifierNotDefined);
         }
       }
-      (LXI, &[OperandNode::Register(r1), OperandNode::String(ref str)]) => {
+      (
+        LXI,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }, OperandNode {
+          operand: Operand::String(ref str),
+          ..
+        }],
+      ) => {
         if str.len() == 2 {
           let bytes = str.as_bytes();
           let data = (bytes[0] as u16) << 8 | bytes[1] as u16;
@@ -705,32 +1164,75 @@ impl Environment {
           return Err(AssemblerError::ExpectedTwoByteData);
         }
       }
-      (LXI, &[OperandNode::Register(r1), OperandNode::Expression(ref expr)]) => {
+      (
+        LXI,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }, OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
         let res = evaluate_expression(self, expr)? as u16;
 
         self.assemble_instruction(addr, encode_lxi(r1));
         self.assemble_u16(addr + 1, res);
       }
 
-      (MVI, &[OperandNode::Register(r1), OperandNode::Numeric(data)]) => {
+      (
+        MVI,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }, OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encode_mvi(r1));
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
-      (MVI, &[OperandNode::Register(r1), OperandNode::String(ref data)]) => {
+      (
+        MVI,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }, OperandNode {
+          operand: Operand::String(ref data),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encode_mvi(r1));
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
-      (MVI, &[OperandNode::Register(r1), OperandNode::Identifier(ref ident)]) => {
-        match self.get_label_address(ident) {
-          Some(addr) if addr <= u8::MAX as u16 => {
-            self.assemble_instruction(addr, encode_mvi(r1));
-            self.assemble_instruction(addr + 1, addr as u8);
-          }
-          Some(_) => return Err(AssemblerError::ExpectedOneByteData),
-          None => return Err(AssemblerError::IdentifierNotDefined),
+      (
+        MVI,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }, OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ..
+        }],
+      ) => match self.get_label_address(ident) {
+        Some(addr) if addr <= u8::MAX as u16 => {
+          self.assemble_instruction(addr, encode_mvi(r1));
+          self.assemble_instruction(addr + 1, addr as u8);
         }
-      }
-      (MVI, &[OperandNode::Register(r1), OperandNode::Expression(ref expr)]) => {
+        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
+        None => return Err(AssemblerError::IdentifierNotDefined),
+      },
+      (
+        MVI,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }, OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
@@ -741,7 +1243,16 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
 
-      (MOV, &[OperandNode::Register(r1), OperandNode::Register(r2)]) => {
+      (
+        MOV,
+        &[OperandNode {
+          operand: Operand::Register(r1),
+          ..
+        }, OperandNode {
+          operand: Operand::Register(r2),
+          ..
+        }],
+      ) => {
         self.assemble_instruction(addr, encode_mov(r1, r2));
       }
 
@@ -768,9 +1279,9 @@ impl Default for Environment {
 }
 
 fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssembleResult<u16> {
-  match expr {
-    ExpressionNode::Number(num) => Ok(*num),
-    ExpressionNode::String(str) => {
+  match expr.value() {
+    Expression::Number(num) => Ok(*num),
+    Expression::String(str) => {
       // TODO: Can we evaluate strings that are more than 2 bytes?
       if str.len() > 2 {
         Err(AssemblerError::ExpectedTwoByteData)
@@ -782,7 +1293,7 @@ fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssembleResu
         Ok((b1 << 8) | b2)
       }
     }
-    ExpressionNode::Identifier(ref label) => {
+    Expression::Identifier(ref label) => {
       if label == "$" {
         Ok(env.assemble_index)
       } else {
@@ -792,8 +1303,8 @@ fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssembleResu
         }
       }
     }
-    ExpressionNode::Paren(child_expr) => evaluate_expression(env, child_expr),
-    ExpressionNode::Unary {
+    Expression::Paren(child_expr) => evaluate_expression(env, child_expr),
+    Expression::Unary {
       op,
       expr: child_expr,
     } => match op {
@@ -805,7 +1316,7 @@ fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssembleResu
       Operator::Not => Ok(!evaluate_expression(env, child_expr)?),
       _ => unreachable!(),
     },
-    ExpressionNode::Binary { op, left, right } => match op {
+    Expression::Binary { op, left, right } => match op {
       Operator::Addition => {
         Ok(evaluate_expression(env, left)?.wrapping_add(evaluate_expression(env, right)?))
       }
