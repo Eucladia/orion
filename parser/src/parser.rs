@@ -409,7 +409,7 @@ impl<'a> Parser<'a> {
   fn parse_expr(&mut self) -> ParseResult<ExpressionNode> {
     let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
       return Err(ParseError {
-        start_pos: self.source.len(),
+        start_pos: self.previous_token().unwrap().span().end,
         kind: ParserErrorKind::ExpectedOperand,
       });
     };
@@ -442,7 +442,7 @@ impl<'a> Parser<'a> {
   fn parse_logical_and(&mut self) -> ParseResult<ExpressionNode> {
     let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
       return Err(ParseError {
-        start_pos: self.source.len(),
+        start_pos: self.previous_token().unwrap().span().end,
         kind: ParserErrorKind::ExpectedOperand,
       });
     };
@@ -474,7 +474,7 @@ impl<'a> Parser<'a> {
   fn parse_relational(&mut self) -> ParseResult<ExpressionNode> {
     let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
       return Err(ParseError {
-        start_pos: self.source.len(),
+        start_pos: self.previous_token().unwrap().span().end,
         kind: ParserErrorKind::ExpectedOperand,
       });
     };
@@ -511,7 +511,7 @@ impl<'a> Parser<'a> {
   fn parse_addition(&mut self) -> ParseResult<ExpressionNode> {
     let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
       return Err(ParseError {
-        start_pos: self.source.len(),
+        start_pos: self.previous_token().unwrap().span().end,
         kind: ParserErrorKind::ExpectedOperand,
       });
     };
@@ -543,7 +543,7 @@ impl<'a> Parser<'a> {
   fn parse_multiplication(&mut self) -> ParseResult<ExpressionNode> {
     let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
       return Err(ParseError {
-        start_pos: self.source.len(),
+        start_pos: self.previous_token().unwrap().span().end,
         kind: ParserErrorKind::ExpectedOperand,
       });
     };
