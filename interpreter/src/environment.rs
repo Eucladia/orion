@@ -3,7 +3,7 @@ use crate::{encodings, instruction_bytes_occupied};
 use lexer::{instruction::Instruction, Flags, Register};
 use parser::nodes::{ExpressionNode, InstructionNode, OperandNode, Operator};
 use smol_str::SmolStr;
-use types::{AssemblerError, AssemblerResult};
+use types::{AssembleResult, AssemblerError};
 
 use std::collections::HashMap;
 
@@ -224,7 +224,7 @@ impl Environment {
     instruction_node: &'a InstructionNode,
     unassembled: &mut Vec<(&'a InstructionNode, u16)>,
     recoding: bool,
-  ) -> AssemblerResult<()> {
+  ) -> AssembleResult<()> {
     use Instruction::*;
 
     let addr = Self::INSTRUCTION_STARTING_ADDRESS + assemble_index;
@@ -767,7 +767,7 @@ impl Default for Environment {
   }
 }
 
-fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssemblerResult<u16> {
+fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssembleResult<u16> {
   match expr {
     ExpressionNode::Number(num) => Ok(*num),
     ExpressionNode::String(str) => {

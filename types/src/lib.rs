@@ -10,7 +10,7 @@ pub type LexResult<T> = std::result::Result<T, LexError>;
 pub type ParseResult<T> = std::result::Result<T, ParseError>;
 
 /// An assembler result
-pub type AssemblerResult<T> = std::result::Result<T, AssemblerError>;
+pub type AssembleResult<T> = std::result::Result<T, AssemblerError>;
 
 /// An error.
 #[derive(Debug, Error, PartialEq, Eq)]

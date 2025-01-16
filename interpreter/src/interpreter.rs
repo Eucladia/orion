@@ -17,7 +17,7 @@ impl Interpreter {
   }
 
   /// Assmebles the assembly, encoding the instructions into memory.
-  pub fn assemble(&mut self) -> types::AssemblerResult<()> {
+  pub fn assemble(&mut self) -> types::AssembleResult<()> {
     let mut unassembled = Vec::new();
 
     for node in self.node.children() {
@@ -321,7 +321,7 @@ impl Interpreter {
 mod tests {
   use super::Interpreter;
   use lexer::Flags;
-  use types::{AssemblerError, AssemblerResult};
+  use types::{AssembleResult, AssemblerError};
 
   /// Runs an assembly file, making sure that the expected memory values are set.
   macro_rules! run_file {
@@ -331,7 +331,7 @@ mod tests {
           [$($expect_addr:literal => $expect_value:literal),*]
       ) => {
         {
-          let r: AssemblerResult<Interpreter> = {
+          let r: AssembleResult<Interpreter> = {
             let src = include_str!(concat!("../../test_files/", $src, ".asm"));
             let mut int = Interpreter::new(parser::parse(src).unwrap());
 
@@ -377,7 +377,7 @@ mod tests {
   /// Runs an assembly program
   macro_rules! run_asm {
     ($src:literal, $func:expr, $err:literal) => {{
-      let r: AssemblerResult<()> = {
+      let r: AssembleResult<()> = {
         let mut int = Interpreter::new(parser::parse($src).unwrap());
 
         if let Err(e) = int.assemble() {
