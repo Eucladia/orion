@@ -43,7 +43,7 @@ pub enum ExpressionNode {
   Paren(Box<ExpressionNode>),
   /// A unary expression.
   ///
-  /// The unary operators are `+`, `-`, `HIGH`, and `LOW`.
+  /// The unary operators are `+`, `-`, `NOT`, `HIGH`, and `LOW`.
   Unary {
     op: Operator,
     expr: Box<ExpressionNode>,
@@ -59,24 +59,43 @@ pub enum ExpressionNode {
 /// Possible operators that can be applied.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Operator {
+  /// Unary or binary addition.
   Addition,
+  /// Unary or binary subtraction.
   Subtraction,
+  /// Binary integer division.
   Division,
+  /// Binary multiplication.
   Multiplication,
+  /// Binary modulus.
   Modulo,
+  /// Binary left shift.
   ShiftLeft,
+  /// Binary right shift.
   ShiftRight,
+  /// Unary bit negation.
   Not,
+  /// Binary bitwise AND.
   And,
+  /// Unary operator that gets the upper 8 bits in a 16 bit integer.
   High,
+  /// Unary operator that gets the lower 8 bits in a 16 bit integer.
   Low,
+  /// Binary bitwise OR.
   Or,
+  /// Binary bitwise XOR
   Xor,
+  /// Binary operator equality.
   Eq,
+  /// Binary operator inequality.
   Ne,
+  /// Binary operator less than. This compares via bits, not values.
   Lt,
+  /// Binary operator less than or equal to. This compares via bits, not values.
   Le,
+  /// Binary operator greater than or equal to. This compares via bits, not values.
   Ge,
+  /// Binary operator greater than or equal to. This compares via bits, not values.
   Gt,
 }
 
@@ -96,7 +115,7 @@ pub enum OperandNode {
 }
 
 impl ProgramNode {
-  /// Creates a new [ProgramNode] from the given nodes
+  /// Creates a new [`ProgramNode`] from the given nodes
   pub fn new(nodes: Vec<Node>) -> Self {
     Self { children: nodes }
   }
@@ -135,7 +154,7 @@ impl InstructionNode {
     Self::from_operands(instruction, Vec::with_capacity(MAX_OPERANDS))
   }
 
-  /// The instruction of this node.
+  /// The [`Instruction`] of this node.
   pub const fn instruction(&self) -> Instruction {
     self.instruction
   }

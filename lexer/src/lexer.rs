@@ -45,17 +45,17 @@ impl<'a> Lexer<'a> {
     self.bytes.get(self.curr).copied()
   }
 
-  // Lexes a [`Token`]
+  /// Lexes a [`Token`].
   fn lex_token(&mut self) -> Option<LexResult<Token>> {
-    // SAFETY: `lex_token` isn't called directly and we check that the index is within bounds in
-    // the `Iterator`` interface
+    // SAFETY: This method is private and only gets called in the `Iterator `interface,
+    // which we bounds check.
     let byte = unsafe { self.current_byte().unwrap_unchecked() };
     let start = self.curr;
 
     // Use a lookup table that maps a byte to its type of token.
     //
     // This is faster than traditional braching and checking if the byte
-    // is a whitespace/alphabet/comma/etc character.
+    // is a certain token kind.
     //
     // SAFETY: We have a byte and the lookup table has 256 entries
     let byte_type = unsafe { *BYTE_TOKEN_LOOKUP.get_unchecked(byte as usize) };
@@ -108,8 +108,7 @@ impl<'a> Lexer<'a> {
         } else if is_operator(identifier) {
           Some(Ok(create_token!(Operator, span)))
         } else {
-          // NOTE: This will include `$`, which aren't valid identifiers,
-          // but that will get handled in the parser
+          // NOTE: This includes `$`, which aren't valid identifiers.
           Some(Ok(create_token!(Identifier, span)))
         }
       }
@@ -140,25 +139,6 @@ impl<'a> Lexer<'a> {
       }
     }
   }
-}
-
-fn is_operator(identifier: &str) -> bool {
-  // Arithmetic
-  identifier.eq_ignore_ascii_case("mod")
-    || identifier.eq_ignore_ascii_case("shl")
-    || identifier.eq_ignore_ascii_case("shr")
-    // Logical comparisons
-    || identifier.eq_ignore_ascii_case("not")
-    || identifier.eq_ignore_ascii_case("and")
-    || identifier.eq_ignore_ascii_case("or")
-    || identifier.eq_ignore_ascii_case("xor")
-    // Equality
-    || identifier.eq_ignore_ascii_case("eq")
-    || identifier.eq_ignore_ascii_case("ne")
-    || identifier.eq_ignore_ascii_case("lt")
-    || identifier.eq_ignore_ascii_case("le")
-    || identifier.eq_ignore_ascii_case("gt")
-    || identifier.eq_ignore_ascii_case("ge")
 }
 
 fn eat_string(lexer: &mut Lexer) -> LexResult<()> {
@@ -224,6 +204,25 @@ fn eat_identifier(lexer: &mut Lexer) {
     .next_byte()
     .is_some_and(|b| b.is_ascii_alphanumeric() || b == b'?')
   {}
+}
+
+fn is_operator(identifier: &str) -> bool {
+  // Arithmetic
+  identifier.eq_ignore_ascii_case("mod")
+    // Bitwise ops
+    || identifier.eq_ignore_ascii_case("shl")
+    || identifier.eq_ignore_ascii_case("shr")
+    || identifier.eq_ignore_ascii_case("not")
+    || identifier.eq_ignore_ascii_case("and")
+    || identifier.eq_ignore_ascii_case("or")
+    || identifier.eq_ignore_ascii_case("xor")
+    // Equality
+    || identifier.eq_ignore_ascii_case("eq")
+    || identifier.eq_ignore_ascii_case("ne")
+    || identifier.eq_ignore_ascii_case("lt")
+    || identifier.eq_ignore_ascii_case("le")
+    || identifier.eq_ignore_ascii_case("gt")
+    || identifier.eq_ignore_ascii_case("ge")
 }
 
 impl Iterator for Lexer<'_> {
