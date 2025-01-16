@@ -407,7 +407,12 @@ impl<'a> Parser<'a> {
 
   // Start parsing starting from OR or XOR
   fn parse_expr(&mut self) -> ParseResult<ExpressionNode> {
-    let start_span = self.peek_token().unwrap().span().start;
+    let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
+      return Err(ParseError {
+        start_pos: self.source.len(),
+        kind: ParserErrorKind::ExpectedOperand,
+      });
+    };
     let mut lhs = self.parse_logical_and()?;
 
     while let Some(tok) = self.next_token() {
@@ -435,7 +440,12 @@ impl<'a> Parser<'a> {
   }
 
   fn parse_logical_and(&mut self) -> ParseResult<ExpressionNode> {
-    let start_span = self.peek_token().unwrap().span().start;
+    let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
+      return Err(ParseError {
+        start_pos: self.source.len(),
+        kind: ParserErrorKind::ExpectedOperand,
+      });
+    };
     let mut lhs = self.parse_relational()?;
 
     while let Some(tok) = self.next_token() {
@@ -462,7 +472,12 @@ impl<'a> Parser<'a> {
   }
 
   fn parse_relational(&mut self) -> ParseResult<ExpressionNode> {
-    let start_span = self.peek_token().unwrap().span().start;
+    let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
+      return Err(ParseError {
+        start_pos: self.source.len(),
+        kind: ParserErrorKind::ExpectedOperand,
+      });
+    };
     let mut lhs = self.parse_addition()?;
 
     while let Some(tok) = self.next_token() {
@@ -494,7 +509,12 @@ impl<'a> Parser<'a> {
   }
 
   fn parse_addition(&mut self) -> ParseResult<ExpressionNode> {
-    let start_span = self.peek_token().unwrap().span().start;
+    let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
+      return Err(ParseError {
+        start_pos: self.source.len(),
+        kind: ParserErrorKind::ExpectedOperand,
+      });
+    };
     let mut lhs = self.parse_multiplication()?;
 
     while let Some(tok) = self.next_token() {
@@ -521,7 +541,12 @@ impl<'a> Parser<'a> {
   }
 
   fn parse_multiplication(&mut self) -> ParseResult<ExpressionNode> {
-    let start_span = self.peek_token().unwrap().span().start;
+    let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
+      return Err(ParseError {
+        start_pos: self.source.len(),
+        kind: ParserErrorKind::ExpectedOperand,
+      });
+    };
     let mut lhs = self.parse_unary()?;
 
     while let Some(tok) = self.next_token() {
