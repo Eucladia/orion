@@ -30,7 +30,6 @@ pub struct LabelNode {
 /// A node representing an instruction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionNode {
-  // TODO: SmallVec or just use an array?
   operands: SmallVec<[OperandNode; MAX_OPERAND_SIZE]>,
   instruction: Instruction,
   span: Range<usize>,
