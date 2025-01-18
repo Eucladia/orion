@@ -87,23 +87,38 @@ pub struct AssembleError {
 /// The kind of assemble error.
 #[derive(Debug, Copy, Clone, Error, PartialEq, Eq)]
 pub enum AssembleErrorKind {
+  #[error("an invalid operand type was passed")]
+  InvalidOperandType,
+
+  #[error("an invalid operand value was passed")]
+  InvalidOperandValue,
+
+  #[error("the value was not 2 bytes")]
+  ExpectedTwoByteValue,
+
+  #[error("the value was not 1 byte")]
+  ExpectedOneByteValue,
+
   #[error("the label was already defined")]
   LabelRedefined,
 
   #[error("the identifier was not defined yet")]
   IdentifierNotDefined,
-
-  #[error("the data was not 2 bytes")]
-  ExpectedTwoByteData,
-
-  #[error("the data was not 1 byte")]
-  ExpectedOneByteData,
 }
 
 impl AssembleError {
   pub fn new(starting_pos: usize, kind: AssembleErrorKind) -> Self {
     Self {
       pos: starting_pos,
+      kind,
+    }
+  }
+}
+
+impl ParseError {
+  pub fn new(starting_pos: usize, kind: ParseErrorKind) -> Self {
+    Self {
+      start_pos: starting_pos,
       kind,
     }
   }

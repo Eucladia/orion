@@ -243,6 +243,28 @@ impl Environment {
       ) => {
         self.assemble_instruction(addr, encode_mov(r1, r2));
       }
+      (
+        MOV,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }, OperandNode {
+          operand: ref op2,
+          span: ref sp2,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        } else if !matches!(op2, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp2.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
 
       // Register, d16 operands
       (
@@ -302,7 +324,7 @@ impl Environment {
         } else {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedTwoByteData,
+            AssembleErrorKind::ExpectedTwoByteValue,
           ));
         }
       }
@@ -321,6 +343,34 @@ impl Environment {
         self.assemble_instruction(addr, encode_lxi(r1));
         self.assemble_u16(addr + 1, res);
       }
+      (
+        LXI,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }, OperandNode {
+          operand: ref op2,
+          span: ref sp2,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        } else if !matches!(
+          op2,
+          Operand::Identifier(_)
+            | Operand::Numeric(_)
+            | Operand::Expression(_)
+            | Operand::String(_)
+        ) {
+          return Err(AssembleError::new(
+            sp2.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
 
       // Register, d8 operands
       (
@@ -330,9 +380,16 @@ impl Environment {
           ..
         }, OperandNode {
           operand: Operand::Numeric(data),
-          ..
+          ref span,
         }],
       ) => {
+        if data > 0xFF {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encode_mvi(r1));
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -343,11 +400,18 @@ impl Environment {
           ..
         }, OperandNode {
           operand: Operand::String(ref data),
-          ..
+          ref span,
         }],
       ) => {
+        if data.len() > 1 {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encode_mvi(r1));
-        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
+        self.assemble_instruction(addr + 1, data.as_bytes()[0]);
       }
       (
         MVI,
@@ -366,7 +430,7 @@ impl Environment {
         Some(_) => {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ))
         }
         None => {
@@ -386,17 +450,45 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_expression(self, expr)? as u16;
+        let val = evaluate_expression(self, expr)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
 
         self.assemble_instruction(addr, encode_mvi(r1));
         self.assemble_instruction(addr + 1, val as u8);
+      }
+      (
+        MVI,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }, OperandNode {
+          operand: ref op2,
+          span: ref sp2,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        } else if !matches!(
+          op2,
+          Operand::Numeric(_)
+            | Operand::String(_)
+            | Operand::Identifier(_)
+            | Operand::Expression(_)
+        ) {
+          return Err(AssembleError::new(
+            sp2.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
       }
 
       // Register operands
@@ -408,12 +500,40 @@ impl Environment {
         }],
       ) => self.assemble_instruction(addr, encode_ldax(r1)),
       (
+        LDAX,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         STAX,
         &[OperandNode {
           operand: Operand::Register(r1),
           ..
         }],
       ) => self.assemble_instruction(addr, encode_stax(r1)),
+      (
+        STAX,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         INX,
         &[OperandNode {
@@ -422,12 +542,40 @@ impl Environment {
         }],
       ) => self.assemble_instruction(addr, encode_inx(r1)),
       (
+        INX,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         DCX,
         &[OperandNode {
           operand: Operand::Register(r1),
           ..
         }],
       ) => self.assemble_instruction(addr, encode_dcx(r1)),
+      (
+        DCX,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         POP,
         &[OperandNode {
@@ -436,12 +584,40 @@ impl Environment {
         }],
       ) => self.assemble_instruction(addr, encode_pop(r1)),
       (
+        POP,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         PUSH,
         &[OperandNode {
           operand: Operand::Register(r1),
           ..
         }],
       ) => self.assemble_instruction(addr, encode_push(r1)),
+      (
+        PUSH,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         DAD,
         &[OperandNode {
@@ -450,12 +626,40 @@ impl Environment {
         }],
       ) => self.assemble_instruction(addr, encode_dad(r1)),
       (
+        DAD,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         ADD,
         &[OperandNode {
           operand: Operand::Register(r1),
           ..
         }],
       ) => self.assemble_instruction(addr, encode_add(r1)),
+      (
+        ADD,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         ADC,
         &[OperandNode {
@@ -464,12 +668,40 @@ impl Environment {
         }],
       ) => self.assemble_instruction(addr, encode_adc(r1)),
       (
+        ADC,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         SUB,
         &[OperandNode {
           operand: Operand::Register(r1),
           ..
         }],
       ) => self.assemble_instruction(addr, encode_sub(r1)),
+      (
+        SUB,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         SBB,
         &[OperandNode {
@@ -478,12 +710,40 @@ impl Environment {
         }],
       ) => self.assemble_instruction(addr, encode_sbb(r1)),
       (
+        SBB,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         ANA,
         &[OperandNode {
           operand: Operand::Register(r1),
           ..
         }],
       ) => self.assemble_instruction(addr, encode_ana(r1)),
+      (
+        ANA,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         XRA,
         &[OperandNode {
@@ -492,12 +752,40 @@ impl Environment {
         }],
       ) => self.assemble_instruction(addr, encode_xra(r1)),
       (
+        XRA,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         ORA,
         &[OperandNode {
           operand: Operand::Register(r1),
           ..
         }],
       ) => self.assemble_instruction(addr, encode_ora(r1)),
+      (
+        ORA,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         CMP,
         &[OperandNode {
@@ -506,6 +794,20 @@ impl Environment {
         }],
       ) => self.assemble_instruction(addr, encode_cmp(r1)),
       (
+        CMP,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         INR,
         &[OperandNode {
           operand: Operand::Register(r1),
@@ -513,12 +815,40 @@ impl Environment {
         }],
       ) => self.assemble_instruction(addr, encode_inr(r1)),
       (
+        INR,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         DCR,
         &[OperandNode {
           operand: Operand::Register(r1),
           ..
         }],
       ) => self.assemble_instruction(addr, encode_dcr(r1)),
+      (
+        DCR,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Register(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
 
       // a16 operands
       (
@@ -541,6 +871,20 @@ impl Environment {
         None => unassembled.push((instruction_node, addr)),
       },
       (
+        JNZ,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         JNC,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
@@ -559,6 +903,20 @@ impl Environment {
         }
         None => unassembled.push((instruction_node, addr)),
       },
+      (
+        JNC,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         JPO,
         &[OperandNode {
@@ -579,6 +937,20 @@ impl Environment {
         None => unassembled.push((instruction_node, addr)),
       },
       (
+        JPO,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         JP,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
@@ -597,6 +969,20 @@ impl Environment {
         }
         None => unassembled.push((instruction_node, addr)),
       },
+      (
+        JP,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         JMP,
         &[OperandNode {
@@ -617,6 +1003,20 @@ impl Environment {
         None => unassembled.push((instruction_node, addr)),
       },
       (
+        JMP,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         JZ,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
@@ -635,6 +1035,20 @@ impl Environment {
         }
         None => unassembled.push((instruction_node, addr)),
       },
+      (
+        JZ,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         JC,
         &[OperandNode {
@@ -655,6 +1069,20 @@ impl Environment {
         None => unassembled.push((instruction_node, addr)),
       },
       (
+        JC,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         JPE,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
@@ -673,6 +1101,20 @@ impl Environment {
         }
         None => unassembled.push((instruction_node, addr)),
       },
+      (
+        JPE,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         JM,
         &[OperandNode {
@@ -693,6 +1135,20 @@ impl Environment {
         None => unassembled.push((instruction_node, addr)),
       },
       (
+        JM,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         CNZ,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
@@ -711,6 +1167,20 @@ impl Environment {
         }
         None => unassembled.push((instruction_node, addr)),
       },
+      (
+        CNZ,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         CNC,
         &[OperandNode {
@@ -731,6 +1201,20 @@ impl Environment {
         None => unassembled.push((instruction_node, addr)),
       },
       (
+        CNC,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         CPO,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
@@ -749,6 +1233,20 @@ impl Environment {
         }
         None => unassembled.push((instruction_node, addr)),
       },
+      (
+        CPO,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         CP,
         &[OperandNode {
@@ -769,6 +1267,20 @@ impl Environment {
         None => unassembled.push((instruction_node, addr)),
       },
       (
+        CP,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         CZ,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
@@ -787,6 +1299,20 @@ impl Environment {
         }
         None => unassembled.push((instruction_node, addr)),
       },
+      (
+        CZ,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         CC,
         &[OperandNode {
@@ -807,6 +1333,20 @@ impl Environment {
         None => unassembled.push((instruction_node, addr)),
       },
       (
+        CC,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         CPE,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
@@ -825,6 +1365,20 @@ impl Environment {
         }
         None => unassembled.push((instruction_node, addr)),
       },
+      (
+        CPE,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         CM,
         &[OperandNode {
@@ -845,6 +1399,20 @@ impl Environment {
         None => unassembled.push((instruction_node, addr)),
       },
       (
+        CM,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         CALL,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
@@ -864,6 +1432,20 @@ impl Environment {
         None => unassembled.push((instruction_node, addr)),
       },
       (
+        CALL,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Identifier(_)) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         STA,
         &[OperandNode {
           operand: Operand::Numeric(data),
@@ -872,6 +1454,20 @@ impl Environment {
       ) => {
         self.assemble_instruction(addr, encodings::STA);
         self.assemble_u16(addr + 1, data);
+      }
+      (
+        STA,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp2,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Numeric(_)) {
+          return Err(AssembleError::new(
+            sp2.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
       }
       (
         SHLD,
@@ -884,6 +1480,20 @@ impl Environment {
         self.assemble_u16(addr + 1, data);
       }
       (
+        SHLD,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp2,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Numeric(_)) {
+          return Err(AssembleError::new(
+            sp2.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         LDA,
         &[OperandNode {
           operand: Operand::Numeric(data),
@@ -892,6 +1502,20 @@ impl Environment {
       ) => {
         self.assemble_instruction(addr, encodings::LDA);
         self.assemble_u16(addr + 1, data);
+      }
+      (
+        LDA,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp2,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Numeric(_)) {
+          return Err(AssembleError::new(
+            sp2.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
       }
       (
         LHLD,
@@ -903,15 +1527,36 @@ impl Environment {
         self.assemble_instruction(addr, encodings::LHLD);
         self.assemble_u16(addr + 1, data);
       }
+      (
+        LHLD,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp2,
+        }],
+      ) => {
+        if !matches!(op1, Operand::Numeric(_)) {
+          return Err(AssembleError::new(
+            sp2.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
 
       // d8 operands
       (
         ACI,
         &[OperandNode {
           operand: Operand::Numeric(data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data > 0xFF {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::ACI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -919,11 +1564,18 @@ impl Environment {
         ACI,
         &[OperandNode {
           operand: Operand::String(ref data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data.len() > 1 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::ACI);
-        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
+        self.assemble_instruction(addr + 1, data.as_bytes()[0]);
       }
       (
         ACI,
@@ -939,7 +1591,7 @@ impl Environment {
         Some(_) => {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ))
         }
         None if recoding => {
@@ -964,7 +1616,7 @@ impl Environment {
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
 
@@ -975,9 +1627,16 @@ impl Environment {
         SBI,
         &[OperandNode {
           operand: Operand::Numeric(data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data > u8::MAX as u16 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::SBI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -985,9 +1644,16 @@ impl Environment {
         SBI,
         &[OperandNode {
           operand: Operand::String(ref data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data.len() > 1 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::SBI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
@@ -1005,7 +1671,7 @@ impl Environment {
         Some(_) => {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ))
         }
         None if recoding => {
@@ -1030,7 +1696,7 @@ impl Environment {
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
 
@@ -1038,12 +1704,39 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
       (
+        SBI,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(
+          op1,
+          Operand::Numeric(_)
+            | Operand::Identifier(_)
+            | Operand::String(_)
+            | Operand::Expression(_),
+        ) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         XRI,
         &[OperandNode {
           operand: Operand::Numeric(data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data > u8::MAX as u16 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::XRI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -1051,9 +1744,16 @@ impl Environment {
         XRI,
         &[OperandNode {
           operand: Operand::String(ref data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data.len() > 1 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::XRI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
@@ -1071,7 +1771,7 @@ impl Environment {
         Some(_) => {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ))
         }
         None if recoding => {
@@ -1096,7 +1796,7 @@ impl Environment {
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
 
@@ -1104,12 +1804,39 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
       (
+        XRI,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(
+          op1,
+          Operand::Numeric(_)
+            | Operand::String(_)
+            | Operand::Identifier(_)
+            | Operand::Expression(_)
+        ) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+      }
+      (
         CPI,
         &[OperandNode {
           operand: Operand::Numeric(data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data > u8::MAX as u16 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::CPI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -1117,9 +1844,16 @@ impl Environment {
         CPI,
         &[OperandNode {
           operand: Operand::String(ref data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data.len() > 1 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::CPI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
@@ -1137,7 +1871,7 @@ impl Environment {
         Some(_) => {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ))
         }
         None if recoding => {
@@ -1162,7 +1896,7 @@ impl Environment {
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
 
@@ -1170,12 +1904,39 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
       (
+        CPI,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(
+          op1,
+          Operand::Numeric(_)
+            | Operand::Identifier(_)
+            | Operand::String(_)
+            | Operand::Expression(_)
+        ) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         ADI,
         &[OperandNode {
           operand: Operand::Numeric(data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data > u8::MAX as u16 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::ADI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -1183,9 +1944,16 @@ impl Environment {
         ADI,
         &[OperandNode {
           operand: Operand::String(ref data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data.len() > 1 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::ADI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
@@ -1203,7 +1971,7 @@ impl Environment {
         Some(_) => {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ))
         }
         None if recoding => {
@@ -1228,21 +1996,47 @@ impl Environment {
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
 
         self.assemble_instruction(addr, encodings::ADI);
         self.assemble_instruction(addr + 1, val as u8);
       }
-
+      (
+        ADI,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(
+          op1,
+          Operand::Numeric(_)
+            | Operand::Identifier(_)
+            | Operand::String(_)
+            | Operand::Expression(_)
+        ) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
       (
         SUI,
         &[OperandNode {
           operand: Operand::Numeric(data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data > u8::MAX as u16 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::SUI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -1250,9 +2044,16 @@ impl Environment {
         SUI,
         &[OperandNode {
           operand: Operand::String(ref data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data.len() > 1 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::SUI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
@@ -1270,7 +2071,7 @@ impl Environment {
         Some(_) => {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ))
         }
         None if recoding => {
@@ -1295,7 +2096,7 @@ impl Environment {
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
 
@@ -1303,12 +2104,39 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
       (
+        SUI,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(
+          op1,
+          Operand::Numeric(_)
+            | Operand::Identifier(_)
+            | Operand::String(_)
+            | Operand::Expression(_)
+        ) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         ANI,
         &[OperandNode {
           operand: Operand::Numeric(data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data > u8::MAX as u16 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::ANI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -1316,9 +2144,16 @@ impl Environment {
         ANI,
         &[OperandNode {
           operand: Operand::String(ref data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data.len() > 1 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::ANI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
@@ -1336,7 +2171,7 @@ impl Environment {
         Some(_) => {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ))
         }
         None if recoding => {
@@ -1361,7 +2196,7 @@ impl Environment {
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
 
@@ -1369,12 +2204,39 @@ impl Environment {
         self.assemble_instruction(addr + 1, val as u8);
       }
       (
+        ANI,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(
+          op1,
+          Operand::Numeric(_)
+            | Operand::Identifier(_)
+            | Operand::String(_)
+            | Operand::Expression(_)
+        ) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+      (
         ORI,
         &[OperandNode {
           operand: Operand::Numeric(data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data > u8::MAX as u16 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
         self.assemble_instruction(addr, encodings::ORI);
         self.assemble_instruction(addr + 1, (data & 0xFF) as u8);
       }
@@ -1382,9 +2244,15 @@ impl Environment {
         ORI,
         &[OperandNode {
           operand: Operand::String(ref data),
-          ..
+          span: ref sp1,
         }],
       ) => {
+        if data.len() > 1 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
         self.assemble_instruction(addr, encodings::ORI);
         self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
@@ -1402,7 +2270,7 @@ impl Environment {
         Some(_) => {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ))
         }
         None if recoding => {
@@ -1427,22 +2295,51 @@ impl Environment {
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::ExpectedOneByteData,
+            AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
 
         self.assemble_instruction(addr, encodings::ORI);
         self.assemble_instruction(addr + 1, val as u8);
       }
-      (DAA, &[]) => self.assemble_instruction(addr, encodings::DAA),
+      (
+        ORI,
+        &[OperandNode {
+          operand: ref op1,
+          span: ref sp1,
+        }],
+      ) => {
+        if !matches!(
+          op1,
+          Operand::Numeric(_)
+            | Operand::Identifier(_)
+            | Operand::String(_)
+            | Operand::Expression(_)
+        ) {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+      }
+
       // Special d8 operand that only takes a value between 0-8
       (
         RST,
         &[OperandNode {
           operand: Operand::Numeric(num),
-          ..
+          span: ref sp1,
         }],
-      ) => self.assemble_instruction(addr, encode_rst(num as u8)),
+      ) => {
+        if num > 8 {
+          return Err(AssembleError::new(
+            sp1.start,
+            AssembleErrorKind::InvalidOperandValue,
+          ));
+        }
+
+        self.assemble_instruction(addr, encode_rst(num as u8));
+      }
 
       // No operands
       (RP, &[]) => self.assemble_instruction(addr, encodings::RP),
@@ -1465,6 +2362,7 @@ impl Environment {
       (XCHG, &[]) => self.assemble_instruction(addr, encodings::XCHG),
       (XTHL, &[]) => self.assemble_instruction(addr, encodings::XTHL),
       (STC, &[]) => self.assemble_instruction(addr, encodings::STC),
+      (DAA, &[]) => self.assemble_instruction(addr, encodings::DAA),
       (NOP, &[]) => self.assemble_instruction(addr, encodings::NOP),
       (HLT, &[]) => self.assemble_instruction(addr, encodings::HLT),
 
@@ -1498,7 +2396,7 @@ fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssembleResu
       if str.len() > 2 {
         Err(AssembleError::new(
           expr.span.start,
-          AssembleErrorKind::ExpectedTwoByteData,
+          AssembleErrorKind::ExpectedTwoByteValue,
         ))
       } else {
         let bytes = str.as_bytes();

@@ -255,7 +255,7 @@ impl Interpreter {
 mod tests {
   use super::Interpreter;
   use lexer::Flags;
-  use types::{AssembleErrorKind, AssembleResult};
+  use types::{AssembleError, AssembleErrorKind, AssembleResult};
 
   /// Runs an assembly file, making sure that the expected memory values are set.
   macro_rules! run_file {
@@ -381,7 +381,7 @@ mod tests {
     assert_eq!(
       run_asm!(
         "LXI B, FOO\nHLT",
-        |_int: &mut Interpreter| false,
+        |_| false,
         "expected LXI to not work with undefined labels"
       )
       .map_err(|x| x.kind),
@@ -405,6 +405,63 @@ mod tests {
       "expected LXI to work 2 byte string expression"
     )
     .unwrap();
+  }
+
+  #[test]
+  fn mvi_operands() {
+    assert_eq!(
+      run_asm!("MVI A, BOO", |_| false, "using identifier as d8 operand"),
+      Err(AssembleError::new(
+        7,
+        AssembleErrorKind::IdentifierNotDefined
+      )),
+      "using identifier as d8 operand"
+    );
+
+    run_asm!(
+      "MVI A, 'B'",
+      |int: &mut Interpreter| int.env.registers.a == b'B',
+      "using string for d8"
+    )
+    .unwrap();
+
+    run_asm!(
+      "MVI A, 0FFH",
+      |int: &mut Interpreter| int.env.registers.a == u8::MAX,
+      "using u8::MAX for d8"
+    )
+    .unwrap();
+
+    assert_eq!(
+      run_asm!("MVI A, 'BOO'", |_| false, "using multi byte string for d8"),
+      Err(AssembleError::new(
+        7,
+        AssembleErrorKind::ExpectedOneByteValue
+      )),
+      "using multi byte string for d8"
+    );
+
+    assert_eq!(
+      run_asm!("MVI A, -0FFFFH", |_| false, "using negative u16 for d8"),
+      Err(AssembleError::new(
+        7,
+        AssembleErrorKind::ExpectedOneByteValue
+      )),
+      "using negative u16 for d8"
+    );
+
+    assert_eq!(
+      run_asm!(
+        "MVI A, 0FFFFH",
+        |_| false,
+        "using d16 operand instead of d8"
+      ),
+      Err(AssembleError::new(
+        7,
+        AssembleErrorKind::ExpectedOneByteValue
+      )),
+      "using d16 instead of d8"
+    );
   }
 
   #[test]
