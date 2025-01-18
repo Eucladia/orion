@@ -403,15 +403,15 @@ impl Environment {
           ref span,
         }],
       ) => {
-        if data.len() > 1 {
+        if data.len() == 1 {
+          self.assemble_instruction(addr, encode_mvi(r1));
+          self.assemble_instruction(addr + 1, data.as_bytes()[0]);
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
-
-        self.assemble_instruction(addr, encode_mvi(r1));
-        self.assemble_instruction(addr + 1, data.as_bytes()[0]);
       }
       (
         MVI,
@@ -2210,15 +2210,15 @@ impl Environment {
           span: ref sp1,
         }],
       ) => {
-        if data.len() > 1 {
+        if data.len() == 1 {
+          self.assemble_instruction(addr, encodings::ACI);
+          self.assemble_instruction(addr + 1, data.as_bytes()[0]);
+        } else {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
-
-        self.assemble_instruction(addr, encodings::ACI);
-        self.assemble_instruction(addr + 1, data.as_bytes()[0]);
       }
       (
         ACI,
@@ -2290,15 +2290,15 @@ impl Environment {
           span: ref sp1,
         }],
       ) => {
-        if data.len() > 1 {
+        if data.len() == 1 {
+          self.assemble_instruction(addr, encodings::SBI);
+          self.assemble_instruction(addr + 1, data.as_bytes()[0]);
+        } else {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
-
-        self.assemble_instruction(addr, encodings::SBI);
-        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (
         SBI,
@@ -2390,15 +2390,15 @@ impl Environment {
           span: ref sp1,
         }],
       ) => {
-        if data.len() > 1 {
+        if data.len() == 1 {
+          self.assemble_instruction(addr, encodings::XRI);
+          self.assemble_instruction(addr + 1, data.as_bytes()[0]);
+        } else {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
-
-        self.assemble_instruction(addr, encodings::XRI);
-        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (
         XRI,
@@ -2490,15 +2490,15 @@ impl Environment {
           span: ref sp1,
         }],
       ) => {
-        if data.len() > 1 {
+        if data.len() == 1 {
+          self.assemble_instruction(addr, encodings::CPI);
+          self.assemble_instruction(addr + 1, data.as_bytes()[0]);
+        } else {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
-
-        self.assemble_instruction(addr, encodings::CPI);
-        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (
         CPI,
@@ -2590,15 +2590,15 @@ impl Environment {
           span: ref sp1,
         }],
       ) => {
-        if data.len() > 1 {
+        if data.len() == 1 {
+          self.assemble_instruction(addr, encodings::ADI);
+          self.assemble_instruction(addr + 1, data.as_bytes()[0]);
+        } else {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
-
-        self.assemble_instruction(addr, encodings::ADI);
-        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (
         ADI,
@@ -2690,15 +2690,15 @@ impl Environment {
           span: ref sp1,
         }],
       ) => {
-        if data.len() > 1 {
+        if data.len() == 1 {
+          self.assemble_instruction(addr, encodings::SUI);
+          self.assemble_instruction(addr + 1, data.as_bytes()[0]);
+        } else {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
-
-        self.assemble_instruction(addr, encodings::SUI);
-        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (
         SUI,
@@ -2790,15 +2790,15 @@ impl Environment {
           span: ref sp1,
         }],
       ) => {
-        if data.len() > 1 {
+        if data.len() == 1 {
+          self.assemble_instruction(addr, encodings::ANI);
+          self.assemble_instruction(addr + 1, data.as_bytes()[0]);
+        } else {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
-
-        self.assemble_instruction(addr, encodings::ANI);
-        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (
         ANI,
@@ -2890,14 +2890,15 @@ impl Environment {
           span: ref sp1,
         }],
       ) => {
-        if data.len() > 1 {
+        if data.len() == 1 {
+          self.assemble_instruction(addr, encodings::ORI);
+          self.assemble_instruction(addr + 1, data.as_bytes()[0]);
+        } else {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
-        self.assemble_instruction(addr, encodings::ORI);
-        self.assemble_instruction(addr + 1, data.as_bytes().first().copied().unwrap());
       }
       (
         ORI,
