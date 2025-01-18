@@ -262,7 +262,7 @@ impl<'a> Parser<'a> {
         }
         None => {
           return Err(ParseError::new(
-            self.source.len(),
+            self.previous_token().unwrap().span().end,
             ParseErrorKind::ExpectedOperand,
           ));
         }
@@ -280,7 +280,6 @@ impl<'a> Parser<'a> {
 
     if self.peek_non_whitespace_token().is_some() && !got_linebreak {
       return Err(ParseError::new(
-        // Point to the end of the last token
         prev_token.span().end,
         ParseErrorKind::ExpectedLinebreak,
       ));
@@ -560,7 +559,7 @@ impl<'a> Parser<'a> {
 
     if tok.is_none() {
       return Err(ParseError::new(
-        self.source.len(),
+        self.previous_token().unwrap().span().end,
         ParseErrorKind::ExpectedOperand,
       ));
     }
@@ -631,7 +630,7 @@ impl<'a> Parser<'a> {
           )),
 
           None => Err(ParseError::new(
-            tok.span().start,
+            tok.span().end,
             ParseErrorKind::ExpectedOperand,
           )),
         }
@@ -641,7 +640,7 @@ impl<'a> Parser<'a> {
         ParseErrorKind::InvalidOperand,
       )),
       None => Err(ParseError::new(
-        self.source.len(),
+        self.previous_token().unwrap().span().end,
         ParseErrorKind::ExpectedOperand,
       )),
     }
