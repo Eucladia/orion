@@ -3035,18 +3035,15 @@ fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssembleResu
   match expr.value() {
     Expression::Number(num) => Ok(*num),
     Expression::String(str) => {
-      // TODO: Can we evaluate strings that are more than 2 bytes?
-      if str.len() > 2 {
+      if str.len() == 2 {
+        let bytes = str.as_bytes();
+
+        Ok(((bytes[0] as u16) << 8) | bytes[1] as u16)
+      } else {
         Err(AssembleError::new(
           expr.span.start,
           AssembleErrorKind::ExpectedTwoByteValue,
         ))
-      } else {
-        let bytes = str.as_bytes();
-        let b1 = bytes.first().copied().unwrap_or(0) as u16;
-        let b2 = bytes.get(1).copied().unwrap_or(0) as u16;
-
-        Ok((b1 << 8) | b2)
       }
     }
     Expression::Identifier(ref label) => {
