@@ -1,6 +1,9 @@
 use lexer::{instruction::Instruction, Register};
+use smallvec::SmallVec;
 use smol_str::SmolStr;
 use std::ops::Range;
+
+const MAX_OPERAND_SIZE: usize = 2;
 
 /// The root node for a source file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,7 +31,7 @@ pub struct LabelNode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionNode {
   // TODO: SmallVec or just use an array?
-  operands: Vec<OperandNode>,
+  operands: SmallVec<[OperandNode; MAX_OPERAND_SIZE]>,
   instruction: Instruction,
   span: Range<usize>,
 }
@@ -186,13 +189,13 @@ impl InstructionNode {
   pub fn new(instruction: Instruction, span: Range<usize>) -> Self {
     const MAX_OPERANDS: usize = 2;
 
-    Self::from_operands(instruction, Vec::with_capacity(MAX_OPERANDS), span)
+    Self::from_operands(instruction, SmallVec::with_capacity(MAX_OPERANDS), span)
   }
 
   /// Creates an [`InstructionNode`] from the given instruction and operands
   pub fn from_operands(
     instruction: Instruction,
-    operands: Vec<OperandNode>,
+    operands: SmallVec<[OperandNode; MAX_OPERAND_SIZE]>,
     span: Range<usize>,
   ) -> Self {
     Self {

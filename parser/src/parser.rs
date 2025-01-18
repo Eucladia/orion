@@ -7,6 +7,7 @@ use crate::unwrap;
 use lexer::instruction::Instruction;
 use lexer::token::{Token, TokenKind};
 use lexer::Register;
+use smallvec::SmallVec;
 use types::{LexResult, ParseError, ParseErrorKind, ParseResult};
 
 use smol_str::{SmolStr, SmolStrBuilder};
@@ -140,7 +141,7 @@ impl<'a> Parser<'a> {
     let instruction = unwrap!(Instruction::from_string(instruction_str));
 
     let num_operands = instruction.num_operands();
-    let mut operands = Vec::with_capacity(num_operands);
+    let mut operands = SmallVec::with_capacity(num_operands);
     let mut last_token_operand = false;
 
     while operands.len() < num_operands {
