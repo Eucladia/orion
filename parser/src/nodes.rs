@@ -60,8 +60,8 @@ pub enum Operand {
 /// A node representating an expression that gets evalauted during assemble time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionNode {
-  expr: Expression,
-  span: Range<usize>,
+  pub expr: Expression,
+  pub span: Range<usize>,
 }
 
 /// A king of expression.
