@@ -109,74 +109,17 @@ impl Interpreter {
     }
 
     match byte {
-      // ARITHMETIC INSTRUCTIONS
-      // DCX
-      encodings::DCX_B | encodings::DCX_D | encodings::DCX_H | encodings::DCX_SP => {
-        instructions::execute_dcx(&mut self.env, byte)
-      }
-      // DAD
-      encodings::DAD_B | encodings::DAD_D | encodings::DAD_H | encodings::DAD_SP => {
-        instructions::execute_dad(&mut self.env, byte)
-      }
-      // DCR
-      encodings::DCR_A
-      | encodings::DCR_B
-      | encodings::DCR_C
-      | encodings::DCR_D
-      | encodings::DCR_E
-      | encodings::DCR_H
-      | encodings::DCR_L
-      | encodings::DCR_M => instructions::execute_dcr(&mut self.env, byte),
-      // INR
-      encodings::INR_A
-      | encodings::INR_B
-      | encodings::INR_C
-      | encodings::INR_D
-      | encodings::INR_E
-      | encodings::INR_H
-      | encodings::INR_L
-      | encodings::INR_M => instructions::execute_inr(&mut self.env, byte),
-      // INX
-      encodings::INX_B | encodings::INX_D | encodings::INX_H | encodings::INX_SP => {
-        instructions::execute_inx(&mut self.env, byte)
-      }
-      // SBB
-      encodings::SBB_B..=encodings::SBB_A => instructions::execute_sbb(&mut self.env, byte),
-      // SUB
-      encodings::SUB_B..=encodings::SUB_A => instructions::execute_sub(&mut self.env, byte),
-      // ADC
-      encodings::ADC_B..=encodings::ADC_A => instructions::execute_adc(&mut self.env, byte),
-      // SUI imm 8
-      encodings::SUI => instructions::execute_sui(&mut self.env, byte),
-      // ADI imm8
-      encodings::ADI => instructions::execute_adi(&mut self.env, byte),
-      // ADD
-      encodings::ADD_B..=encodings::ADD_A => instructions::execute_add(&mut self.env, byte),
-      // SBI imm8
-      encodings::SBI => instructions::execute_sbi(&mut self.env, byte),
-      // ACI
-      encodings::ACI => instructions::execute_aci(&mut self.env, byte),
-      // RLC
-      encodings::RLC => instructions::execute_rlc(&mut self.env, byte),
-      // RRC
-      encodings::RRC => instructions::execute_rrc(&mut self.env, byte),
-      // RAR
-      encodings::RAR => instructions::execute_rar(&mut self.env, byte),
-      // RAL
-      encodings::RAL => instructions::execute_ral(&mut self.env, byte),
-      // CMA
-      encodings::CMA => instructions::execute_cma(&mut self.env, byte),
-      // CMC
-      encodings::CMC => instructions::execute_cmc(&mut self.env, byte),
-      // DAA
-      encodings::DAA => instructions::execute_daa(&mut self.env, byte),
-
-      // DATA TRANSFER INSTRUCTIONS
-      // MOV r1, r2
+      // Register, Register operands
       b if (encodings::MOV_B_B..=encodings::MOV_A_A).contains(&b) && b != encodings::HLT => {
         instructions::execute_mov(&mut self.env, byte)
       }
-      // MVI r1, imm8
+
+      // Register, d16 operands
+      encodings::LXI_B | encodings::LXI_D | encodings::LXI_H | encodings::LXI_SP => {
+        instructions::execute_lxi(&mut self.env, byte)
+      }
+
+      // Register, d8 operands
       encodings::MVI_B
       | encodings::MVI_D
       | encodings::MVI_H
@@ -185,117 +128,91 @@ impl Interpreter {
       | encodings::MVI_E
       | encodings::MVI_L
       | encodings::MVI_A => instructions::execute_mvi(&mut self.env, byte),
-      // LHLD imm16
-      encodings::LHLD => instructions::execute_lhld(&mut self.env, byte),
-      // LDAX
+
+      // Register operands
       encodings::LDAX_B | encodings::LDAX_D => instructions::execute_ldax(&mut self.env, byte),
-      // LDA imm16
-      encodings::LDA => instructions::execute_lda(&mut self.env, byte),
-      // STAX
       encodings::STAX_B | encodings::STAX_D => instructions::execute_stax(&mut self.env, byte),
-      // STA imm16
-      encodings::STA => instructions::execute_sta(&mut self.env, byte),
-      // SHLD im16
-      encodings::SHLD => instructions::execute_shld(&mut self.env, byte),
-      // LXI r1, imm16
-      encodings::LXI_B | encodings::LXI_D | encodings::LXI_H | encodings::LXI_SP => {
-        instructions::execute_lxi(&mut self.env, byte)
+      encodings::DCX_B | encodings::DCX_D | encodings::DCX_H | encodings::DCX_SP => {
+        instructions::execute_dcx(&mut self.env, byte)
       }
-      // XCHG
-      encodings::XCHG => instructions::execute_xchg(&mut self.env, byte),
-      // XTHL
-      encodings::XTHL => instructions::execute_xthl(&mut self.env, byte),
-      // SPHL
-      encodings::SPHL => instructions::execute_sphl(&mut self.env, byte),
-      // PCHL
-      encodings::PCHL => instructions::execute_pchl(&mut self.env, byte),
-
-      // LOGICAL INSTRUCTIONS
-      // ORA
+      encodings::INX_B | encodings::INX_D | encodings::INX_H | encodings::INX_SP => {
+        instructions::execute_inx(&mut self.env, byte)
+      }
+      encodings::DAD_B | encodings::DAD_D | encodings::DAD_H | encodings::DAD_SP => {
+        instructions::execute_dad(&mut self.env, byte)
+      }
+      encodings::DCR_A
+      | encodings::DCR_B
+      | encodings::DCR_C
+      | encodings::DCR_D
+      | encodings::DCR_E
+      | encodings::DCR_H
+      | encodings::DCR_L
+      | encodings::DCR_M => instructions::execute_dcr(&mut self.env, byte),
+      encodings::INR_A
+      | encodings::INR_B
+      | encodings::INR_C
+      | encodings::INR_D
+      | encodings::INR_E
+      | encodings::INR_H
+      | encodings::INR_L
+      | encodings::INR_M => instructions::execute_inr(&mut self.env, byte),
+      encodings::ADD_B..=encodings::ADD_A => instructions::execute_add(&mut self.env, byte),
+      encodings::ADC_B..=encodings::ADC_A => instructions::execute_adc(&mut self.env, byte),
+      encodings::SUB_B..=encodings::SUB_A => instructions::execute_sub(&mut self.env, byte),
+      encodings::SBB_B..=encodings::SBB_A => instructions::execute_sbb(&mut self.env, byte),
       encodings::ORA_B..=encodings::ORA_A => instructions::execute_ora(&mut self.env, byte),
-      // XRA
       encodings::XRA_B..=encodings::XRA_A => instructions::execute_xra(&mut self.env, byte),
-      // ANA
       encodings::ANA_B..=encodings::ANA_A => instructions::execute_ana(&mut self.env, byte),
-      // ORI imm8
-      encodings::ORI => instructions::execute_ori(&mut self.env, byte),
-      // ANI imm8
-      encodings::ANI => instructions::execute_ani(&mut self.env, byte),
-      // XRI imm8
-      encodings::XRI => instructions::execute_xri(&mut self.env, byte),
-
-      // BRANCHING INSTRUCTIONS
-      // RNZ
-      encodings::RNZ => instructions::execute_rnz(&mut self.env, byte),
-      // RNC
-      encodings::RNC => instructions::execute_rnc(&mut self.env, byte),
-      // RPO
-      encodings::RPO => instructions::execute_rpo(&mut self.env, byte),
-      // RP
-      encodings::RP => instructions::execute_rp(&mut self.env, byte),
-      // RZ
-      encodings::RZ => instructions::execute_rz(&mut self.env, byte),
-      // RC
-      encodings::RC => instructions::execute_rc(&mut self.env, byte),
-      // RPE
-      encodings::RPE => instructions::execute_rpe(&mut self.env, byte),
-      // RM
-      encodings::RM => instructions::execute_rm(&mut self.env, byte),
-      // RET
-      encodings::RET => instructions::execute_ret(&mut self.env, byte),
-      // CALL label
-      encodings::CALL => instructions::execute_call(&mut self.env, byte),
-      // CM label
-      encodings::CM => instructions::execute_cm(&mut self.env, byte),
-      // CPE label
-      encodings::CPE => instructions::execute_cpe(&mut self.env, byte),
-      // CC label
-      encodings::CC => instructions::execute_cc(&mut self.env, byte),
-      // CZ label
-      encodings::CZ => instructions::execute_cz(&mut self.env, byte),
-      // CP label
-      encodings::CP => instructions::execute_cp(&mut self.env, byte),
-      // CPO label
-      encodings::CPO => instructions::execute_cpo(&mut self.env, byte),
-      // CNC label
-      encodings::CNC => instructions::execute_cnc(&mut self.env, byte),
-      // CNZ label
-      encodings::CNZ => instructions::execute_cnz(&mut self.env, byte),
-      // JM label
-      encodings::JM => instructions::execute_jm(&mut self.env, byte),
-      // JPE label
-      encodings::JPE => instructions::execute_jpe(&mut self.env, byte),
-      // JC label
-      encodings::JC => instructions::execute_jc(&mut self.env, byte),
-      // JZ label
-      encodings::JZ => instructions::execute_jz(&mut self.env, byte),
-      // JMP label
-      encodings::JMP => instructions::execute_jmp(&mut self.env, byte),
-      // JP label
-      encodings::JP => instructions::execute_jp(&mut self.env, byte),
-      // JPO label
-      encodings::JPO => instructions::execute_jpo(&mut self.env, byte),
-      // JNC label
-      encodings::JNC => instructions::execute_jnc(&mut self.env, byte),
-      // JNZ label
-      encodings::JNZ => instructions::execute_jnz(&mut self.env, byte),
-      // CMP
       encodings::CMP_B..=encodings::CMP_A => instructions::execute_cmp(&mut self.env, byte),
-      // CPI imm8
-      encodings::CPI => instructions::execute_cpi(&mut self.env, byte),
-
-      // MANIPULATING INSTRUCTIONS
-      // PUSH
       encodings::PUSH_B | encodings::PUSH_D | encodings::PUSH_H | encodings::PUSH_PSW => {
         instructions::execute_push(&mut self.env, byte)
       }
-      // POP
       encodings::POP_B | encodings::POP_D | encodings::POP_H | encodings::POP_PSW => {
         instructions::execute_pop(&mut self.env, byte)
       }
-      // STC
-      encodings::STC => instructions::execute_stc(&mut self.env, byte),
-      // RST
+
+      // a16 operands
+      encodings::JP => instructions::execute_jp(&mut self.env, byte),
+      encodings::CP => instructions::execute_cp(&mut self.env, byte),
+      encodings::JC => instructions::execute_jc(&mut self.env, byte),
+      encodings::JZ => instructions::execute_jz(&mut self.env, byte),
+      encodings::JM => instructions::execute_jm(&mut self.env, byte),
+      encodings::CC => instructions::execute_cc(&mut self.env, byte),
+      encodings::CZ => instructions::execute_cz(&mut self.env, byte),
+      encodings::CM => instructions::execute_cm(&mut self.env, byte),
+      encodings::JNZ => instructions::execute_jnz(&mut self.env, byte),
+      encodings::JNC => instructions::execute_jnc(&mut self.env, byte),
+      encodings::JPO => instructions::execute_jpo(&mut self.env, byte),
+      encodings::JMP => instructions::execute_jmp(&mut self.env, byte),
+      encodings::JPE => instructions::execute_jpe(&mut self.env, byte),
+      encodings::CNC => instructions::execute_cnc(&mut self.env, byte),
+      encodings::CNZ => instructions::execute_cnz(&mut self.env, byte),
+      encodings::CPO => instructions::execute_cpo(&mut self.env, byte),
+      encodings::CPE => instructions::execute_cpe(&mut self.env, byte),
+      encodings::CALL => instructions::execute_call(&mut self.env, byte),
+      encodings::SHLD => instructions::execute_shld(&mut self.env, byte),
+      encodings::LHLD => instructions::execute_lhld(&mut self.env, byte),
+      encodings::STA => instructions::execute_sta(&mut self.env, byte),
+      encodings::LDA => instructions::execute_lda(&mut self.env, byte),
+
+      // d8 operands
+      encodings::ADI => instructions::execute_adi(&mut self.env, byte),
+      encodings::ACI => instructions::execute_aci(&mut self.env, byte),
+      encodings::SUI => instructions::execute_sui(&mut self.env, byte),
+      encodings::SBI => instructions::execute_sbi(&mut self.env, byte),
+      encodings::ORI => instructions::execute_ori(&mut self.env, byte),
+      encodings::ANI => instructions::execute_ani(&mut self.env, byte),
+      encodings::XRI => instructions::execute_xri(&mut self.env, byte),
+      encodings::RLC => instructions::execute_rlc(&mut self.env, byte),
+      encodings::RRC => instructions::execute_rrc(&mut self.env, byte),
+      encodings::RAR => instructions::execute_rar(&mut self.env, byte),
+      encodings::RAL => instructions::execute_ral(&mut self.env, byte),
+      encodings::CMA => instructions::execute_cma(&mut self.env, byte),
+      encodings::CMC => instructions::execute_cmc(&mut self.env, byte),
+      encodings::DAA => instructions::execute_daa(&mut self.env, byte),
+      encodings::CPI => instructions::execute_cpi(&mut self.env, byte),
+      // Special d8 operand that only takes a value between 0-8
       encodings::RST_0
       | encodings::RST_1
       | encodings::RST_2
@@ -304,9 +221,23 @@ impl Interpreter {
       | encodings::RST_5
       | encodings::RST_6
       | encodings::RST_7 => instructions::execute_rst(&mut self.env, byte),
-      // NOP
+
+      // No operands
+      encodings::STC => instructions::execute_stc(&mut self.env, byte),
+      encodings::XCHG => instructions::execute_xchg(&mut self.env, byte),
+      encodings::XTHL => instructions::execute_xthl(&mut self.env, byte),
+      encodings::SPHL => instructions::execute_sphl(&mut self.env, byte),
+      encodings::PCHL => instructions::execute_pchl(&mut self.env, byte),
+      encodings::RM => instructions::execute_rm(&mut self.env, byte),
+      encodings::RP => instructions::execute_rp(&mut self.env, byte),
+      encodings::RZ => instructions::execute_rz(&mut self.env, byte),
+      encodings::RC => instructions::execute_rc(&mut self.env, byte),
+      encodings::RNZ => instructions::execute_rnz(&mut self.env, byte),
+      encodings::RNC => instructions::execute_rnc(&mut self.env, byte),
+      encodings::RPO => instructions::execute_rpo(&mut self.env, byte),
+      encodings::RPE => instructions::execute_rpe(&mut self.env, byte),
+      encodings::RET => instructions::execute_ret(&mut self.env, byte),
       encodings::NOP => instructions::execute_nop(&mut self.env, byte),
-      // HLT
       encodings::HLT => instructions::execute_hlt(&mut self.env, byte),
 
       b => panic!(

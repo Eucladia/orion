@@ -690,7 +690,7 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
   use Instruction::*;
 
   match (instruction, ops) {
-    // Register-Register operands
+    // Register, Register operands
     (
       MOV,
       &[OperandNode {
@@ -702,7 +702,7 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
       }],
     ) => false,
 
-    // Register-d16 operands
+    // Register, d16 operands
     (
       LXI,
       &[OperandNode {
@@ -818,7 +818,17 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
     (
       DCR,
       &[OperandNode {
-        operand: Operand::Register(Register::B | Register::D | Register::H | Register::M),
+        operand:
+          Operand::Register(
+            Register::A
+            | Register::C
+            | Register::E
+            | Register::L
+            | Register::B
+            | Register::D
+            | Register::H
+            | Register::M,
+          ),
         ..
       }],
     ) => false,
@@ -838,13 +848,6 @@ fn instruction_type_error(instruction: &Instruction, ops: &[OperandNode]) -> boo
     ) => false,
     (
       INR,
-      &[OperandNode {
-        operand: Operand::Register(Register::C | Register::E | Register::L | Register::A),
-        ..
-      }],
-    ) => false,
-    (
-      DCR,
       &[OperandNode {
         operand: Operand::Register(Register::C | Register::E | Register::L | Register::A),
         ..
