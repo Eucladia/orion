@@ -9,7 +9,7 @@ pub type LexResult<T> = std::result::Result<T, LexError>;
 /// A parse result.
 pub type ParseResult<T> = std::result::Result<T, ParseError>;
 
-/// An assembler result
+/// An assembler result.
 pub type AssembleResult<T> = std::result::Result<T, AssembleError>;
 
 /// An error.
@@ -41,7 +41,7 @@ pub enum LexError {
 pub struct ParseError {
   /// The starting position where the error ocurred.
   pub pos: usize,
-  /// The error message.
+  /// The kind of parsing error.
   pub kind: ParseErrorKind,
 }
 
@@ -80,7 +80,9 @@ pub enum ParseErrorKind {
 #[derive(Debug, Copy, Clone, Error, PartialEq, Eq)]
 #[error("assemble error occurred at {pos}: {kind}")]
 pub struct AssembleError {
+  /// The starting position of the assemble error.
   pub pos: usize,
+  /// The kind of assemble error.
   pub kind: AssembleErrorKind,
 }
 
@@ -107,6 +109,7 @@ pub enum AssembleErrorKind {
 }
 
 impl AssembleError {
+  /// Creates a new [`AssembleError`] with the starting position and kind.
   pub fn new(starting_pos: usize, kind: AssembleErrorKind) -> Self {
     Self {
       pos: starting_pos,
@@ -116,6 +119,7 @@ impl AssembleError {
 }
 
 impl ParseError {
+  /// Creates a new [`ParseError`] with the starting position and kind.
   pub fn new(starting_pos: usize, kind: ParseErrorKind) -> Self {
     Self {
       pos: starting_pos,

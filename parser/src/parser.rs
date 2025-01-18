@@ -24,6 +24,7 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+  /// Creates a new [`Parser`] from the set of tokens.
   pub fn new(source: &'a str, mut tokens: Vec<Token>) -> Self {
     // Get rid of the EOF token
     if matches!(tokens.last().map(Token::kind), Some(TokenKind::EndOfFile)) {
@@ -37,6 +38,7 @@ impl<'a> Parser<'a> {
     }
   }
 
+  /// Creates a new [`Parser`] from a source string.
   pub fn from_source(source: &'a str) -> LexResult<Self> {
     let mut tokens = lexer::lex(source)?;
 
@@ -55,6 +57,7 @@ impl<'a> Parser<'a> {
     self.source.get(range)
   }
 
+  /// Parses the source into an AST.
   pub fn parse(&mut self) -> ParseResult<ProgramNode> {
     let mut nodes = Vec::new();
 
@@ -65,6 +68,7 @@ impl<'a> Parser<'a> {
     Ok(ProgramNode::new(nodes))
   }
 
+  /// Parses the next node.
   pub fn parse_next(&mut self) -> Option<ParseResult<Node>> {
     let token = self.next_non_whitespace_token()?;
 
@@ -643,7 +647,7 @@ impl<'a> Parser<'a> {
   }
 }
 
-/// Parses a string from a `String` [`Token`], failing if the string is
+/// Parses the text delimited in single quotes from a [`Token`], failing if the string is
 /// longer than 128 characters.
 fn parse_string(source: &str, token: &Token) -> ParseResult<SmolStr> {
   let span = token.span();
@@ -676,9 +680,7 @@ fn parse_string(source: &str, token: &Token) -> ParseResult<SmolStr> {
   Ok(str.finish())
 }
 
-/// Parses a number for an expression.
-// Expression parsing needs to be handled separately because
-// there can be negative numbers allowed.
+/// Parses a number for an expression, where negative numbers can be allowed.
 fn parse_expression_number(src: &str, token: &Token) -> ParseResult<u16> {
   // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
   let mut num_str = unwrap!(src.get(token.span()));
@@ -697,8 +699,7 @@ fn parse_expression_number(src: &str, token: &Token) -> ParseResult<u16> {
     Some(b'o' | b'q') => 8,
     Some(b'd') | None => 10,
     Some(b'h') => 16,
-    // Could never happen since `TokenKind::Literal` for numbers includes and
-    // validates the suffix
+    // We're guaranteed that it ends in one of the above bases.
     Some(_) => unreachable!("invalid numeric suffix"),
   };
 
@@ -711,7 +712,7 @@ fn parse_expression_number(src: &str, token: &Token) -> ParseResult<u16> {
   }
 }
 
-/// Parses a number.
+/// Parses a literal number.
 fn parse_number(src: &str, token: &Token) -> ParseResult<u16> {
   // SAFETY: We have a valid `Literal` token produced from the lexer and an immutable str
   let mut num_str = unwrap!(src.get(token.span()));
@@ -730,8 +731,7 @@ fn parse_number(src: &str, token: &Token) -> ParseResult<u16> {
     Some(b'o' | b'q') => 8,
     Some(b'd') | None => 10,
     Some(b'h') => 16,
-    // Could never happen since `TokenKind::Literal` for numbers includes and
-    // validates the suffix
+    // We're guaranteed that it ends in one of the above bases.
     Some(_) => unreachable!("invalid numeric suffix"),
   };
 
