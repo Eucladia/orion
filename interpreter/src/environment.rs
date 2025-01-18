@@ -854,22 +854,25 @@ impl Environment {
       (
         JNZ,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::JNZ);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::JNZ);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         JNZ,
         &[OperandNode {
@@ -912,31 +915,24 @@ impl Environment {
       (
         JNC,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::JNC);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::JNC);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
-      (
-        JNC,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_instruction(addr, encodings::JNC);
-        self.assemble_u16(addr + 1, num);
       }
       (
         JNC,
@@ -970,22 +966,25 @@ impl Environment {
       (
         JPO,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::JPO);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::JPO);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         JPO,
         &[OperandNode {
@@ -1028,22 +1027,25 @@ impl Environment {
       (
         JP,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::JP);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::JP);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         JP,
         &[OperandNode {
@@ -1086,22 +1088,25 @@ impl Environment {
       (
         JMP,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::JMP);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::JMP);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         JMP,
         &[OperandNode {
@@ -1144,22 +1149,25 @@ impl Environment {
       (
         JZ,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::JZ);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::JZ);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         JZ,
         &[OperandNode {
@@ -1202,22 +1210,25 @@ impl Environment {
       (
         JC,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::JC);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::JC);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         JC,
         &[OperandNode {
@@ -1260,22 +1271,25 @@ impl Environment {
       (
         JPE,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::JPE);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::JPE);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         JPE,
         &[OperandNode {
@@ -1318,22 +1332,25 @@ impl Environment {
       (
         JM,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::JM);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::JM);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         JM,
         &[OperandNode {
@@ -1376,22 +1393,25 @@ impl Environment {
       (
         CNZ,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::CNZ);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::CNZ);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         CNZ,
         &[OperandNode {
@@ -1434,22 +1454,25 @@ impl Environment {
       (
         CNC,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::CNC);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::CNC);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         CNC,
         &[OperandNode {
@@ -1492,22 +1515,25 @@ impl Environment {
       (
         CPO,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::CPO);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::CPO);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         CPO,
         &[OperandNode {
@@ -1550,22 +1576,25 @@ impl Environment {
       (
         CP,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::CP);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::CP);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         CP,
         &[OperandNode {
@@ -1608,22 +1637,25 @@ impl Environment {
       (
         CZ,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::CZ);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::CZ);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         CZ,
         &[OperandNode {
@@ -1666,22 +1698,25 @@ impl Environment {
       (
         CC,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::CC);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::CC);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         CC,
         &[OperandNode {
@@ -1724,22 +1759,25 @@ impl Environment {
       (
         CPE,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::CPE);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::CPE);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         CPE,
         &[OperandNode {
@@ -1782,22 +1820,25 @@ impl Environment {
       (
         CM,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::CM);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::CM);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         CM,
         &[OperandNode {
@@ -1840,22 +1881,25 @@ impl Environment {
       (
         CALL,
         &[OperandNode {
-          operand: Operand::Identifier(ref label),
+          operand: Operand::Identifier(ref ident),
           ref span,
         }],
-      ) => match self.get_label_address(label) {
-        Some(jmp_to) => {
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::CALL);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(jmp_to) = self.get_label_address(ident) {
           self.assemble_instruction(addr, encodings::CALL);
           self.assemble_u16(addr + 1, jmp_to);
-        }
-        None if recoding => {
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::IdentifierNotDefined,
-          ))
+          ));
         }
-        None => unassembled.push((instruction_node, addr)),
-      },
+      }
       (
         CALL,
         &[OperandNode {
