@@ -360,10 +360,10 @@ impl Environment {
           ));
         } else if !matches!(
           op2,
-          Operand::Identifier(_)
-            | Operand::Numeric(_)
-            | Operand::Expression(_)
+          Operand::Numeric(_)
+            | Operand::Identifier(_)
             | Operand::String(_)
+            | Operand::Expression(_)
         ) {
           return Err(AssembleError::new(
             sp2.start,
@@ -383,7 +383,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        if data > 0xFF {
+        if data > u8::MAX as u16 {
           return Err(AssembleError::new(
             span.start,
             AssembleErrorKind::ExpectedOneByteValue,
@@ -480,8 +480,8 @@ impl Environment {
         } else if !matches!(
           op2,
           Operand::Numeric(_)
-            | Operand::String(_)
             | Operand::Identifier(_)
+            | Operand::String(_)
             | Operand::Expression(_)
         ) {
           return Err(AssembleError::new(
