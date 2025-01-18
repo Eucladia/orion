@@ -37,10 +37,10 @@ pub enum LexError {
 
 /// An error that occurred during parsing.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
-#[error("parsing error occurred at {start_pos}: {kind}")]
+#[error("parsing error occurred at {pos}: {kind}")]
 pub struct ParseError {
-  /// The position where the error ocurred.
-  pub start_pos: usize,
+  /// The starting position where the error ocurred.
+  pub pos: usize,
   /// The error message.
   pub kind: ParseErrorKind,
 }
@@ -118,7 +118,7 @@ impl AssembleError {
 impl ParseError {
   pub fn new(starting_pos: usize, kind: ParseErrorKind) -> Self {
     Self {
-      start_pos: starting_pos,
+      pos: starting_pos,
       kind,
     }
   }
