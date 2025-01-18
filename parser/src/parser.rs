@@ -7,7 +7,7 @@ use crate::unwrap;
 use lexer::instruction::Instruction;
 use lexer::token::{Token, TokenKind};
 use lexer::Register;
-use types::{LexResult, ParseError, ParseResult, ParserErrorKind};
+use types::{LexResult, ParseError, ParseErrorKind, ParseResult};
 
 use smol_str::{SmolStr, SmolStrBuilder};
 
@@ -75,7 +75,7 @@ impl<'a> Parser<'a> {
         if ident.starts_with("$") && ident.len() > 1 {
           return Some(Err(ParseError {
             start_pos: token.span().start,
-            kind: ParserErrorKind::ReservedIdentifier,
+            kind: ParseErrorKind::ReservedIdentifier,
           }));
         }
 
@@ -85,7 +85,7 @@ impl<'a> Parser<'a> {
           if node.label_name().len() > MAX_LABEL_NAME {
             Some(Err(ParseError {
               start_pos: token.span().start,
-              kind: ParserErrorKind::InvalidLabelLength,
+              kind: ParseErrorKind::InvalidLabelLength,
             }))
           } else {
             Some(Ok(Node::Label(node)))
@@ -106,7 +106,7 @@ impl<'a> Parser<'a> {
 
       _ => Some(Err(ParseError {
         start_pos: token.span().start,
-        kind: ParserErrorKind::UnexpectedToken,
+        kind: ParseErrorKind::UnexpectedToken,
       })),
     }
   }
@@ -164,7 +164,7 @@ impl<'a> Parser<'a> {
             let Some(number_token) = self.next_token() else {
               return Err(ParseError {
                 start_pos: token.span().end,
-                kind: ParserErrorKind::ExpectedOperand,
+                kind: ParseErrorKind::ExpectedOperand,
               });
             };
             let num = parse_number(self.source, &number_token)?;
@@ -234,7 +234,7 @@ impl<'a> Parser<'a> {
           if !last_token_operand {
             return Err(ParseError {
               start_pos: token.span().start,
-              kind: ParserErrorKind::UnexpectedToken,
+              kind: ParseErrorKind::UnexpectedToken,
             });
           }
 
@@ -252,13 +252,13 @@ impl<'a> Parser<'a> {
         Some(token) => {
           return Err(ParseError {
             start_pos: token.span().start,
-            kind: ParserErrorKind::InvalidOperand,
+            kind: ParseErrorKind::InvalidOperand,
           });
         }
         None => {
           return Err(ParseError {
             start_pos: self.source.len(),
-            kind: ParserErrorKind::ExpectedOperand,
+            kind: ParseErrorKind::ExpectedOperand,
           });
         }
       }
@@ -277,7 +277,7 @@ impl<'a> Parser<'a> {
       return Err(ParseError {
         // Point to the end of the last token
         start_pos: prev_token.span().end,
-        kind: ParserErrorKind::ExpectedLinebreak,
+        kind: ParseErrorKind::ExpectedLinebreak,
       });
     }
 
@@ -287,7 +287,7 @@ impl<'a> Parser<'a> {
       Err(ParseError {
         // Point to the start of the instruction that has the error
         start_pos: instruction_token.span().start,
-        kind: ParserErrorKind::InvalidOperandType,
+        kind: ParseErrorKind::InvalidOperandType,
       })
     } else {
       Ok(InstructionNode::from_operands(
@@ -398,7 +398,7 @@ impl<'a> Parser<'a> {
     let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
       return Err(ParseError {
         start_pos: self.previous_token().unwrap().span().end,
-        kind: ParserErrorKind::ExpectedOperand,
+        kind: ParseErrorKind::ExpectedOperand,
       });
     };
     let mut lhs = self.parse_logical_and()?;
@@ -431,7 +431,7 @@ impl<'a> Parser<'a> {
     let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
       return Err(ParseError {
         start_pos: self.previous_token().unwrap().span().end,
-        kind: ParserErrorKind::ExpectedOperand,
+        kind: ParseErrorKind::ExpectedOperand,
       });
     };
     let mut lhs = self.parse_relational()?;
@@ -463,7 +463,7 @@ impl<'a> Parser<'a> {
     let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
       return Err(ParseError {
         start_pos: self.previous_token().unwrap().span().end,
-        kind: ParserErrorKind::ExpectedOperand,
+        kind: ParseErrorKind::ExpectedOperand,
       });
     };
     let mut lhs = self.parse_addition()?;
@@ -500,7 +500,7 @@ impl<'a> Parser<'a> {
     let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
       return Err(ParseError {
         start_pos: self.previous_token().unwrap().span().end,
-        kind: ParserErrorKind::ExpectedOperand,
+        kind: ParseErrorKind::ExpectedOperand,
       });
     };
     let mut lhs = self.parse_multiplication()?;
@@ -532,7 +532,7 @@ impl<'a> Parser<'a> {
     let Some(start_span) = self.peek_token().as_ref().map(|x| x.span().start) else {
       return Err(ParseError {
         start_pos: self.previous_token().unwrap().span().end,
-        kind: ParserErrorKind::ExpectedOperand,
+        kind: ParseErrorKind::ExpectedOperand,
       });
     };
     let mut lhs = self.parse_unary()?;
@@ -566,7 +566,7 @@ impl<'a> Parser<'a> {
     if tok.is_none() {
       return Err(ParseError {
         start_pos: self.source.len(),
-        kind: ParserErrorKind::ExpectedOperand,
+        kind: ParseErrorKind::ExpectedOperand,
       });
     }
 
@@ -632,22 +632,22 @@ impl<'a> Parser<'a> {
           )),
           Some(t) => Err(ParseError {
             start_pos: t.span().start,
-            kind: ParserErrorKind::InvalidOperand,
+            kind: ParseErrorKind::InvalidOperand,
           }),
 
           None => Err(ParseError {
             start_pos: tok.span().start,
-            kind: ParserErrorKind::ExpectedOperand,
+            kind: ParseErrorKind::ExpectedOperand,
           }),
         }
       }
       Some(tok) => Err(ParseError {
         start_pos: tok.span().start,
-        kind: ParserErrorKind::InvalidOperand,
+        kind: ParseErrorKind::InvalidOperand,
       }),
       None => Err(ParseError {
         start_pos: self.source.len(),
-        kind: ParserErrorKind::ExpectedOperand,
+        kind: ParseErrorKind::ExpectedOperand,
       }),
     }
   }
@@ -662,7 +662,7 @@ fn parse_string(source: &str, token: &Token) -> ParseResult<SmolStr> {
   if span.end - span.start - 2 > 128 {
     return Err(ParseError {
       start_pos: span.start,
-      kind: ParserErrorKind::InvalidStringLength,
+      kind: ParseErrorKind::InvalidStringLength,
     });
   }
 
@@ -1428,7 +1428,7 @@ fn parse_expression_number(src: &str, token: &Token) -> ParseResult<u16> {
     Ok(x) if (-0xFFFF..=0xFFFF).contains(&x) => Ok(x as u16),
     _ => Err(ParseError {
       start_pos: token.span().start,
-      kind: ParserErrorKind::InvalidNumber,
+      kind: ParseErrorKind::InvalidNumber,
     }),
   }
 }
@@ -1461,7 +1461,7 @@ fn parse_number(src: &str, token: &Token) -> ParseResult<u16> {
     IntErrorKind::InvalidDigit | IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => {
       ParseError {
         start_pos: token.span().start,
-        kind: ParserErrorKind::InvalidNumber,
+        kind: ParseErrorKind::InvalidNumber,
       }
     }
     // Any other cases should be unreachable, we really only care about fitting
@@ -1472,7 +1472,7 @@ fn parse_number(src: &str, token: &Token) -> ParseResult<u16> {
 
 #[cfg(test)]
 mod tests {
-  use types::{ParseError, ParserErrorKind};
+  use types::{ParseError, ParseErrorKind};
 
   macro_rules! parse_and_write {
     ($src:literal) => {
@@ -1518,7 +1518,7 @@ mod tests {
       crate::parse(&format!("LXI H, '{}'", "A".repeat(129))),
       Err(types::Error::Parser(ParseError {
         start_pos: 7,
-        kind: ParserErrorKind::InvalidStringLength
+        kind: ParseErrorKind::InvalidStringLength
       }))
     );
   }
@@ -1529,7 +1529,7 @@ mod tests {
       crate::parse("MVI").unwrap_err(),
       types::Error::Parser(ParseError {
         start_pos: 3,
-        kind: ParserErrorKind::ExpectedOperand
+        kind: ParseErrorKind::ExpectedOperand
       })
     );
   }
@@ -1571,7 +1571,7 @@ mod tests {
       crate::parse("MVI A, 'BOO'").unwrap_err(),
       types::Error::Parser(ParseError {
         start_pos: 0,
-        kind: ParserErrorKind::InvalidOperandType,
+        kind: ParseErrorKind::InvalidOperandType,
       }),
       "using multi byte string for d8"
     );
@@ -1593,7 +1593,7 @@ mod tests {
       crate::parse("MVI A, 0FFFFH").unwrap_err(),
       types::Error::Parser(ParseError {
         start_pos: 0,
-        kind: ParserErrorKind::InvalidOperandType,
+        kind: ParseErrorKind::InvalidOperandType,
       }),
       "using d16 instead of d8"
     );
@@ -1610,7 +1610,7 @@ mod tests {
       crate::parse("MVI A, 01H MVI B, 02H").unwrap_err(),
       types::Error::Parser(ParseError {
         start_pos: 10,
-        kind: ParserErrorKind::ExpectedLinebreak,
+        kind: ParseErrorKind::ExpectedLinebreak,
       }),
       "expected linebreak between MVIs"
     );
@@ -1619,7 +1619,7 @@ mod tests {
       crate::parse("MVI A, 01H\nMVI B, 02H HLT").unwrap_err(),
       types::Error::Parser(ParseError {
         start_pos: 21,
-        kind: ParserErrorKind::ExpectedLinebreak,
+        kind: ParseErrorKind::ExpectedLinebreak,
       }),
       "expected linebreak before HLT"
     );

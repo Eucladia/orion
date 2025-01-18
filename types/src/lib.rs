@@ -10,7 +10,7 @@ pub type LexResult<T> = std::result::Result<T, LexError>;
 pub type ParseResult<T> = std::result::Result<T, ParseError>;
 
 /// An assembler result
-pub type AssembleResult<T> = std::result::Result<T, AssemblerError>;
+pub type AssembleResult<T> = std::result::Result<T, AssembleError>;
 
 /// An error.
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -22,7 +22,7 @@ pub enum Error {
   Parser(#[from] ParseError),
 
   #[error("an error occurred during assembling")]
-  Assembler(#[from] AssemblerError),
+  Assembler(#[from] AssembleError),
 }
 /// An error that occurred during lexing.
 #[derive(Debug, Error, Copy, Clone, PartialEq, Eq)]
@@ -42,12 +42,12 @@ pub struct ParseError {
   /// The position where the error ocurred.
   pub start_pos: usize,
   /// The error message.
-  pub kind: ParserErrorKind,
+  pub kind: ParseErrorKind,
 }
 
 /// The kind of error that occurred during parsing.
 #[derive(Debug, Clone, Copy, Error, PartialEq, Eq)]
-pub enum ParserErrorKind {
+pub enum ParseErrorKind {
   #[error("the symbol is reserved")]
   ReservedIdentifier,
 
@@ -78,7 +78,15 @@ pub enum ParserErrorKind {
 
 /// An error that can occur during assembling.
 #[derive(Debug, Copy, Clone, Error, PartialEq, Eq)]
-pub enum AssemblerError {
+#[error("assemble error occurred at {pos}: {kind}")]
+pub struct AssembleError {
+  pub pos: usize,
+  pub kind: AssembleErrorKind,
+}
+
+/// The kind of assemble error.
+#[derive(Debug, Copy, Clone, Error, PartialEq, Eq)]
+pub enum AssembleErrorKind {
   #[error("the label was already defined")]
   LabelRedefined,
 
@@ -90,4 +98,13 @@ pub enum AssemblerError {
 
   #[error("the data was not 1 byte")]
   ExpectedOneByteData,
+}
+
+impl AssembleError {
+  pub fn new(starting_pos: usize, kind: AssembleErrorKind) -> Self {
+    Self {
+      pos: starting_pos,
+      kind,
+    }
+  }
 }

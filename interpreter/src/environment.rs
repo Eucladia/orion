@@ -3,7 +3,7 @@ use crate::{encodings, instruction_bytes_occupied};
 use lexer::{instruction::Instruction, Flags, Register};
 use parser::nodes::{Expression, ExpressionNode, InstructionNode, Operand, OperandNode, Operator};
 use smol_str::SmolStr;
-use types::{AssembleResult, AssemblerError};
+use types::{AssembleError, AssembleErrorKind, AssembleResult};
 
 use std::collections::HashMap;
 
@@ -265,7 +265,7 @@ impl Environment {
           ..
         }, OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => {
         if label == "$" {
@@ -277,7 +277,10 @@ impl Environment {
         } else if !recoding {
           unassembled.push((instruction_node, addr));
         } else {
-          return Err(AssemblerError::IdentifierNotDefined);
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ));
         }
       }
       (
@@ -287,7 +290,7 @@ impl Environment {
           ..
         }, OperandNode {
           operand: Operand::String(ref str),
-          ..
+          ref span,
         }],
       ) => {
         if str.len() == 2 {
@@ -297,7 +300,10 @@ impl Environment {
           self.assemble_instruction(addr, encode_lxi(r1));
           self.assemble_u16(addr + 1, data);
         } else {
-          return Err(AssemblerError::ExpectedTwoByteData);
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedTwoByteData,
+          ));
         }
       }
       (
@@ -350,15 +356,25 @@ impl Environment {
           ..
         }, OperandNode {
           operand: Operand::Identifier(ref ident),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encode_mvi(r1));
           self.assemble_instruction(addr + 1, addr as u8);
         }
-        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
-        None => return Err(AssemblerError::IdentifierNotDefined),
+        Some(_) => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ))
+        }
+        None => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
       },
       (
         MVI,
@@ -367,13 +383,16 @@ impl Environment {
           ..
         }, OperandNode {
           operand: Operand::Expression(ref expr),
-          ..
+          ref span,
         }],
       ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
-          return Err(AssemblerError::ExpectedOneByteData);
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ));
         }
 
         self.assemble_instruction(addr, encode_mvi(r1));
@@ -506,252 +525,342 @@ impl Environment {
         JNZ,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JNZ);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         JNC,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JNC);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         JPO,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JPO);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         JP,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JP);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         JMP,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JMP);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         JZ,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JZ);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         JC,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JC);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         JPE,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JPE);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         JM,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::JM);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         CNZ,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CNZ);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         CNC,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CNC);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         CPO,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CPO);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         CP,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CP);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         CZ,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CZ);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         CC,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CC);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         CPE,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CPE);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         CM,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CM);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
         CALL,
         &[OperandNode {
           operand: Operand::Identifier(ref label),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(label) {
         Some(jmp_to) => {
           self.assemble_instruction(addr, encodings::CALL);
           self.assemble_u16(addr + 1, jmp_to);
         }
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => unassembled.push((instruction_node, addr)),
       },
       (
@@ -820,15 +929,25 @@ impl Environment {
         ACI,
         &[OperandNode {
           operand: Operand::Identifier(ref ident),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::ACI);
           self.assemble_instruction(addr + 1, addr as u8);
         }
-        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        Some(_) => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ))
+        }
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => {
           unassembled.push((instruction_node, addr));
         }
@@ -837,13 +956,16 @@ impl Environment {
         ACI,
         &[OperandNode {
           operand: Operand::Expression(ref expr),
-          ..
+          ref span,
         }],
       ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
-          return Err(AssemblerError::ExpectedOneByteData);
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ));
         }
 
         self.assemble_instruction(addr, encodings::ACI);
@@ -873,15 +995,25 @@ impl Environment {
         SBI,
         &[OperandNode {
           operand: Operand::Identifier(ref ident),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::SBI);
           self.assemble_instruction(addr + 1, addr as u8);
         }
-        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        Some(_) => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ))
+        }
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => {
           unassembled.push((instruction_node, addr));
         }
@@ -890,13 +1022,16 @@ impl Environment {
         SBI,
         &[OperandNode {
           operand: Operand::Expression(ref expr),
-          ..
+          ref span,
         }],
       ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
-          return Err(AssemblerError::ExpectedOneByteData);
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ));
         }
 
         self.assemble_instruction(addr, encodings::SBI);
@@ -926,15 +1061,25 @@ impl Environment {
         XRI,
         &[OperandNode {
           operand: Operand::Identifier(ref ident),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::XRI);
           self.assemble_instruction(addr + 1, addr as u8);
         }
-        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        Some(_) => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ))
+        }
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => {
           unassembled.push((instruction_node, addr));
         }
@@ -943,13 +1088,16 @@ impl Environment {
         XRI,
         &[OperandNode {
           operand: Operand::Expression(ref expr),
-          ..
+          ref span,
         }],
       ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
-          return Err(AssemblerError::ExpectedOneByteData);
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ));
         }
 
         self.assemble_instruction(addr, encodings::XRI);
@@ -979,15 +1127,25 @@ impl Environment {
         CPI,
         &[OperandNode {
           operand: Operand::Identifier(ref ident),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::CPI);
           self.assemble_instruction(addr + 1, addr as u8);
         }
-        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        Some(_) => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ))
+        }
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => {
           unassembled.push((instruction_node, addr));
         }
@@ -996,13 +1154,16 @@ impl Environment {
         CPI,
         &[OperandNode {
           operand: Operand::Expression(ref expr),
-          ..
+          ref span,
         }],
       ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
-          return Err(AssemblerError::ExpectedOneByteData);
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ));
         }
 
         self.assemble_instruction(addr, encodings::CPI);
@@ -1032,15 +1193,25 @@ impl Environment {
         ADI,
         &[OperandNode {
           operand: Operand::Identifier(ref ident),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::ADI);
           self.assemble_instruction(addr + 1, addr as u8);
         }
-        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        Some(_) => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ))
+        }
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => {
           unassembled.push((instruction_node, addr));
         }
@@ -1049,13 +1220,16 @@ impl Environment {
         ADI,
         &[OperandNode {
           operand: Operand::Expression(ref expr),
-          ..
+          ref span,
         }],
       ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
-          return Err(AssemblerError::ExpectedOneByteData);
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ));
         }
 
         self.assemble_instruction(addr, encodings::ADI);
@@ -1086,15 +1260,25 @@ impl Environment {
         SUI,
         &[OperandNode {
           operand: Operand::Identifier(ref ident),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::SUI);
           self.assemble_instruction(addr + 1, addr as u8);
         }
-        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        Some(_) => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ))
+        }
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => {
           unassembled.push((instruction_node, addr));
         }
@@ -1103,13 +1287,16 @@ impl Environment {
         SUI,
         &[OperandNode {
           operand: Operand::Expression(ref expr),
-          ..
+          ref span,
         }],
       ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
-          return Err(AssemblerError::ExpectedOneByteData);
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ));
         }
 
         self.assemble_instruction(addr, encodings::SUI);
@@ -1139,15 +1326,25 @@ impl Environment {
         ANI,
         &[OperandNode {
           operand: Operand::Identifier(ref ident),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::ANI);
           self.assemble_instruction(addr + 1, addr as u8);
         }
-        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        Some(_) => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ))
+        }
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => {
           unassembled.push((instruction_node, addr));
         }
@@ -1156,13 +1353,16 @@ impl Environment {
         ANI,
         &[OperandNode {
           operand: Operand::Expression(ref expr),
-          ..
+          ref span,
         }],
       ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
-          return Err(AssemblerError::ExpectedOneByteData);
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ));
         }
 
         self.assemble_instruction(addr, encodings::ANI);
@@ -1192,15 +1392,25 @@ impl Environment {
         ORI,
         &[OperandNode {
           operand: Operand::Identifier(ref ident),
-          ..
+          ref span,
         }],
       ) => match self.get_label_address(ident) {
         Some(addr) if addr <= u8::MAX as u16 => {
           self.assemble_instruction(addr, encodings::ORI);
           self.assemble_instruction(addr + 1, addr as u8);
         }
-        Some(_) => return Err(AssemblerError::ExpectedOneByteData),
-        None if recoding => return Err(AssemblerError::IdentifierNotDefined),
+        Some(_) => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ))
+        }
+        None if recoding => {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
         None => {
           unassembled.push((instruction_node, addr));
         }
@@ -1209,13 +1419,16 @@ impl Environment {
         ORI,
         &[OperandNode {
           operand: Operand::Expression(ref expr),
-          ..
+          ref span,
         }],
       ) => {
         let val = evaluate_expression(self, expr)? as u16;
 
         if val > u8::MAX as u16 {
-          return Err(AssemblerError::ExpectedOneByteData);
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteData,
+          ));
         }
 
         self.assemble_instruction(addr, encodings::ORI);
@@ -1283,7 +1496,10 @@ fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssembleResu
     Expression::String(str) => {
       // TODO: Can we evaluate strings that are more than 2 bytes?
       if str.len() > 2 {
-        Err(AssemblerError::ExpectedTwoByteData)
+        Err(AssembleError::new(
+          expr.span.start,
+          AssembleErrorKind::ExpectedTwoByteData,
+        ))
       } else {
         let bytes = str.as_bytes();
         let b1 = bytes.first().copied().unwrap_or(0) as u16;
@@ -1298,7 +1514,10 @@ fn evaluate_expression(env: &Environment, expr: &ExpressionNode) -> AssembleResu
       } else {
         match env.get_label_address(label) {
           Some(addr) => Ok(addr),
-          None => Err(AssemblerError::IdentifierNotDefined),
+          None => Err(AssembleError::new(
+            expr.span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          )),
         }
       }
     }

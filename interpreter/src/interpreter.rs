@@ -1,6 +1,6 @@
 use crate::{encodings, instructions, Environment};
 use parser::nodes::{Node, ProgramNode};
-use types::AssemblerError;
+use types::{AssembleError, AssembleErrorKind};
 
 #[derive(Debug)]
 pub struct Interpreter {
@@ -31,7 +31,10 @@ impl Interpreter {
           let label_name = label.label_name();
 
           if self.env.labels.contains_key(&label_name) {
-            return Err(AssemblerError::LabelRedefined);
+            return Err(AssembleError::new(
+              label.span().start,
+              AssembleErrorKind::LabelRedefined,
+            ));
           }
 
           // The label is to be inserted at the current address will be the address to go to
@@ -252,7 +255,7 @@ impl Interpreter {
 mod tests {
   use super::Interpreter;
   use lexer::Flags;
-  use types::{AssembleResult, AssemblerError};
+  use types::{AssembleErrorKind, AssembleResult};
 
   /// Runs an assembly file, making sure that the expected memory values are set.
   macro_rules! run_file {
@@ -381,8 +384,8 @@ mod tests {
         |_int: &mut Interpreter| false,
         "expected LXI to not work with undefined labels"
       )
-      .unwrap_err(),
-      AssemblerError::IdentifierNotDefined
+      .map_err(|x| x.kind),
+      Err(AssembleErrorKind::IdentifierNotDefined)
     );
 
     run_asm!(
