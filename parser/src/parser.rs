@@ -142,44 +142,16 @@ impl<'a> Parser<'a> {
     while operands.len() < num_operands {
       match self.next_token() {
         Some(token)
-          if matches!(token.kind(), TokenKind::Operator)
+          if matches!(token.kind(), TokenKind::Numeric)
             // The only valid unary operator is minus
-            && matches!(self.source.get(token.span()), Some("-")) =>
+            || (matches!(token.kind(), TokenKind::Operator)
+            && matches!(self.source.get(token.span()), Some("-"))) =>
         {
-          match self.next_token() {
-            Some(next_token) => {
-              if matches!(
-                self.peek_token().as_ref().map(Token::kind),
-                Some(TokenKind::Operator)
-              ) {
-                self.token_index -= 1;
-
-                let expr = self.parse_expr()?;
-                let span = next_token.span().start..self.previous_token().unwrap().span().end;
-
-                operands.push(OperandNode::new(Operand::Expression(expr), span))
-              } else {
-                let num = 0_u16.wrapping_sub(parse_number(self.source, &next_token)?);
-
-                operands.push(OperandNode::new(
-                  Operand::Numeric(num),
-                  token.span().start..next_token.span().end,
-                ))
-              }
-
-              last_token_operand = true;
-            }
-            None => {
-              return Err(ParseError {
-                start_pos: token.span().end,
-                kind: ParserErrorKind::ExpectedOperand,
-              })
-            }
-          }
-        }
-        Some(token) if matches!(token.kind(), TokenKind::Numeric) => {
           if matches!(
-            self.peek_token().as_ref().map(Token::kind),
+            self
+              .peek_token_from_n(self.token_index + 1)
+              .as_ref()
+              .map(Token::kind),
             Some(TokenKind::Operator)
           ) {
             self.token_index -= 1;
@@ -188,10 +160,23 @@ impl<'a> Parser<'a> {
             let span = token.span().start..self.previous_token().unwrap().span().end;
 
             operands.push(OperandNode::new(Operand::Expression(expr), span))
+          } else if matches!(token.kind(), TokenKind::Operator) {
+            let Some(number_token) = self.next_token() else {
+              return Err(ParseError {
+                start_pos: token.span().end,
+                kind: ParserErrorKind::ExpectedOperand,
+              });
+            };
+            let num = parse_number(self.source, &number_token)?;
+
+            operands.push(OperandNode::new(
+              Operand::Numeric(num),
+              token.span().start..number_token.span().end,
+            ));
           } else {
             let num = parse_number(self.source, &token)?;
 
-            operands.push(OperandNode::new(Operand::Numeric(num), token.span()))
+            operands.push(OperandNode::new(Operand::Numeric(num), token.span()));
           }
 
           last_token_operand = true;
@@ -335,23 +320,26 @@ impl<'a> Parser<'a> {
     }
   }
 
-  /// Peeks the next non-whitespace token, on the current line.
-  fn peek_token(&self) -> Option<Token> {
-    let mut index = self.token_index;
-
+  /// Peeks the next non-whitespace token, starting from position  `n`, on the current line.
+  fn peek_token_from_n(&self, mut token_index: usize) -> Option<Token> {
     loop {
-      let token = self.tokens.get(index)?;
+      let token = self.tokens.get(token_index)?;
 
       if matches!(token.kind(), TokenKind::Linebreak) {
         return None;
       }
 
-      index += 1;
+      token_index += 1;
 
       if !matches!(token.kind(), TokenKind::Whitespace | TokenKind::Comment) {
         return Some(token.clone());
       }
     }
+  }
+
+  /// Peeks the next non-whitespace token, on the current line.
+  fn peek_token(&self) -> Option<Token> {
+    self.peek_token_from_n(self.token_index)
   }
 
   /// Peeks the next non-whitespace token.
