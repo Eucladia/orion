@@ -774,7 +774,6 @@ mod tests {
     assert!(crate::parse("MVI A, 0FH").is_ok(), "valid hex");
     assert!(crate::parse("MVI A, 0").is_ok(), "hex");
     assert!(crate::parse("MVI A, 0H").is_ok(), "0 hex");
-    // TODO: -0 should be valid, but because of type checking in the parser, its not
     assert!(
       crate::parse("MVI A, +0").is_err(),
       "unary + should be invalid"

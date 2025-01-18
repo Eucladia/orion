@@ -428,7 +428,7 @@ mod tests {
     run_asm!(
       "MVI A, 0FFH",
       |int: &mut Interpreter| int.env.registers.a == u8::MAX,
-      "using u8::MAX for d8"
+      "using 0xFF as d8 for MVI"
     )
     .unwrap();
 
@@ -450,6 +450,13 @@ mod tests {
       "using negative u16 for d8"
     );
 
+    run_asm!(
+      "MVI A, -0FFH",
+      |int: &mut Interpreter| int.env.registers.a == 0xFF,
+      "using -0xFF as d8 for MVI"
+    )
+    .unwrap();
+
     assert_eq!(
       run_asm!(
         "MVI A, 0FFFFH",
@@ -465,7 +472,7 @@ mod tests {
   }
 
   #[test]
-  fn d8_operands() {
+  fn d8_expr_operands() {
     run_asm!(
       "MVI A, 01000001B\nMVI B, 'A'\nMVI C, 41H\nMVI D, 101Q\nMVI E, 65\
 \nMVI H, 5 + 30 * 2\nMVI L, 5 + (-30 * -2)",
