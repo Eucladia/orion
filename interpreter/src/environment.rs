@@ -873,11 +873,36 @@ impl Environment {
       (
         JNZ,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::JNZ);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        JNZ,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::JNZ);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        JNZ,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -906,11 +931,36 @@ impl Environment {
       (
         JNC,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::JNC);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        JNC,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::JNC);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        JNC,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -939,11 +989,36 @@ impl Environment {
       (
         JPO,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::JPO);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        JPO,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::JPO);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        JPO,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -972,11 +1047,36 @@ impl Environment {
       (
         JP,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::JP);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        JP,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::JP);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        JP,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1005,11 +1105,36 @@ impl Environment {
       (
         JMP,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::JMP);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        JMP,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::JMP);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        JMP,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1038,11 +1163,36 @@ impl Environment {
       (
         JZ,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::JZ);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        JZ,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::JZ);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        JZ,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1071,11 +1221,36 @@ impl Environment {
       (
         JC,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::JC);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        JC,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::JC);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        JC,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1104,11 +1279,36 @@ impl Environment {
       (
         JPE,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::JPE);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        JPE,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::JPE);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        JPE,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1137,11 +1337,36 @@ impl Environment {
       (
         JM,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::JM);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        JM,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::JM);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        JM,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1170,11 +1395,36 @@ impl Environment {
       (
         CNZ,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::CNZ);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        CNZ,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::CNZ);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        CNZ,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1203,11 +1453,36 @@ impl Environment {
       (
         CNC,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::CNC);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        CNC,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::CNC);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        CNC,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1236,11 +1511,36 @@ impl Environment {
       (
         CPO,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::CPO);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        CPO,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::CPO);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        CPO,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1269,11 +1569,36 @@ impl Environment {
       (
         CP,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::CP);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        CP,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::CP);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        CP,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1302,11 +1627,36 @@ impl Environment {
       (
         CZ,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::CZ);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        CZ,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::CZ);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        CZ,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1335,11 +1685,36 @@ impl Environment {
       (
         CC,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::CC);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        CC,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::CC);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        CC,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1368,11 +1743,36 @@ impl Environment {
       (
         CPE,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::CPE);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        CPE,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::CPE);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        CPE,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1401,11 +1801,36 @@ impl Environment {
       (
         CM,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::CM);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        CM,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::CM);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        CM,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1434,11 +1859,36 @@ impl Environment {
       (
         CALL,
         &[OperandNode {
+          operand: Operand::Numeric(num),
+          ..
+        }],
+      ) => {
+        self.assemble_instruction(addr, encodings::CALL);
+        self.assemble_u16(addr + 1, num);
+      }
+      (
+        CALL,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let val = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::CALL);
+        self.assemble_u16(addr + 1, val);
+      }
+      (
+        CALL,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp1,
         }],
       ) => {
-        if !matches!(op1, Operand::Identifier(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp1.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1458,11 +1908,48 @@ impl Environment {
       (
         STA,
         &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ref span,
+        }],
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::STA);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(label_addr) = self.get_label_address(ident) {
+          self.assemble_instruction(addr, encodings::STA);
+          self.assemble_u16(addr + 1, label_addr);
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ));
+        }
+      }
+      (
+        STA,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let res = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::STA);
+        self.assemble_u16(addr + 1, res);
+      }
+      (
+        STA,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp2,
         }],
       ) => {
-        if !matches!(op1, Operand::Numeric(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp2.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1479,6 +1966,41 @@ impl Environment {
         self.assemble_instruction(addr, encodings::SHLD);
         self.assemble_u16(addr + 1, data);
       }
+
+      (
+        SHLD,
+        &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ref span,
+        }],
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::SHLD);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(label_addr) = self.get_label_address(ident) {
+          self.assemble_instruction(addr, encodings::SHLD);
+          self.assemble_u16(addr + 1, label_addr);
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ));
+        }
+      }
+      (
+        SHLD,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let res = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::SHLD);
+        self.assemble_u16(addr + 1, res);
+      }
       (
         SHLD,
         &[OperandNode {
@@ -1486,7 +2008,10 @@ impl Environment {
           span: ref sp2,
         }],
       ) => {
-        if !matches!(op1, Operand::Numeric(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp2.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1506,11 +2031,48 @@ impl Environment {
       (
         LDA,
         &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ref span,
+        }],
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::LDA);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(label_addr) = self.get_label_address(ident) {
+          self.assemble_instruction(addr, encodings::LDA);
+          self.assemble_u16(addr + 1, label_addr);
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ));
+        }
+      }
+      (
+        LDA,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let res = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::LDA);
+        self.assemble_u16(addr + 1, res);
+      }
+      (
+        LDA,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp2,
         }],
       ) => {
-        if !matches!(op1, Operand::Numeric(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp2.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1530,11 +2092,48 @@ impl Environment {
       (
         LHLD,
         &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ref span,
+        }],
+      ) => {
+        if ident == "$" {
+          self.assemble_instruction(addr, encodings::LHLD);
+          self.assemble_u16(addr + 1, self.assemble_index);
+        } else if let Some(label_addr) = self.get_label_address(ident) {
+          self.assemble_instruction(addr, encodings::LHLD);
+          self.assemble_u16(addr + 1, label_addr);
+        } else if !recoding {
+          unassembled.push((instruction_node, addr));
+        } else {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ));
+        }
+      }
+      (
+        LHLD,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let res = evaluate_expression(self, expr)?;
+
+        self.assemble_instruction(addr, encodings::LHLD);
+        self.assemble_u16(addr + 1, res);
+      }
+      (
+        LHLD,
+        &[OperandNode {
           operand: ref op1,
           span: ref sp2,
         }],
       ) => {
-        if !matches!(op1, Operand::Numeric(_)) {
+        if !matches!(
+          op1,
+          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+        ) {
           return Err(AssembleError::new(
             sp2.start,
             AssembleErrorKind::InvalidOperandType,
@@ -1691,7 +2290,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_expression(self, expr)? as u16;
+        let val = evaluate_expression(self, expr)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -1791,7 +2390,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_expression(self, expr)? as u16;
+        let val = evaluate_expression(self, expr)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -1891,7 +2490,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_expression(self, expr)? as u16;
+        let val = evaluate_expression(self, expr)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -1991,7 +2590,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_expression(self, expr)? as u16;
+        let val = evaluate_expression(self, expr)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -2091,7 +2690,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_expression(self, expr)? as u16;
+        let val = evaluate_expression(self, expr)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -2191,7 +2790,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_expression(self, expr)? as u16;
+        let val = evaluate_expression(self, expr)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -2290,7 +2889,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_expression(self, expr)? as u16;
+        let val = evaluate_expression(self, expr)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
