@@ -457,7 +457,7 @@ mod tests {
   #[test]
   fn loseless() {
     // Check to see if we can reconstruct a program from its tokens
-    let string = include_str!("../../test_files/sum_of_array.asm");
+    let string = include_str!("../../../test_files/sum_of_array.asm");
     let tokens = get_tokens!(string).unwrap();
     let mut new_string = String::with_capacity(string.len());
 

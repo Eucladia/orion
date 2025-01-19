@@ -266,7 +266,7 @@ mod tests {
       ) => {
         {
           let r: AssembleResult<Interpreter> = {
-            let src = include_str!(concat!("../../test_files/", $src, ".asm"));
+            let src = include_str!(concat!("../../../test_files/", $src, ".asm"));
             let mut int = Interpreter::new(parser::parse(src).unwrap());
 
             if let Err(e) = int.assemble() {

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["lexer", "parser", "interpreter", "types"]
+members = ["crates/lexer", "crates/parser", "crates/interpreter", "crates/types"]
 
 [profile]
 release = { lto = true, codegen-units = 1, incremental = false }

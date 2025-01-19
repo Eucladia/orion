@@ -2,7 +2,7 @@ use lexer::{lex, token::TokenKind, Token};
 
 macro_rules! tokens_equal {
   ($src:literal, $($token:tt),*) => {
-    let tokens = lex(include_str!(concat!("../../test_files/", $src, ".asm")))
+    let tokens = lex(include_str!(concat!("../../../test_files/", $src, ".asm")))
       .map(|toks| toks.iter().map(Token::kind).collect());
     let expected = vec![$(TokenKind::$token),*];
 

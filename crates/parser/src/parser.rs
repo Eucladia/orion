@@ -751,17 +751,17 @@ mod tests {
 
   macro_rules! parse_and_write {
     ($src:literal) => {
-      let source = include_str!(concat!("../../test_files/", $src, ".asm"));
+      let source = include_str!(concat!("../../../test_files/", $src, ".asm"));
       let program_node = crate::parse(source).unwrap();
 
       assert!(!program_node.children().is_empty());
 
-      if matches!(std::fs::exists("../output/parser/"), Ok(false)) {
-        std::fs::create_dir("../output/parser/").unwrap();
+      if matches!(std::fs::exists("../../output/parser/"), Ok(false)) {
+        std::fs::create_dir("../../../output/parser/").unwrap();
       }
 
       std::fs::write(
-        concat!("../output/parser/", $src, ".txt"),
+        concat!("../../output/parser/", $src, ".txt"),
         &program_node.to_string(),
       )
       .unwrap();
