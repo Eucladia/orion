@@ -41,11 +41,11 @@ fn write_parser_output() -> anyhow::Result<()> {
     let ast = parse(&src)?;
 
     fs::write(
-      root.join(&format!(
+      root.join(format!(
         "output/parser/{}.txt",
         path.file_stem().unwrap().to_str().unwrap()
       )),
-      &ast.to_string(),
+      ast.to_string(),
     )?;
 
     wrote += 1;
