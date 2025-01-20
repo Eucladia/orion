@@ -39,7 +39,7 @@ pub fn execute_ana(env: &mut Environment, instruction_byte: u8) {
 
   env.update_flags_logical(res);
 
-  // On 8058, AND always sets the AC flag
+  // On 8058, `AND `always sets the AC flag
   env.set_flag(Flags::AuxiliaryCarry, true);
 
   env.registers.a = res;
@@ -54,7 +54,7 @@ pub fn execute_ani(env: &mut Environment, instruction_byte: u8) {
 
   env.update_flags_logical(res);
 
-  // On 8058, AND always sets the AC flag
+  // On 8058, `AND` always sets the AC flag
   env.set_flag(Flags::AuxiliaryCarry, true);
 
   env.registers.a = res;

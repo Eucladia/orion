@@ -1,4 +1,4 @@
-use lexer::Register;
+pub use lexer::Register;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Registers {
@@ -24,6 +24,16 @@ pub struct Registers {
 
   /// Instruction register.
   pub ir: u8,
+}
+
+/// A register pair.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum RegisterPair {
+  BC,
+  DE,
+  HL,
+  SP,
+  PSW,
 }
 
 impl Registers {

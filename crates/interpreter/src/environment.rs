@@ -1,5 +1,5 @@
-use crate::encodings;
 use crate::registers::Registers;
+use crate::{encodings, registers::RegisterPair};
 use lexer::{instruction::Instruction, Flags, Register};
 use parser::nodes::{Expression, ExpressionNode, InstructionNode, Operand, OperandNode, Operator};
 use smol_str::SmolStr;
@@ -59,14 +59,13 @@ impl Environment {
     let old_nibble = old_value & 0x0F;
     let new_nibble = new_value & 0x0F;
 
-    // Compare the nibbles accordingly depending on the operation we did
     if is_addition {
       self.set_flag(Flags::AuxiliaryCarry, old_nibble + new_nibble > 0x0F);
-      // If we added, then we should have a carry if the new value is smaller
+      // If we added, then we have a carry if the new value is smaller
       self.set_flag(Flags::Carry, new_value < old_value);
     } else {
       self.set_flag(Flags::AuxiliaryCarry, old_nibble < new_nibble);
-      // If we subtracted, then we should have a carry if the new value is greater
+      // If we subtracted, then we have a carry if the new value is greater
       self.set_flag(Flags::Carry, new_value > old_value);
     }
   }
@@ -81,27 +80,27 @@ impl Environment {
     self.set_flag(Flags::AuxiliaryCarry, false);
   }
 
-  /// Writes an address onto the stack, in little endian order.
-  pub fn write_stack_address(&mut self, address: u16) {
+  /// Writes a u16 onto the stack, writing the upper byte first.
+  pub fn write_stack_u16(&mut self, address: u16) {
     // 8085 stores stuff in little endian, so the high byte should be stored first on the stack
     self.write_stack_u8((address >> 8) as u8);
     self.write_stack_u8((address & 0xFF) as u8);
   }
 
-  /// Writes the provided byte onto the stack.
+  /// Writes the byte onto the stack.
   pub fn write_stack_u8(&mut self, value: u8) {
     self.registers.sp = self.registers.sp.wrapping_sub(1);
 
     self.write_memory(self.registers.sp, value);
   }
 
-  /// Writes the value to the address.
+  /// Writes the byte to the address.
   pub fn write_memory(&mut self, address: u16, value: u8) {
     *self.memory.get_mut(address as usize).unwrap() = value;
   }
 
-  /// Reads an address from the stack.
-  pub fn read_stack_address(&mut self) -> u16 {
+  /// Reads a u16 from the stack, in little endian order.
+  pub fn read_stack_u16(&mut self) -> u16 {
     let lower = self.read_stack_u8();
     let upper = self.read_stack_u8();
 
@@ -128,17 +127,53 @@ impl Environment {
       .unwrap()
   }
 
-  /// Reads the byte of memory located at the address.
-  pub fn memory_at(&self, address: u16) -> u8 {
-    self.memory.get(address as usize).copied().unwrap()
-  }
-
   /// Reads a u16 from memory in little endian, wrapping the program counter if necessary.
   pub fn read_memory_u16(&mut self) -> u16 {
     let lower = self.read_memory();
     let upper = self.read_memory();
 
     (upper as u16) << 8 | lower as u16
+  }
+
+  /// Reads the byte of memory located at the address.
+  pub fn memory_at(&self, address: u16) -> u8 {
+    self.memory.get(address as usize).copied().unwrap()
+  }
+
+  /// Reads a register pair, with the first register being stored in the upper byte.
+  pub fn read_register_pair(&self, reg_pair: RegisterPair) -> u16 {
+    match reg_pair {
+      RegisterPair::BC => (self.registers.b as u16) << 8 | self.registers.c as u16,
+      RegisterPair::DE => (self.registers.d as u16) << 8 | self.registers.e as u16,
+      RegisterPair::HL => (self.registers.h as u16) << 8 | self.registers.l as u16,
+      RegisterPair::SP => self.registers.sp,
+      RegisterPair::PSW => (self.registers.a as u16) << 8 | self.flags as u16,
+    }
+  }
+
+  /// Writes to a register pair, storing the upper byte in the first register.
+  pub fn write_register_pair(&mut self, reg_pair: RegisterPair, value: u16) {
+    match reg_pair {
+      RegisterPair::BC => {
+        self.registers.b = (value >> 8) as u8;
+        self.registers.c = (value & 0xFF) as u8;
+      }
+      RegisterPair::DE => {
+        self.registers.d = (value >> 8) as u8;
+        self.registers.e = (value & 0xFF) as u8;
+      }
+      RegisterPair::HL => {
+        self.registers.h = (value >> 8) as u8;
+        self.registers.l = (value & 0xFF) as u8;
+      }
+      RegisterPair::SP => {
+        self.registers.sp = value;
+      }
+      RegisterPair::PSW => {
+        self.registers.a = (value >> 8) as u8;
+        self.flags = (value & 0xFF) as u8;
+      }
+    }
   }
 
   /// Sets the value of the register.
