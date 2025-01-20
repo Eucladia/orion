@@ -749,25 +749,6 @@ fn parse_number(src: &str, token: &Token) -> ParseResult<u16> {
 mod tests {
   use types::{ParseError, ParseErrorKind};
 
-  macro_rules! parse_and_write {
-    ($src:literal) => {
-      let source = include_str!(concat!("../../../test_files/", $src, ".asm"));
-      let program_node = crate::parse(source).unwrap();
-
-      assert!(!program_node.children().is_empty());
-
-      if matches!(std::fs::exists("../../output/parser/"), Ok(false)) {
-        std::fs::create_dir("../../../output/parser/").unwrap();
-      }
-
-      std::fs::write(
-        concat!("../../output/parser/", $src, ".txt"),
-        &program_node.to_string(),
-      )
-      .unwrap();
-    };
-  }
-
   #[test]
   fn numeric_literals() {
     assert!(crate::parse("MVI A, 0FHB").is_err(), "extra suffix");
@@ -874,16 +855,19 @@ mod tests {
 
   #[test]
   fn parser_doesnt_panic() {
-    parse_and_write!("add_two_bytes");
-    parse_and_write!("even_numbers_in_array");
-    parse_and_write!("max_array_value");
-    parse_and_write!("min_num_in_n_array");
-    parse_and_write!("num_zeros_in_byte");
-    parse_and_write!("occurrences_of_num");
-    parse_and_write!("ones_complement");
-    parse_and_write!("add_two_bytes");
-    parse_and_write!("pos_or_neg");
-    parse_and_write!("sum_of_array");
-    parse_and_write!("twos_complement");
+    crate::parse(include_str!("../../../test_files/add_two_bytes.asm")).unwrap();
+    crate::parse(include_str!(
+      "../../../test_files/even_numbers_in_array.asm"
+    ))
+    .unwrap();
+    crate::parse(include_str!("../../../test_files/max_array_value.asm")).unwrap();
+    crate::parse(include_str!("../../../test_files/min_num_in_n_array.asm")).unwrap();
+    crate::parse(include_str!("../../../test_files/num_zeros_in_byte.asm")).unwrap();
+    crate::parse(include_str!("../../../test_files/occurrences_of_num.asm")).unwrap();
+    crate::parse(include_str!("../../../test_files/ones_complement.asm")).unwrap();
+    crate::parse(include_str!("../../../test_files/add_two_bytes.asm")).unwrap();
+    crate::parse(include_str!("../../../test_files/pos_or_neg.asm")).unwrap();
+    crate::parse(include_str!("../../../test_files/sum_of_array.asm")).unwrap();
+    crate::parse(include_str!("../../../test_files/twos_complement.asm")).unwrap();
   }
 }

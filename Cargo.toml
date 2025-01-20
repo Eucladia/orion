@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/lexer", "crates/parser", "crates/interpreter", "crates/types"]
+members = ["crates/*", "xtask"]
 
 [profile]
 release = { lto = true, codegen-units = 1, incremental = false }
