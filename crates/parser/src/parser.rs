@@ -1,9 +1,10 @@
 use crate::nodes::{
-  Expression, ExpressionNode, InstructionNode, LabelNode, Node, Operand, OperandNode, Operator,
-  ProgramNode,
+  DirectiveNode, Expression, ExpressionNode, InstructionNode, LabelNode, Node, Operand,
+  OperandNode, Operator, ProgramNode, MAX_DIRECTIVE_OPERAND_SIZE,
 };
 use crate::unwrap;
 
+use lexer::directive::Directive;
 use lexer::instruction::Instruction;
 use lexer::token::{Token, TokenKind};
 use lexer::Register;
@@ -75,7 +76,7 @@ impl<'a> Parser<'a> {
 
     match token.kind() {
       TokenKind::Identifier => {
-        let ident = unwrap!(self.get_source_content(token.span()));
+        let ident = SmolStr::new(unwrap!(self.get_source_content(token.span())));
 
         if ident.starts_with("$") && ident.len() > 1 {
           return Some(Err(ParseError::new(
@@ -84,30 +85,33 @@ impl<'a> Parser<'a> {
           )));
         }
 
-        let label_node = self.try_parse_label(&token);
+        match self.next_token() {
+          Some(colon_token) if matches!(colon_token.kind(), TokenKind::Colon) => {
+            if ident.len() > MAX_LABEL_NAME {
+              return Some(Err(ParseError::new(
+                token.span().start,
+                ParseErrorKind::InvalidLabelLength,
+              )));
+            }
 
-        if let Some(node) = label_node {
-          if node.label_name().len() > MAX_LABEL_NAME {
-            Some(Err(ParseError::new(
-              token.span().start,
-              ParseErrorKind::InvalidLabelLength,
-            )))
-          } else {
-            Some(Ok(Node::Label(node)))
+            Some(Ok(Node::Label(LabelNode::new(ident, token.span()))))
           }
-        } else {
-          // TODO: Parse directives here
-          todo!("other non label idents")
+          Some(next_token) if matches!(next_token.kind(), TokenKind::Directive) => Some(
+            self
+              .parse_directive(Some(ident), next_token)
+              .map(Node::Directive),
+          ),
+          _ => {
+            self.token_index -= 1;
+
+            unreachable!()
+          }
         }
       }
-      TokenKind::Instruction => {
-        let instruction_node = self.parse_instruction(token);
 
-        Some(match instruction_node {
-          Ok(node) => Ok(Node::Instruction(node)),
-          Err(e) => Err(e),
-        })
-      }
+      TokenKind::Directive => Some(self.parse_directive(None, token).map(Node::Directive)),
+
+      TokenKind::Instruction => Some(self.parse_instruction(token).map(Node::Instruction)),
 
       _ => Some(Err(ParseError::new(
         token.span().start,
@@ -116,22 +120,159 @@ impl<'a> Parser<'a> {
     }
   }
 
-  fn try_parse_label(&mut self, ident_token: &Token) -> Option<LabelNode> {
-    let next_token = self.next_non_whitespace_token();
+  fn parse_directive(
+    &mut self,
+    directive_name: Option<SmolStr>,
+    directive_token: Token,
+  ) -> ParseResult<DirectiveNode> {
+    let directive = unwrap!(Directive::from_string(
+      self.source.get(directive_token.span()).unwrap()
+    ));
 
-    match next_token {
-      Some(colon_token) if matches!(colon_token.kind(), TokenKind::Colon) => {
-        // SAFETY: We have a valid identifier token and we just checked for a colon, given
-        // the immutable source str
-        let label_name = unwrap!(self.get_source_content(ident_token.span())).to_string();
+    let mut operands = SmallVec::with_capacity(MAX_DIRECTIVE_OPERAND_SIZE);
+    let mut last_token_operand = false;
 
-        Some(LabelNode::new(
-          SmolStr::new(&label_name),
-          ident_token.span(),
-        ))
+    while let Some(token) = self.next_token() {
+      match token {
+        token
+          if matches!(token.kind(), TokenKind::Numeric)
+            // The only valid unary operator is minus
+            || (matches!(token.kind(), TokenKind::Operator)
+            && matches!(self.source.get(token.span()), Some("-"))) =>
+        {
+          if matches!(
+            self
+              .peek_token_from_n(self.token_index)
+              .as_ref()
+              .map(Token::kind),
+            Some(TokenKind::Operator)
+          ) {
+            self.token_index -= 1;
+
+            let expr = self.parse_expr()?;
+            let span = token.span().start..self.previous_token().unwrap().span().end;
+
+            operands.push(OperandNode::new(Operand::Expression(expr), span))
+          } else if matches!(token.kind(), TokenKind::Operator) {
+            let Some(number_token) = self.next_token() else {
+              return Err(ParseError::new(
+                token.span().end,
+                ParseErrorKind::ExpectedOperand,
+              ));
+            };
+            let num = 0_u16.wrapping_sub(parse_number(self.source, &number_token)?);
+
+            operands.push(OperandNode::new(
+              Operand::Numeric(num),
+              token.span().start..number_token.span().end,
+            ));
+          } else {
+            let num = parse_number(self.source, &token)?;
+
+            operands.push(OperandNode::new(Operand::Numeric(num), token.span()));
+          }
+
+          last_token_operand = true;
+        }
+        token if matches!(token.kind(), TokenKind::Identifier) => {
+          if matches!(
+            self.peek_token().as_ref().map(Token::kind),
+            Some(TokenKind::Operator)
+          ) {
+            self.token_index -= 1;
+
+            let expr = self.parse_expr()?;
+            let span = token.span().start..self.previous_token().unwrap().span().end;
+
+            operands.push(OperandNode::new(Operand::Expression(expr), span))
+          } else {
+            // SAFETY: We have a valid `Identifier` token produced by the lexer and an immutable str
+            operands.push(OperandNode::new(
+              Operand::Identifier(SmolStr::new(unwrap!(self.source.get(token.span())))),
+              token.span(),
+            ))
+          }
+
+          last_token_operand = true;
+        }
+        token if matches!(token.kind(), TokenKind::String) => {
+          if matches!(
+            self.peek_token().as_ref().map(Token::kind),
+            Some(TokenKind::Operator)
+          ) {
+            self.token_index -= 1;
+
+            let expr = self.parse_expr()?;
+            let span = token.span().start..self.previous_token().unwrap().span().end;
+
+            operands.push(OperandNode::new(Operand::Expression(expr), span))
+          } else {
+            operands.push(OperandNode::new(
+              Operand::String(parse_string(self.source, &token)?),
+              token.span(),
+            ))
+          }
+
+          last_token_operand = true;
+        }
+        token if matches!(token.kind(), TokenKind::Register) => {
+          // SAFETY: We have a valid `Register` token produced from the lexer and an immutable str
+          let reg_str = unwrap!(self.get_source_content(token.span()));
+          let reg = unwrap!(Register::from_string(reg_str));
+
+          operands.push(OperandNode::new(Operand::Register(reg), token.span()));
+          last_token_operand = true;
+        }
+        token if matches!(token.kind(), TokenKind::Comma) => {
+          if !last_token_operand {
+            return Err(ParseError::new(
+              token.span().start,
+              ParseErrorKind::UnexpectedToken,
+            ));
+          }
+
+          last_token_operand = false;
+        }
+        token if matches!(token.kind(), TokenKind::LeftParenthesis) => {
+          self.token_index -= 1;
+
+          let expr = self.parse_expr()?;
+          let span = token.span().start..self.previous_token().unwrap().span().end;
+
+          operands.push(OperandNode::new(Operand::Expression(expr), span));
+          last_token_operand = true;
+        }
+        token => {
+          return Err(ParseError::new(
+            token.span().start,
+            ParseErrorKind::InvalidOperand,
+          ));
+        }
       }
-      _ => None,
     }
+
+    // We have a valid statement if it's not the last statement or if the statement is
+    // terminated with a linebreak.
+    //
+    // `peek_token` can also return `None`, if it saw a linebreak.
+    let got_linebreak = self.peek_token().is_none() && self.token_index < self.tokens.len();
+    let prev_token = self
+      .previous_token()
+      .expect("previous token shouldn't be empty");
+
+    if self.peek_non_whitespace_token().is_some() && !got_linebreak {
+      return Err(ParseError::new(
+        prev_token.span().end,
+        ParseErrorKind::ExpectedLinebreak,
+      ));
+    }
+
+    Ok(DirectiveNode::from_operands(
+      directive_name,
+      directive,
+      operands,
+      directive_token.span().start..prev_token.span().end,
+    ))
   }
 
   fn parse_instruction(&mut self, instruction_token: Token) -> ParseResult<InstructionNode> {
@@ -647,8 +788,8 @@ impl<'a> Parser<'a> {
   }
 }
 
-/// Parses the text delimited in single quotes from a [`Token`], failing if the string is
-/// longer than 128 characters.
+/// Parses the text delimited in single quotes from a [`Token`],
+/// failing if the string is longer than 128 characters.
 fn parse_string(source: &str, token: &Token) -> ParseResult<SmolStr> {
   let span = token.span();
 

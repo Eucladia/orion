@@ -95,17 +95,32 @@ pub enum AssembleErrorKind {
   #[error("an invalid operand value was passed")]
   InvalidOperandValue,
 
+  #[error("an invalid operator was used in an expression")]
+  InvalidOperator,
+
+  #[error("a value was not provided")]
+  ExpectedValue,
+
   #[error("the value was not 2 bytes")]
   ExpectedTwoByteValue,
 
   #[error("the value was not 1 byte")]
   ExpectedOneByteValue,
 
-  #[error("the label was already defined")]
-  LabelRedefined,
+  #[error("the identifer was already defined")]
+  IdentifierAlreadyDefined,
 
   #[error("the identifier was not defined yet")]
   IdentifierNotDefined,
+
+  #[error("this directive requires a identifier")]
+  DirectiveRequiresName,
+
+  #[error("the directive requires operands")]
+  DirectiveRequiresOperands,
+
+  #[error("the directive has too many operands")]
+  DirectiveHasTooManyOperands,
 }
 
 impl AssembleError {

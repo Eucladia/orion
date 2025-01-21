@@ -1,9 +1,10 @@
-use lexer::{instruction::Instruction, Register};
+use lexer::{directive::Directive, instruction::Instruction, Register};
 use smallvec::SmallVec;
 use smol_str::SmolStr;
 use std::ops::Range;
 
-const MAX_OPERAND_SIZE: usize = 2;
+pub const MAX_INSTRUCTION_OPERAND_SIZE: usize = 2;
+pub const MAX_DIRECTIVE_OPERAND_SIZE: usize = 8;
 
 /// The root node for a source file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,6 +19,8 @@ pub enum Node {
   Instruction(InstructionNode),
   /// A label node.
   Label(LabelNode),
+  /// An assembler directive.
+  Directive(DirectiveNode),
 }
 
 /// A node representing a label.
@@ -30,8 +33,17 @@ pub struct LabelNode {
 /// A node representing an instruction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionNode {
-  operands: SmallVec<[OperandNode; MAX_OPERAND_SIZE]>,
+  operands: SmallVec<[OperandNode; MAX_INSTRUCTION_OPERAND_SIZE]>,
   instruction: Instruction,
+  span: Range<usize>,
+}
+
+/// A node representing an assembler directive.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectiveNode {
+  name: Option<SmolStr>,
+  operands: SmallVec<[OperandNode; MAX_DIRECTIVE_OPERAND_SIZE]>,
+  directive: Directive,
   span: Range<usize>,
 }
 
@@ -186,15 +198,17 @@ impl ExpressionNode {
 impl InstructionNode {
   /// Creates an [`InstructionNode`] from the given instruction.
   pub fn new(instruction: Instruction, span: Range<usize>) -> Self {
-    const MAX_OPERANDS: usize = 2;
-
-    Self::from_operands(instruction, SmallVec::with_capacity(MAX_OPERANDS), span)
+    Self::from_operands(
+      instruction,
+      SmallVec::with_capacity(MAX_INSTRUCTION_OPERAND_SIZE),
+      span,
+    )
   }
 
   /// Creates an [`InstructionNode`] from the given instruction and operands
   pub fn from_operands(
     instruction: Instruction,
-    operands: SmallVec<[OperandNode; MAX_OPERAND_SIZE]>,
+    operands: SmallVec<[OperandNode; MAX_INSTRUCTION_OPERAND_SIZE]>,
     span: Range<usize>,
   ) -> Self {
     Self {
@@ -215,6 +229,53 @@ impl InstructionNode {
   }
 
   /// The span of this instruction, in the source.
+  pub fn span(&self) -> Range<usize> {
+    self.span.clone()
+  }
+}
+
+impl DirectiveNode {
+  /// Creates an [`DirectiveNode`] from the given directive.
+  pub fn new(name: Option<SmolStr>, directive: Directive, span: Range<usize>) -> Self {
+    Self::from_operands(
+      name,
+      directive,
+      SmallVec::with_capacity(MAX_DIRECTIVE_OPERAND_SIZE),
+      span,
+    )
+  }
+
+  /// Creates a [`DirectiveNode`] from the given directive and operands.
+  pub fn from_operands(
+    name: Option<SmolStr>,
+    directive: Directive,
+    operands: SmallVec<[OperandNode; MAX_DIRECTIVE_OPERAND_SIZE]>,
+    span: Range<usize>,
+  ) -> Self {
+    Self {
+      name,
+      directive,
+      operands,
+      span,
+    }
+  }
+
+  /// The identifier assigned to this directive.
+  pub fn identifier(&self) -> Option<&SmolStr> {
+    self.name.as_ref()
+  }
+
+  /// The [`Directive`] of this node.
+  pub const fn directive(&self) -> Directive {
+    self.directive
+  }
+
+  /// The operands of this node.
+  pub fn operands(&self) -> &[OperandNode] {
+    &self.operands
+  }
+
+  /// The span of this directive, in the source.
   pub fn span(&self) -> Range<usize> {
     self.span.clone()
   }
@@ -275,6 +336,9 @@ impl std::fmt::Display for ProgramNode {
         Node::Label(label) => {
           writeln!(f, "{}", label)?;
         }
+        Node::Directive(directive) => {
+          writeln!(f, "{}", directive)?;
+        }
       }
     }
 
@@ -297,6 +361,12 @@ impl std::fmt::Display for ExpressionNode {
 impl std::fmt::Display for LabelNode {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     write!(f, "{}:", self.label_name())
+  }
+}
+
+impl std::fmt::Display for DirectiveNode {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}", self.directive)
   }
 }
 

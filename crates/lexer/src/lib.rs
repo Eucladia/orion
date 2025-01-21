@@ -1,3 +1,4 @@
+pub mod directive;
 mod flags;
 pub mod instruction;
 mod lexer;

@@ -1,4 +1,6 @@
-use crate::{create_token, instruction::Instruction, register::Register, token::Token};
+use crate::{
+  create_token, directive::Directive, instruction::Instruction, register::Register, token::Token,
+};
 use types::{LexError, LexResult};
 
 // A lexer used to lex a source program into tokens.
@@ -97,7 +99,7 @@ impl<'a> Lexer<'a> {
         eat_identifier(self);
 
         let span = start..self.curr;
-        // SAFETY: We know the range is valid and the characters are ASCII
+        // SAFETY: We know the range is valid and we only consume valid ASCII.
         let identifier =
           unsafe { std::str::from_utf8_unchecked(self.bytes.get_unchecked(span.clone())) };
 
@@ -105,6 +107,8 @@ impl<'a> Lexer<'a> {
           Some(Ok(create_token!(Instruction, span)))
         } else if Register::is_register(identifier) {
           Some(Ok(create_token!(Register, span)))
+        } else if Directive::is_directive(identifier) {
+          Some(Ok(create_token!(Directive, span)))
         } else if is_operator(identifier) {
           Some(Ok(create_token!(Operator, span)))
         } else {

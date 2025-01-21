@@ -56,6 +56,10 @@ pub enum TokenKind {
   // Separate these 2 from `Identifier` to make life easier when parsing
   /// An 8085 assembly instruction.
   Instruction,
+  /// A directive.
+  ///
+  /// Directives are used by the assembler to aid in development.
+  Directive,
   /// A register.
   ///
   /// The registers are `A`, `B`, `C`, `D`, `E`, `H`, `L`, and a psuedo-register `M`.

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{encodings, instructions, Environment};
 use parser::nodes::{Node, ProgramNode};
 use types::{AssembleError, AssembleErrorKind};
@@ -18,6 +20,7 @@ impl Interpreter {
 
   /// Assmebles the assembly, encoding the instructions into memory.
   pub fn assemble(&mut self) -> types::AssembleResult<()> {
+    let mut symbols = HashMap::new();
     let mut unassembled = Vec::new();
 
     for node in self.node.children() {
@@ -33,7 +36,7 @@ impl Interpreter {
           if self.env.labels.contains_key(&label_name) {
             return Err(AssembleError::new(
               label.span().start,
-              AssembleErrorKind::LabelRedefined,
+              AssembleErrorKind::IdentifierAlreadyDefined,
             ));
           }
 
@@ -43,8 +46,8 @@ impl Interpreter {
 
           let addr = Environment::INSTRUCTION_STARTING_ADDRESS + self.env.assemble_index;
 
-          self.env.assemble_instruction(addr, lower);
-          self.env.assemble_instruction(addr + 1, upper);
+          self.env.assemble_u8(addr, lower);
+          self.env.assemble_u8(addr + 1, upper);
           // Make this index (and the next) as a label index
           self.env.label_indices.insert(addr, label_name.clone());
 
@@ -53,7 +56,10 @@ impl Interpreter {
           // Point this label to the instruction's that should be executed
           self.env.add_label(label_name, self.env.assemble_index);
         }
-      };
+        Node::Directive(directive) => {
+          self.env.encode_directive(directive, &mut symbols)?;
+        }
+      }
     }
 
     // Everything should be assembled after this second pass
@@ -469,6 +475,23 @@ mod tests {
       )),
       "using d16 instead of d8"
     );
+  }
+
+  #[test]
+  fn directives() {
+    run_asm!(
+      "STR: DB 'TIME'\nHERE: DB 0A3H",
+      |int: &mut Interpreter|
+        // First DB
+        int.env.memory_at(2) == 0x54
+        && int.env.memory_at(3) == 0x49
+        && int.env.memory_at(4) == 0x4D
+        && int.env.memory_at(5) == 0x45
+        // Second DB
+        && int.env.memory_at(8) == 0xA3,
+      "expected DB directive w/ multi string to be encoded"
+    )
+    .unwrap()
   }
 
   #[test]
