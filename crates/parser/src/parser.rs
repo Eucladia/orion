@@ -101,11 +101,11 @@ impl<'a> Parser<'a> {
               .parse_directive(next_token, Some(&token))
               .map(Node::Directive),
           ),
-          _ => {
-            self.token_index -= 1;
 
-            unreachable!()
-          }
+          _ => Some(Err(ParseError::new(
+            token.span().start,
+            ParseErrorKind::UnexpectedToken,
+          ))),
         }
       }
 
