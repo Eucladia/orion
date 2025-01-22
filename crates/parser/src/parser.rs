@@ -748,7 +748,7 @@ impl<'a> Parser<'a> {
     while let Some(tok) = self.next_token() {
       let op = Operator::try_from(self.source.get(tok.span()).unwrap()).ok();
 
-      if !matches!(op, Some(Operator::Addition)) {
+      if !matches!(op, Some(Operator::Addition | Operator::Subtraction)) {
         self.token_index -= 1;
         break;
       }
