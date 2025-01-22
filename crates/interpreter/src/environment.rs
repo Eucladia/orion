@@ -426,22 +426,27 @@ impl Environment {
           Operand::Numeric(num) => evaluate_instruction_expression(
             self,
             &ExpressionNode::new(Expression::Number(*num), op.span.clone()),
+            self.assemble_index,
             symbols,
             false,
           ),
           Operand::Identifier(str) => evaluate_instruction_expression(
             self,
             &ExpressionNode::new(Expression::Identifier(str.clone()), op.span.clone()),
+            self.assemble_index,
             symbols,
             false,
           ),
           Operand::String(str) => evaluate_instruction_expression(
             self,
             &ExpressionNode::new(Expression::String(str.clone()), op.span.clone()),
+            self.assemble_index,
             symbols,
             false,
           ),
-          Operand::Expression(expr) => evaluate_instruction_expression(self, expr, symbols, false),
+          Operand::Expression(expr) => {
+            evaluate_instruction_expression(self, expr, self.assemble_index, symbols, false)
+          }
           Operand::Register(_) => Err(AssembleError::new(
             op.span.start,
             AssembleErrorKind::InvalidOperandType,
@@ -593,7 +598,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encode_lxi(r1));
           self.assemble_u16(addr + 1, val);
@@ -733,7 +738,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ref span,
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) if val <= u8::MAX as u16 => {
           self.assemble_u8(addr, encode_mvi(r1));
           self.assemble_u8(addr + 1, val as u8);
@@ -1183,7 +1188,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::JNZ);
           self.assemble_u16(addr + 1, val);
@@ -1245,7 +1250,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::JNC);
           self.assemble_u16(addr + 1, val);
@@ -1317,7 +1322,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::JPO);
           self.assemble_u16(addr + 1, val);
@@ -1389,7 +1394,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::JP);
           self.assemble_u16(addr + 1, val);
@@ -1461,7 +1466,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::JMP);
           self.assemble_u16(addr + 1, val);
@@ -1533,7 +1538,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::JZ);
           self.assemble_u16(addr + 1, val);
@@ -1605,7 +1610,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::JC);
           self.assemble_u16(addr + 1, val);
@@ -1677,7 +1682,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::JPE);
           self.assemble_u16(addr + 1, val);
@@ -1749,7 +1754,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::JM);
           self.assemble_u16(addr + 1, val);
@@ -1821,7 +1826,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::CNZ);
           self.assemble_u16(addr + 1, val);
@@ -1893,7 +1898,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::CNC);
           self.assemble_u16(addr + 1, val);
@@ -1965,7 +1970,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::CPO);
           self.assemble_u16(addr + 1, val);
@@ -2037,7 +2042,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::CP);
           self.assemble_u16(addr + 1, val);
@@ -2109,7 +2114,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::CZ);
           self.assemble_u16(addr + 1, val);
@@ -2181,7 +2186,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::CC);
           self.assemble_u16(addr + 1, val);
@@ -2253,7 +2258,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::CPE);
           self.assemble_u16(addr + 1, val);
@@ -2325,7 +2330,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::CM);
           self.assemble_u16(addr + 1, val);
@@ -2397,7 +2402,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::CALL);
           self.assemble_u16(addr + 1, val);
@@ -2469,7 +2474,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::STA);
           self.assemble_u16(addr + 1, val);
@@ -2542,7 +2547,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::SHLD);
           self.assemble_u16(addr + 1, val);
@@ -2614,7 +2619,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::LDA);
           self.assemble_u16(addr + 1, val);
@@ -2686,7 +2691,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ..
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) => {
           self.assemble_u8(addr, encodings::LHLD);
           self.assemble_u16(addr + 1, val);
@@ -2777,7 +2782,7 @@ impl Environment {
             ));
           }
         } else if is_first_pass {
-          // Only handle user defined symbols, via directives, on the first pass
+          // Only handle user defined addr, symbols, via directives, on the first pass
           if let Some(val) = symbols.get(ident) {
             if *val <= u8::MAX as u16 {
               self.assemble_u8(addr, encodings::ACI);
@@ -2804,7 +2809,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ref span,
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) if val <= u8::MAX as u16 => {
           self.assemble_u8(addr, encodings::ACI);
           self.assemble_u8(addr + 1, val as u8);
@@ -2882,7 +2887,7 @@ impl Environment {
             ));
           }
         } else if is_first_pass {
-          // Only handle user defined symbols, via directives, on the first pass
+          // Only handle user defined addr, symbols, via directives, on the first pass
           if let Some(val) = symbols.get(ident) {
             if *val <= u8::MAX as u16 {
               self.assemble_u8(addr, encodings::SBI);
@@ -2909,7 +2914,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ref span,
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) if val <= u8::MAX as u16 => {
           self.assemble_u8(addr, encodings::SBI);
           self.assemble_u8(addr + 1, val as u8);
@@ -3007,7 +3012,7 @@ impl Environment {
             ));
           }
         } else if is_first_pass {
-          // Only handle user defined symbols, via directives, on the first pass
+          // Only handle user defined addr, symbols, via directives, on the first pass
           if let Some(val) = symbols.get(ident) {
             if *val <= u8::MAX as u16 {
               self.assemble_u8(addr, encodings::XRI);
@@ -3034,7 +3039,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ref span,
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) if val <= u8::MAX as u16 => {
           self.assemble_u8(addr, encodings::XRI);
           self.assemble_u8(addr + 1, val as u8);
@@ -3132,7 +3137,7 @@ impl Environment {
             ));
           }
         } else if is_first_pass {
-          // Only handle user defined symbols, via directives, on the first pass
+          // Only handle user defined addr, symbols, via directives, on the first pass
           if let Some(val) = symbols.get(ident) {
             if *val <= u8::MAX as u16 {
               self.assemble_u8(addr, encodings::CPI);
@@ -3159,7 +3164,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ref span,
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) if val <= u8::MAX as u16 => {
           self.assemble_u8(addr, encodings::CPI);
           self.assemble_u8(addr + 1, val as u8);
@@ -3257,7 +3262,7 @@ impl Environment {
             ));
           }
         } else if is_first_pass {
-          // Only handle user defined symbols, via directives, on the first pass
+          // Only handle user defined addr, symbols, via directives, on the first pass
           if let Some(val) = symbols.get(ident) {
             if *val <= u8::MAX as u16 {
               self.assemble_u8(addr, encodings::ADI);
@@ -3284,7 +3289,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ref span,
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) if val <= u8::MAX as u16 => {
           self.assemble_u8(addr, encodings::ADI);
           self.assemble_u8(addr + 1, val as u8);
@@ -3382,7 +3387,7 @@ impl Environment {
             ));
           }
         } else if is_first_pass {
-          // Only handle user defined symbols, via directives, on the first pass
+          // Only handle user defined addr, symbols, via directives, on the first pass
           if let Some(val) = symbols.get(ident) {
             if *val <= u8::MAX as u16 {
               self.assemble_u8(addr, encodings::SUI);
@@ -3409,7 +3414,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ref span,
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) if val <= u8::MAX as u16 => {
           self.assemble_u8(addr, encodings::SUI);
           self.assemble_u8(addr + 1, val as u8);
@@ -3507,7 +3512,7 @@ impl Environment {
             ));
           }
         } else if is_first_pass {
-          // Only handle user defined symbols, via directives, on the first pass
+          // Only handle user defined addr, symbols, via directives, on the first pass
           if let Some(val) = symbols.get(ident) {
             if *val <= u8::MAX as u16 {
               self.assemble_u8(addr, encodings::ANI);
@@ -3534,7 +3539,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ref span,
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) if val <= u8::MAX as u16 => {
           self.assemble_u8(addr, encodings::ANI);
           self.assemble_u8(addr + 1, val as u8);
@@ -3632,7 +3637,7 @@ impl Environment {
             ));
           }
         } else if is_first_pass {
-          // Only handle user defined symbols, via directives, on the first pass
+          // Only handle user defined addr, symbols, via directives, on the first pass
           if let Some(val) = symbols.get(ident) {
             if *val <= u8::MAX as u16 {
               self.assemble_u8(addr, encodings::ORI);
@@ -3659,7 +3664,7 @@ impl Environment {
           operand: Operand::Expression(ref expr),
           ref span,
         }],
-      ) => match evaluate_instruction_expression(self, expr, symbols, is_first_pass) {
+      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
         Ok(val) if val <= u8::MAX as u16 => {
           self.assemble_u8(addr, encodings::ORI);
           self.assemble_u8(addr + 1, val as u8);
@@ -3765,6 +3770,7 @@ impl Default for Environment {
 fn evaluate_instruction_expression(
   env: &Environment,
   expr: &ExpressionNode,
+  assemble_index: u16,
   symbols: &HashMap<&SmolStr, u16>,
   is_first_pass: bool,
 ) -> AssembleResult<u16> {
@@ -3784,7 +3790,7 @@ fn evaluate_instruction_expression(
     }
     Expression::Identifier(ref label) => {
       if label == "$" {
-        Ok(env.assemble_index)
+        Ok(assemble_index)
       } else if let Some(addr) = env.get_label_address(label) {
         Ok(addr)
       } else if is_first_pass {
@@ -3804,31 +3810,35 @@ fn evaluate_instruction_expression(
       }
     }
     Expression::Paren(child_expr) => {
-      evaluate_instruction_expression(env, child_expr, symbols, is_first_pass)
+      evaluate_instruction_expression(env, child_expr, assemble_index, symbols, is_first_pass)
     }
     Expression::Unary {
       op,
       expr: child_expr,
     } => match op {
       Operator::Addition => {
-        evaluate_instruction_expression(env, child_expr, symbols, is_first_pass)
+        evaluate_instruction_expression(env, child_expr, assemble_index, symbols, is_first_pass)
       }
       // Handle unary subtraction via wraparound
       Operator::Subtraction => Ok(0_u16.wrapping_sub(evaluate_instruction_expression(
         env,
         child_expr,
+        assemble_index,
         symbols,
         is_first_pass,
       )?)),
-      Operator::High => {
-        Ok(evaluate_instruction_expression(env, child_expr, symbols, is_first_pass)? >> 8)
-      }
-      Operator::Low => {
-        Ok(evaluate_instruction_expression(env, child_expr, symbols, is_first_pass)? & 0xFF)
-      }
+      Operator::High => Ok(
+        evaluate_instruction_expression(env, child_expr, assemble_index, symbols, is_first_pass)?
+          >> 8,
+      ),
+      Operator::Low => Ok(
+        evaluate_instruction_expression(env, child_expr, assemble_index, symbols, is_first_pass)?
+          & 0xFF,
+      ),
       Operator::Not => Ok(!evaluate_instruction_expression(
         env,
         child_expr,
+        assemble_index,
         symbols,
         is_first_pass,
       )?),
@@ -3836,77 +3846,113 @@ fn evaluate_instruction_expression(
     },
     Expression::Binary { op, left, right } => match op {
       Operator::Addition => Ok(
-        evaluate_instruction_expression(env, left, symbols, is_first_pass)?.wrapping_add(
-          evaluate_instruction_expression(env, right, symbols, is_first_pass)?,
-        ),
+        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          .wrapping_add(evaluate_instruction_expression(
+            env,
+            right,
+            assemble_index,
+            symbols,
+            is_first_pass,
+          )?),
       ),
       Operator::Subtraction => Ok(
-        evaluate_instruction_expression(env, left, symbols, is_first_pass)?.wrapping_sub(
-          evaluate_instruction_expression(env, right, symbols, is_first_pass)?,
-        ),
+        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          .wrapping_sub(evaluate_instruction_expression(
+            env,
+            right,
+            assemble_index,
+            symbols,
+            is_first_pass,
+          )?),
       ),
       Operator::Division => Ok(
-        evaluate_instruction_expression(env, left, symbols, is_first_pass)?.wrapping_div(
-          evaluate_instruction_expression(env, right, symbols, is_first_pass)?,
-        ),
+        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          .wrapping_div(evaluate_instruction_expression(
+            env,
+            right,
+            assemble_index,
+            symbols,
+            is_first_pass,
+          )?),
       ),
       Operator::Multiplication => Ok(
-        evaluate_instruction_expression(env, left, symbols, is_first_pass)?.wrapping_mul(
-          evaluate_instruction_expression(env, right, symbols, is_first_pass)?,
-        ),
+        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          .wrapping_mul(evaluate_instruction_expression(
+            env,
+            right,
+            assemble_index,
+            symbols,
+            is_first_pass,
+          )?),
       ),
 
       Operator::Modulo => Ok(
-        evaluate_instruction_expression(env, left, symbols, is_first_pass)?
-          % evaluate_instruction_expression(env, right, symbols, is_first_pass)?,
+        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          % evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?,
       ),
       Operator::ShiftLeft => Ok(
-        evaluate_instruction_expression(env, left, symbols, is_first_pass)?.wrapping_shl(
-          evaluate_instruction_expression(env, right, symbols, is_first_pass)? as u32,
-        ),
+        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          .wrapping_shl(evaluate_instruction_expression(
+            env,
+            right,
+            assemble_index,
+            symbols,
+            is_first_pass,
+          )? as u32),
       ),
       Operator::ShiftRight => Ok(
-        evaluate_instruction_expression(env, left, symbols, is_first_pass)?.wrapping_shr(
-          evaluate_instruction_expression(env, right, symbols, is_first_pass)? as u32,
-        ),
+        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          .wrapping_shr(evaluate_instruction_expression(
+            env,
+            right,
+            assemble_index,
+            symbols,
+            is_first_pass,
+          )? as u32),
       ),
       Operator::And => Ok(
-        evaluate_instruction_expression(env, left, symbols, is_first_pass)?
-          & evaluate_instruction_expression(env, right, symbols, is_first_pass)?,
+        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          & evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?,
       ),
       Operator::Or => Ok(
-        evaluate_instruction_expression(env, left, symbols, is_first_pass)?
-          | evaluate_instruction_expression(env, right, symbols, is_first_pass)?,
+        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          | evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?,
       ),
       Operator::Xor => Ok(
-        evaluate_instruction_expression(env, left, symbols, is_first_pass)?
-          ^ evaluate_instruction_expression(env, right, symbols, is_first_pass)?,
+        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          ^ evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?,
       ),
 
       Operator::Eq => Ok(
-        (evaluate_instruction_expression(env, left, symbols, is_first_pass)?
-          == evaluate_instruction_expression(env, right, symbols, is_first_pass)?) as u16,
+        (evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          == evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?)
+          as u16,
       ),
       Operator::Ne => Ok(
-        (evaluate_instruction_expression(env, left, symbols, is_first_pass)?
-          != evaluate_instruction_expression(env, right, symbols, is_first_pass)?) as u16,
+        (evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          != evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?)
+          as u16,
       ),
       // NOTE: Relational comparisons compare the bits, not the values
       Operator::Lt => Ok(
-        (evaluate_instruction_expression(env, left, symbols, is_first_pass)?
-          < evaluate_instruction_expression(env, right, symbols, is_first_pass)?) as u16,
+        (evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          < evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?)
+          as u16,
       ),
       Operator::Le => Ok(
-        (evaluate_instruction_expression(env, left, symbols, is_first_pass)?
-          <= evaluate_instruction_expression(env, right, symbols, is_first_pass)?) as u16,
+        (evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          <= evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?)
+          as u16,
       ),
       Operator::Gt => Ok(
-        (evaluate_instruction_expression(env, left, symbols, is_first_pass)?
-          > evaluate_instruction_expression(env, right, symbols, is_first_pass)?) as u16,
+        (evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          > evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?)
+          as u16,
       ),
       Operator::Ge => Ok(
-        (evaluate_instruction_expression(env, left, symbols, is_first_pass)?
-          >= evaluate_instruction_expression(env, right, symbols, is_first_pass)?) as u16,
+        (evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
+          >= evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?)
+          as u16,
       ),
       // `NOT`, `HIGH`, `LOW `are handled in the unary section
       Operator::Not | Operator::High | Operator::Low => unreachable!(),
