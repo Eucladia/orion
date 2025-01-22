@@ -31,7 +31,7 @@ impl Interpreter {
             insn,
             &mut unassembled,
             &symbols,
-            false,
+            true,
           )?;
         }
         Node::Label(label) => {
@@ -73,7 +73,7 @@ impl Interpreter {
       for elem in unassembled.iter() {
         self
           .env
-          .encode_instruction(elem.1, elem.0, &mut new_unassembled, &symbols, true)?;
+          .encode_instruction(elem.1, elem.0, &mut new_unassembled, &symbols, false)?;
       }
     }
 
@@ -506,6 +506,58 @@ mod tests {
         && int.env.memory_at(11) == 0xFD && int.env.memory_at(12) == 0x0A,
       "expected DB directive w/ multi string to be encoded"
     );
+
+    run_asm!(
+      "TEST1 EQU 0FFH\nMVI B, TEST1 - 1\nTEST2 SET 1\nMVI C, TEST2\nTEST2 SET 3\nADI TEST2",
+      |int: &mut Interpreter| int.env.registers.b == 0xFE
+        && int.env.registers.c == 0x1
+        && int.env.registers.a == 0x3,
+      "using custom identifier as operand"
+    )
+    .unwrap();
+
+    assert_eq!(
+      run_asm!(
+        "MVI A, TEST + 3\nTEST EQU 2",
+        |_| false,
+        "using later defined custom identifier as operand"
+      ),
+      Err(AssembleError::new(
+        7,
+        AssembleErrorKind::IdentifierNotDefined
+      ))
+    );
+
+    assert_eq!(
+      run_asm!(
+        "MVI A, TEST",
+        |_| false,
+        "using undefined identifier as operand"
+      ),
+      Err(AssembleError::new(
+        7,
+        AssembleErrorKind::IdentifierNotDefined
+      ))
+    );
+
+    assert_eq!(
+      run_asm!(
+        "MVI A, TEST + 3",
+        |_| false,
+        "using undefined expression identifier as operand"
+      ),
+      Err(AssembleError::new(
+        7,
+        AssembleErrorKind::IdentifierNotDefined
+      ))
+    );
+
+    run_asm!(
+      "LXI H, TEST + 1\nMOV A, M\nTEST: DB 5,20",
+      |int: &mut Interpreter| int.env.registers.a == 20,
+      "expr with later defined label as operand"
+    )
+    .unwrap()
   }
 
   #[test]
