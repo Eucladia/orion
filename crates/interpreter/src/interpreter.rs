@@ -458,8 +458,15 @@ mod tests {
 
     run_asm!(
       "MVI A, -0FFH",
-      |int: &mut Interpreter| int.env.registers.a == 0xFF,
+      |int: &mut Interpreter| int.env.registers.a == 0x1,
       "using -0xFF as d8 for MVI"
+    )
+    .unwrap();
+
+    run_asm!(
+      "MVI A, -1H",
+      |int: &mut Interpreter| int.env.registers.a == 0xFF,
+      "using -0x1 as d8 for MVI"
     )
     .unwrap();
 
@@ -479,19 +486,22 @@ mod tests {
 
   #[test]
   fn directives() {
-    run_asm!(
-      "STR: DB 'TIME'\nHERE: DB 0A3H",
-      |int: &mut Interpreter|
-        // First DB
-        int.env.memory_at(2) == 0x54
+    let mut int =
+      Interpreter::new(parser::parse("STR: DB 'TIME'\nHERE: DB 0A3H\nWORD1: DB -03H,5*2").unwrap());
+
+    int.assemble().unwrap();
+
+    assert!(
+      int.env.memory_at(2) == 0x54
         && int.env.memory_at(3) == 0x49
         && int.env.memory_at(4) == 0x4D
         && int.env.memory_at(5) == 0x45
-        // Second DB
-        && int.env.memory_at(8) == 0xA3,
+        // Second statement
+        && int.env.memory_at(8) == 0xA3
+        // Third statement
+        && int.env.memory_at(11) == 0xFD && int.env.memory_at(12) == 0x0A,
       "expected DB directive w/ multi string to be encoded"
-    )
-    .unwrap()
+    );
   }
 
   #[test]
@@ -512,6 +522,13 @@ mod tests {
         .iter()
         .all(|x| *x == b'A')
       },
+      "MVI w/ 'A' d8"
+    )
+    .unwrap();
+
+    run_asm!(
+      "MVI A, --(5 + (-30 * -2))",
+      |int: &mut Interpreter| { int.env.registers.a == b'A' },
       "MVI w/ 'A' d8"
     )
     .unwrap();

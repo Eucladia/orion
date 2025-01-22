@@ -134,17 +134,76 @@ impl<'a> Parser<'a> {
 
     while let Some(token) = self.next_token() {
       match token {
+        // Handle unary minus separately
         token
-          if matches!(token.kind(), TokenKind::Numeric)
-            // The only valid unary operator is minus
-            || (matches!(token.kind(), TokenKind::Operator)
-            && matches!(self.source.get(token.span()), Some("-"))) =>
+          if matches!(token.kind(), TokenKind::Operator)
+            && matches!(self.source.get(token.span()), Some("-")) =>
         {
+          let prev_index = self.token_index - 1;
+
+          // Greedily consume all unary negations
+          while let Some(next_token) = self.next_token() {
+            if !matches!(next_token.kind(), TokenKind::Operator) {
+              self.token_index -= 1;
+              break;
+            }
+
+            let op_src = self.source.get(next_token.span()).unwrap();
+
+            if op_src != "-" {
+              return Err(ParseError::new(
+                next_token.span().start,
+                ParseErrorKind::InvalidOperand,
+              ));
+            }
+          }
+
+          let Some(num_or_expr) = self.next_token() else {
+            return Err(ParseError::new(
+              token.span().end,
+              ParseErrorKind::ExpectedOperand,
+            ));
+          };
+
+          // Handle `-(expr)`, `-5 + 2`, `-$` as expressions
           if matches!(
-            self
-              .peek_token_from_n(self.token_index)
-              .as_ref()
-              .map(Token::kind),
+            num_or_expr.kind(),
+            TokenKind::LeftParenthesis | TokenKind::Identifier
+          ) || matches!(
+            self.peek_token().as_ref().map(Token::kind),
+            Some(TokenKind::Operator)
+          ) {
+            self.token_index = prev_index;
+
+            let expr = self.parse_expr()?;
+            let span = token.span().start..self.previous_token().unwrap().span().end;
+
+            operands.push(OperandNode::new(Operand::Expression(expr), span))
+          } else {
+            let parsed_num = parse_number(self.source, &num_or_expr)?;
+
+            // Wrap around bytes for `DB`
+            let num = if matches!(directive, Directive::DB) {
+              if parsed_num > u8::MAX as u16 {
+                parsed_num
+              } else {
+                0_u8.wrapping_sub(parsed_num as u8) as u16
+              }
+            } else {
+              0_u16.wrapping_sub(parsed_num)
+            };
+
+            operands.push(OperandNode::new(
+              Operand::Numeric(num),
+              token.span().start..num_or_expr.span().end,
+            ));
+          }
+
+          last_token_operand = true;
+        }
+        token if matches!(token.kind(), TokenKind::Numeric) => {
+          if matches!(
+            self.peek_token().as_ref().map(Token::kind),
             Some(TokenKind::Operator)
           ) {
             self.token_index -= 1;
@@ -153,19 +212,6 @@ impl<'a> Parser<'a> {
             let span = token.span().start..self.previous_token().unwrap().span().end;
 
             operands.push(OperandNode::new(Operand::Expression(expr), span))
-          } else if matches!(token.kind(), TokenKind::Operator) {
-            let Some(number_token) = self.next_token() else {
-              return Err(ParseError::new(
-                token.span().end,
-                ParseErrorKind::ExpectedOperand,
-              ));
-            };
-            let num = 0_u16.wrapping_sub(parse_number(self.source, &number_token)?);
-
-            operands.push(OperandNode::new(
-              Operand::Numeric(num),
-              token.span().start..number_token.span().end,
-            ));
           } else {
             let num = parse_number(self.source, &token)?;
 
@@ -287,17 +333,88 @@ impl<'a> Parser<'a> {
 
     while operands.len() < num_operands {
       match self.next_token() {
+        // Handle unary minus separately
         Some(token)
-          if matches!(token.kind(), TokenKind::Numeric)
-            // The only valid unary operator is minus
-            || (matches!(token.kind(), TokenKind::Operator)
-            && matches!(self.source.get(token.span()), Some("-"))) =>
+          if matches!(token.kind(), TokenKind::Operator)
+            && matches!(self.source.get(token.span()), Some("-")) =>
         {
+          let prev_index = self.token_index - 1;
+
+          // Greedily consume all unary negations
+          while let Some(next_token) = self.next_token() {
+            if !matches!(next_token.kind(), TokenKind::Operator) {
+              self.token_index -= 1;
+              break;
+            }
+
+            let op_src = self.source.get(next_token.span()).unwrap();
+
+            if op_src != "-" {
+              return Err(ParseError::new(
+                next_token.span().start,
+                ParseErrorKind::InvalidOperand,
+              ));
+            }
+          }
+
+          let Some(num_or_expr) = self.next_token() else {
+            return Err(ParseError::new(
+              token.span().end,
+              ParseErrorKind::ExpectedOperand,
+            ));
+          };
+
+          // Handle `-(expr)`, `-5 + 2`, `-$` as expressions
           if matches!(
-            self
-              .peek_token_from_n(self.token_index + 1)
-              .as_ref()
-              .map(Token::kind),
+            num_or_expr.kind(),
+            TokenKind::LeftParenthesis | TokenKind::Identifier
+          ) || matches!(
+            self.peek_token().as_ref().map(Token::kind),
+            Some(TokenKind::Operator)
+          ) {
+            self.token_index = prev_index;
+
+            let expr = self.parse_expr()?;
+            let span = token.span().start..self.previous_token().unwrap().span().end;
+
+            operands.push(OperandNode::new(Operand::Expression(expr), span))
+          } else {
+            let parsed_num = parse_number(self.source, &num_or_expr)?;
+
+            // Wrap around bytes if the instruction takes a byte, but still
+            // error by preserving the number if it was greater than a byte
+            let num = if matches!(
+              instruction,
+              Instruction::MVI
+                | Instruction::ADI
+                | Instruction::SUI
+                | Instruction::ANI
+                | Instruction::ORI
+                | Instruction::ACI
+                | Instruction::SBI
+                | Instruction::XRI
+                | Instruction::CPI
+            ) {
+              if parsed_num > u8::MAX as u16 {
+                parsed_num
+              } else {
+                0_u8.wrapping_sub(parsed_num as u8) as u16
+              }
+            } else {
+              0_u16.wrapping_sub(parsed_num)
+            };
+
+            operands.push(OperandNode::new(
+              Operand::Numeric(num),
+              token.span().start..num_or_expr.span().end,
+            ));
+          }
+
+          last_token_operand = true;
+        }
+        Some(token) if matches!(token.kind(), TokenKind::Numeric) => {
+          if matches!(
+            self.peek_token().as_ref().map(Token::kind),
             Some(TokenKind::Operator)
           ) {
             self.token_index -= 1;
@@ -306,19 +423,6 @@ impl<'a> Parser<'a> {
             let span = token.span().start..self.previous_token().unwrap().span().end;
 
             operands.push(OperandNode::new(Operand::Expression(expr), span))
-          } else if matches!(token.kind(), TokenKind::Operator) {
-            let Some(number_token) = self.next_token() else {
-              return Err(ParseError::new(
-                token.span().end,
-                ParseErrorKind::ExpectedOperand,
-              ));
-            };
-            let num = parse_number(self.source, &number_token)?;
-
-            operands.push(OperandNode::new(
-              Operand::Numeric(num),
-              token.span().start..number_token.span().end,
-            ));
           } else {
             let num = parse_number(self.source, &token)?;
 
@@ -339,7 +443,8 @@ impl<'a> Parser<'a> {
 
             operands.push(OperandNode::new(Operand::Expression(expr), span))
           } else {
-            // SAFETY: We have a valid `Identifier` token produced by the lexer and an immutable str
+            // SAFETY: We have a valid `Identifier` token produced by the lexer and
+            // an immutable str
             operands.push(OperandNode::new(
               Operand::Identifier(SmolStr::new(unwrap!(self.source.get(token.span())))),
               token.span(),

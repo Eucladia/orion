@@ -3540,9 +3540,6 @@ fn evaluate_directive_expression(
         };
 
       match op {
-        // NOTE: check if either node is a string and the other an operator?
-        // string + string doesnt make sense for > 2 chars,
-        //  make closure, match op_type
         Operator::Addition => {
           do_arithmetic(left, right).map(|res| res.map(|(x, y)| x.wrapping_add(y)))
         }
