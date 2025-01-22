@@ -98,7 +98,7 @@ impl<'a> Parser<'a> {
           }
           Some(next_token) if matches!(next_token.kind(), TokenKind::Directive) => Some(
             self
-              .parse_directive(Some(ident), next_token)
+              .parse_directive(next_token, Some(&token))
               .map(Node::Directive),
           ),
           _ => {
@@ -109,7 +109,7 @@ impl<'a> Parser<'a> {
         }
       }
 
-      TokenKind::Directive => Some(self.parse_directive(None, token).map(Node::Directive)),
+      TokenKind::Directive => Some(self.parse_directive(token, None).map(Node::Directive)),
 
       TokenKind::Instruction => Some(self.parse_instruction(token).map(Node::Instruction)),
 
@@ -122,8 +122,8 @@ impl<'a> Parser<'a> {
 
   fn parse_directive(
     &mut self,
-    directive_name: Option<SmolStr>,
     directive_token: Token,
+    identifier_token: Option<&Token>,
   ) -> ParseResult<DirectiveNode> {
     let directive = unwrap!(Directive::from_string(
       self.source.get(directive_token.span()).unwrap()
@@ -313,11 +313,14 @@ impl<'a> Parser<'a> {
       ));
     }
 
+    let start_span =
+      identifier_token.map_or_else(|| directive_token.span().start, |tok| tok.span().start);
+
     Ok(DirectiveNode::from_operands(
-      directive_name,
+      identifier_token.and_then(|x| self.source.get(x.span()).map(SmolStr::new)),
       directive,
       operands,
-      directive_token.span().start..prev_token.span().end,
+      start_span..prev_token.span().end,
     ))
   }
 

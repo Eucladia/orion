@@ -37,7 +37,7 @@ impl Interpreter {
         Node::Label(label) => {
           let label_name = label.label_name();
 
-          if self.env.labels.contains_key(&label_name) {
+          if self.env.labels.contains_key(&label_name) || symbols.contains_key(&label_name) {
             return Err(AssembleError::new(
               label.span().start,
               AssembleErrorKind::IdentifierAlreadyDefined,
@@ -370,6 +370,33 @@ mod tests {
       "expected LXI to work with $ as an expression and HLT instruction to be loaded"
     )
     .unwrap();
+  }
+
+  #[test]
+  fn existing_identifiers() {
+    assert_eq!(
+      run_asm!(
+        "TEST: MVI A, 1\nTEST EQU 2\n",
+        |_| false,
+        "identifier used by label"
+      ),
+      Err(AssembleError::new(
+        15,
+        AssembleErrorKind::IdentifierAlreadyDefined
+      ))
+    );
+
+    assert_eq!(
+      run_asm!(
+        "TEST EQU 1\nTEST: MVI A, 1",
+        |_| false,
+        "identifier used by label"
+      ),
+      Err(AssembleError::new(
+        11,
+        AssembleErrorKind::IdentifierAlreadyDefined
+      ))
+    );
   }
 
   #[test]

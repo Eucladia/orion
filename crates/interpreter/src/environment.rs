@@ -276,9 +276,9 @@ impl Environment {
         }],
       ) => {
         if let Some(name) = directive_node.identifier() {
-          if symbols.contains_key(name) {
+          if symbols.contains_key(name) || self.labels.contains_key(name) {
             return Err(AssembleError::new(
-              span.start,
+              directive_node.span().start,
               AssembleErrorKind::IdentifierAlreadyDefined,
             ));
           }
@@ -305,6 +305,13 @@ impl Environment {
         }],
       ) => {
         if let Some(name) = directive_node.identifier() {
+          if self.labels.contains_key(name) {
+            return Err(AssembleError::new(
+              directive_node.span().start,
+              AssembleErrorKind::IdentifierAlreadyDefined,
+            ));
+          }
+
           symbols.insert(name, data);
         } else {
           return Err(AssembleError::new(
