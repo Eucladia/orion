@@ -573,7 +573,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let res = evaluate_instruction_expression(self, expr)? as u16;
+        let res = evaluate_instruction_expression(self, expr)?;
 
         self.assemble_u8(addr, encode_lxi(r1));
         self.assemble_u16(addr + 1, res);
@@ -2489,7 +2489,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)? as u16;
+        let val = evaluate_instruction_expression(self, expr)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
