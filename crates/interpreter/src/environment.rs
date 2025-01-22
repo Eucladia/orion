@@ -419,16 +419,19 @@ impl Environment {
           Operand::Numeric(num) => evaluate_instruction_expression(
             self,
             &ExpressionNode::new(Expression::Number(*num), op.span.clone()),
+            symbols,
           ),
           Operand::Identifier(str) => evaluate_instruction_expression(
             self,
             &ExpressionNode::new(Expression::Identifier(str.clone()), op.span.clone()),
+            symbols,
           ),
           Operand::String(str) => evaluate_instruction_expression(
             self,
             &ExpressionNode::new(Expression::String(str.clone()), op.span.clone()),
+            symbols,
           ),
-          Operand::Expression(expr) => evaluate_instruction_expression(self, expr),
+          Operand::Expression(expr) => evaluate_instruction_expression(self, expr, symbols),
           Operand::Register(_) => Err(AssembleError::new(
             op.span.start,
             AssembleErrorKind::InvalidOperandType,
@@ -458,6 +461,7 @@ impl Environment {
     assemble_index: u16,
     instruction_node: &'a InstructionNode,
     unassembled: &mut Vec<(&'a InstructionNode, u16)>,
+    symbols: &HashMap<&SmolStr, u16>,
     recoding: bool,
   ) -> AssembleResult<()> {
     use Instruction::*;
@@ -573,7 +577,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let res = evaluate_instruction_expression(self, expr)?;
+        let res = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encode_lxi(r1));
         self.assemble_u16(addr + 1, res);
@@ -685,7 +689,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -1125,7 +1129,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::JNZ);
         self.assemble_u16(addr + 1, val);
@@ -1176,7 +1180,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::JNC);
         self.assemble_u16(addr + 1, val);
@@ -1237,7 +1241,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::JPO);
         self.assemble_u16(addr + 1, val);
@@ -1298,7 +1302,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::JP);
         self.assemble_u16(addr + 1, val);
@@ -1359,7 +1363,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::JMP);
         self.assemble_u16(addr + 1, val);
@@ -1420,7 +1424,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::JZ);
         self.assemble_u16(addr + 1, val);
@@ -1481,7 +1485,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::JC);
         self.assemble_u16(addr + 1, val);
@@ -1542,7 +1546,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::JPE);
         self.assemble_u16(addr + 1, val);
@@ -1603,7 +1607,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::JM);
         self.assemble_u16(addr + 1, val);
@@ -1664,7 +1668,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::CNZ);
         self.assemble_u16(addr + 1, val);
@@ -1725,7 +1729,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::CNC);
         self.assemble_u16(addr + 1, val);
@@ -1786,7 +1790,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::CPO);
         self.assemble_u16(addr + 1, val);
@@ -1847,7 +1851,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::CP);
         self.assemble_u16(addr + 1, val);
@@ -1908,7 +1912,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::CZ);
         self.assemble_u16(addr + 1, val);
@@ -1969,7 +1973,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::CC);
         self.assemble_u16(addr + 1, val);
@@ -2030,7 +2034,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::CPE);
         self.assemble_u16(addr + 1, val);
@@ -2091,7 +2095,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::CM);
         self.assemble_u16(addr + 1, val);
@@ -2152,7 +2156,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::CALL);
         self.assemble_u16(addr + 1, val);
@@ -2213,7 +2217,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let res = evaluate_instruction_expression(self, expr)?;
+        let res = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::STA);
         self.assemble_u16(addr + 1, res);
@@ -2275,7 +2279,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let res = evaluate_instruction_expression(self, expr)?;
+        let res = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::SHLD);
         self.assemble_u16(addr + 1, res);
@@ -2336,7 +2340,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let res = evaluate_instruction_expression(self, expr)?;
+        let res = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::LDA);
         self.assemble_u16(addr + 1, res);
@@ -2397,7 +2401,7 @@ impl Environment {
           ..
         }],
       ) => {
-        let res = evaluate_instruction_expression(self, expr)?;
+        let res = evaluate_instruction_expression(self, expr, symbols)?;
 
         self.assemble_u8(addr, encodings::LHLD);
         self.assemble_u16(addr + 1, res);
@@ -2489,7 +2493,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -2569,7 +2573,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -2669,7 +2673,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -2769,7 +2773,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -2869,7 +2873,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -2969,7 +2973,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -3069,7 +3073,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -3169,7 +3173,7 @@ impl Environment {
           ref span,
         }],
       ) => {
-        let val = evaluate_instruction_expression(self, expr)?;
+        let val = evaluate_instruction_expression(self, expr, symbols)?;
 
         if val > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -3271,6 +3275,7 @@ impl Default for Environment {
 fn evaluate_instruction_expression(
   env: &Environment,
   expr: &ExpressionNode,
+  symbols: &HashMap<&SmolStr, u16>,
 ) -> AssembleResult<u16> {
   match expr.value() {
     Expression::Number(num) => Ok(*num),
@@ -3289,94 +3294,99 @@ fn evaluate_instruction_expression(
     Expression::Identifier(ref label) => {
       if label == "$" {
         Ok(env.assemble_index)
+      } else if let Some(addr) = env.get_label_address(label) {
+        Ok(addr)
+      } else if let Some(val) = symbols.get(label) {
+        Ok(*val)
       } else {
-        match env.get_label_address(label) {
-          Some(addr) => Ok(addr),
-          None => Err(AssembleError::new(
-            expr.span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          )),
-        }
+        Err(AssembleError::new(
+          expr.span.start,
+          AssembleErrorKind::IdentifierNotDefined,
+        ))
       }
     }
-    Expression::Paren(child_expr) => evaluate_instruction_expression(env, child_expr),
+    Expression::Paren(child_expr) => evaluate_instruction_expression(env, child_expr, symbols),
     Expression::Unary {
       op,
       expr: child_expr,
     } => match op {
-      Operator::Addition => evaluate_instruction_expression(env, child_expr),
+      Operator::Addition => evaluate_instruction_expression(env, child_expr, symbols),
       // Handle unary subtraction via wraparound
       Operator::Subtraction => {
-        Ok(0_u16.wrapping_sub(evaluate_instruction_expression(env, child_expr)?))
+        Ok(0_u16.wrapping_sub(evaluate_instruction_expression(env, child_expr, symbols)?))
       }
-      Operator::High => Ok(evaluate_instruction_expression(env, child_expr)? >> 8),
-      Operator::Low => Ok(evaluate_instruction_expression(env, child_expr)? & 0xFF),
-      Operator::Not => Ok(!evaluate_instruction_expression(env, child_expr)?),
+      Operator::High => Ok(evaluate_instruction_expression(env, child_expr, symbols)? >> 8),
+      Operator::Low => Ok(evaluate_instruction_expression(env, child_expr, symbols)? & 0xFF),
+      Operator::Not => Ok(!evaluate_instruction_expression(env, child_expr, symbols)?),
       _ => unreachable!(),
     },
     Expression::Binary { op, left, right } => match op {
       Operator::Addition => Ok(
-        evaluate_instruction_expression(env, left)?
-          .wrapping_add(evaluate_instruction_expression(env, right)?),
+        evaluate_instruction_expression(env, left, symbols)?
+          .wrapping_add(evaluate_instruction_expression(env, right, symbols)?),
       ),
       Operator::Subtraction => Ok(
-        evaluate_instruction_expression(env, left)?
-          .wrapping_sub(evaluate_instruction_expression(env, right)?),
+        evaluate_instruction_expression(env, left, symbols)?
+          .wrapping_sub(evaluate_instruction_expression(env, right, symbols)?),
       ),
       Operator::Division => Ok(
-        evaluate_instruction_expression(env, left)?
-          .wrapping_div(evaluate_instruction_expression(env, right)?),
+        evaluate_instruction_expression(env, left, symbols)?
+          .wrapping_div(evaluate_instruction_expression(env, right, symbols)?),
       ),
       Operator::Multiplication => Ok(
-        evaluate_instruction_expression(env, left)?
-          .wrapping_mul(evaluate_instruction_expression(env, right)?),
+        evaluate_instruction_expression(env, left, symbols)?
+          .wrapping_mul(evaluate_instruction_expression(env, right, symbols)?),
       ),
 
       Operator::Modulo => Ok(
-        evaluate_instruction_expression(env, left)? % evaluate_instruction_expression(env, right)?,
+        evaluate_instruction_expression(env, left, symbols)?
+          % evaluate_instruction_expression(env, right, symbols)?,
       ),
       Operator::ShiftLeft => Ok(
-        evaluate_instruction_expression(env, left)?
-          .wrapping_shl(evaluate_instruction_expression(env, right)? as u32),
+        evaluate_instruction_expression(env, left, symbols)?
+          .wrapping_shl(evaluate_instruction_expression(env, right, symbols)? as u32),
       ),
       Operator::ShiftRight => Ok(
-        evaluate_instruction_expression(env, left)?
-          .wrapping_shr(evaluate_instruction_expression(env, right)? as u32),
+        evaluate_instruction_expression(env, left, symbols)?
+          .wrapping_shr(evaluate_instruction_expression(env, right, symbols)? as u32),
       ),
       Operator::And => Ok(
-        evaluate_instruction_expression(env, left)? & evaluate_instruction_expression(env, right)?,
+        evaluate_instruction_expression(env, left, symbols)?
+          & evaluate_instruction_expression(env, right, symbols)?,
       ),
       Operator::Or => Ok(
-        evaluate_instruction_expression(env, left)? | evaluate_instruction_expression(env, right)?,
+        evaluate_instruction_expression(env, left, symbols)?
+          | evaluate_instruction_expression(env, right, symbols)?,
       ),
       Operator::Xor => Ok(
-        evaluate_instruction_expression(env, left)? ^ evaluate_instruction_expression(env, right)?,
+        evaluate_instruction_expression(env, left, symbols)?
+          ^ evaluate_instruction_expression(env, right, symbols)?,
       ),
 
       Operator::Eq => Ok(
-        (evaluate_instruction_expression(env, left)?
-          == evaluate_instruction_expression(env, right)?) as u16,
+        (evaluate_instruction_expression(env, left, symbols)?
+          == evaluate_instruction_expression(env, right, symbols)?) as u16,
       ),
       Operator::Ne => Ok(
-        (evaluate_instruction_expression(env, left)?
-          != evaluate_instruction_expression(env, right)?) as u16,
+        (evaluate_instruction_expression(env, left, symbols)?
+          != evaluate_instruction_expression(env, right, symbols)?) as u16,
       ),
       // NOTE: Relational comparisons compare the bits, not the values
       Operator::Lt => Ok(
-        (evaluate_instruction_expression(env, left)? < evaluate_instruction_expression(env, right)?)
-          as u16,
+        (evaluate_instruction_expression(env, left, symbols)?
+          < evaluate_instruction_expression(env, right, symbols)?) as u16,
       ),
       Operator::Le => Ok(
-        (evaluate_instruction_expression(env, left)?
-          <= evaluate_instruction_expression(env, right)?) as u16,
+        (evaluate_instruction_expression(env, left, symbols)?
+          <= evaluate_instruction_expression(env, right, symbols)?) as u16,
       ),
       Operator::Gt => Ok(
-        (evaluate_instruction_expression(env, left)? > evaluate_instruction_expression(env, right)?)
-          as u16,
+        (evaluate_instruction_expression(env, left, symbols)?
+          > evaluate_instruction_expression(env, right, symbols)?) as u16,
       ),
       Operator::Ge => Ok(
-        (evaluate_instruction_expression(env, left)?
-          >= evaluate_instruction_expression(env, right)?) as u16,
+        (evaluate_instruction_expression(env, left, symbols)?
+          >= evaluate_instruction_expression(env, right, symbols)?) as u16,
       ),
       // `NOT`, `HIGH`, `LOW `are handled in the unary section
       Operator::Not | Operator::High | Operator::Low => unreachable!(),

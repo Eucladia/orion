@@ -26,9 +26,13 @@ impl Interpreter {
     for node in self.node.children() {
       match node {
         Node::Instruction(insn) => {
-          self
-            .env
-            .encode_instruction(self.env.assemble_index, insn, &mut unassembled, false)?;
+          self.env.encode_instruction(
+            self.env.assemble_index,
+            insn,
+            &mut unassembled,
+            &symbols,
+            false,
+          )?;
         }
         Node::Label(label) => {
           let label_name = label.label_name();
@@ -69,7 +73,7 @@ impl Interpreter {
       for elem in unassembled.iter() {
         self
           .env
-          .encode_instruction(elem.1, elem.0, &mut new_unassembled, true)?;
+          .encode_instruction(elem.1, elem.0, &mut new_unassembled, &symbols, true)?;
       }
     }
 
