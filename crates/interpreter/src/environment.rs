@@ -1,4 +1,5 @@
 use crate::registers::Registers;
+use crate::Symbols;
 use crate::{encodings, registers::RegisterPair};
 use lexer::directive::Directive;
 use lexer::{instruction::Instruction, Flags, Register};
@@ -264,8 +265,11 @@ impl Environment {
   /// Encodes a [`DirectiveNode`].
   pub fn encode_directive<'a>(
     &mut self,
+    mut addr: u16,
     directive_node: &'a DirectiveNode,
-    symbols: &mut HashMap<&'a SmolStr, u16>,
+    unassembled: &mut Vec<(&'a DirectiveNode, u16)>,
+    symbols: &mut Symbols<'a>,
+    is_first_pass: bool,
   ) -> AssembleResult<()> {
     match (directive_node.directive(), directive_node.operands()) {
       (
@@ -276,14 +280,105 @@ impl Environment {
         }],
       ) => {
         if let Some(name) = directive_node.identifier() {
-          if symbols.contains_key(name) || self.labels.contains_key(name) {
+          if symbols.contains(name) || self.labels.contains_key(name) {
             return Err(AssembleError::new(
               directive_node.span().start,
               AssembleErrorKind::IdentifierAlreadyDefined,
             ));
           }
 
-          symbols.insert(name, data);
+          symbols.add_symbol(name, data, addr);
+        } else {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::DirectiveRequiresName,
+          ));
+        }
+      }
+      (
+        Directive::EQU,
+        &[OperandNode {
+          operand: Operand::String(ref str),
+          ref span,
+        }],
+      ) => {
+        if str.is_empty() {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedTwoByteValue,
+          ));
+        } else if let Some(name) = directive_node.identifier() {
+          if symbols.contains(name) || self.labels.contains_key(name) {
+            return Err(AssembleError::new(
+              directive_node.span().start,
+              AssembleErrorKind::IdentifierAlreadyDefined,
+            ));
+          }
+          let bytes = str.as_bytes();
+          let data = (bytes[0] as u16) << 8 | bytes.get(1).copied().unwrap_or(0) as u16;
+
+          symbols.add_symbol(name, data, addr);
+        } else {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::DirectiveRequiresName,
+          ));
+        }
+      }
+      (
+        Directive::EQU,
+        &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ref span,
+        }],
+      ) => {
+        if let Some(name) = directive_node.identifier() {
+          if symbols.contains(name) || self.labels.contains_key(name) {
+            return Err(AssembleError::new(
+              directive_node.span().start,
+              AssembleErrorKind::IdentifierAlreadyDefined,
+            ));
+          }
+
+          if ident == "$" {
+            symbols.add_symbol(name, addr, addr);
+          } else if let Some(val) = self.get_label_address(ident) {
+            symbols.add_symbol(name, val, addr);
+          } else if let Some(value) = symbols.get_value(ident) {
+            symbols.add_symbol(name, value, addr);
+          } else if is_first_pass {
+            unassembled.push((directive_node, addr));
+          } else {
+            return Err(AssembleError::new(
+              span.start,
+              AssembleErrorKind::IdentifierNotDefined,
+            ));
+          }
+        } else {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::DirectiveRequiresName,
+          ));
+        }
+      }
+      (
+        Directive::EQU,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ref span,
+        }],
+      ) => {
+        if let Some(name) = directive_node.identifier() {
+          if symbols.contains(name) || self.labels.contains_key(name) {
+            return Err(AssembleError::new(
+              directive_node.span().start,
+              AssembleErrorKind::IdentifierAlreadyDefined,
+            ));
+          }
+
+          let value = evaluate_directive_expression(self, expr, addr, symbols, OperandType::Byte)?;
+
+          symbols.add_symbol(name, value.unwrap(), addr);
         } else {
           return Err(AssembleError::new(
             span.start,
@@ -312,7 +407,7 @@ impl Environment {
             ));
           }
 
-          symbols.insert(name, data);
+          symbols.insert_or_update(name, data, addr);
         } else {
           return Err(AssembleError::new(
             span.start,
@@ -344,26 +439,30 @@ impl Environment {
 
         for op in ops {
           let res = match &op.operand {
+            // NOTE: why am i wrapping this into an exp node????
             Operand::Numeric(num) => evaluate_directive_expression(
               self,
               &ExpressionNode::new(Expression::Number(*num), op.span.clone()),
+              addr,
               symbols,
               OperandType::Byte,
             ),
             Operand::Identifier(str) => evaluate_directive_expression(
               self,
               &ExpressionNode::new(Expression::Identifier(str.clone()), op.span.clone()),
+              addr,
               symbols,
               OperandType::Byte,
             ),
             Operand::String(str) => evaluate_directive_expression(
               self,
               &ExpressionNode::new(Expression::String(str.clone()), op.span.clone()),
+              addr,
               symbols,
               OperandType::Byte,
             ),
             Operand::Expression(expr) => {
-              evaluate_directive_expression(self, expr, symbols, OperandType::Byte)
+              evaluate_directive_expression(self, expr, addr, symbols, OperandType::Byte)
             }
             Operand::Register(_) => Err(AssembleError::new(
               op.span.start,
@@ -373,6 +472,7 @@ impl Environment {
 
           if let Some(data) = res {
             self.assemble_u8(self.assemble_index, (data & 0xFF) as u8);
+            addr += 1;
             self.assemble_index += 1;
           }
         }
@@ -391,23 +491,26 @@ impl Environment {
             Operand::Numeric(num) => evaluate_directive_expression(
               self,
               &ExpressionNode::new(Expression::Number(*num), op.span.clone()),
+              addr,
               symbols,
               OperandType::Word,
             ),
             Operand::Identifier(str) => evaluate_directive_expression(
               self,
               &ExpressionNode::new(Expression::Identifier(str.clone()), op.span.clone()),
+              addr,
               symbols,
               OperandType::Word,
             ),
             Operand::String(str) => evaluate_directive_expression(
               self,
               &ExpressionNode::new(Expression::String(str.clone()), op.span.clone()),
+              addr,
               symbols,
               OperandType::Word,
             ),
             Operand::Expression(expr) => {
-              evaluate_directive_expression(self, expr, symbols, OperandType::Word)
+              evaluate_directive_expression(self, expr, addr, symbols, OperandType::Word)
             }
             Operand::Register(_) => Err(AssembleError::new(
               op.span.start,
@@ -416,7 +519,8 @@ impl Environment {
           }?;
 
           if let Some(data) = res {
-            self.assemble_u16(self.assemble_index, data);
+            self.assemble_u16(addr, data);
+            addr += 2;
             self.assemble_index += 2;
           }
         }
@@ -426,27 +530,22 @@ impl Environment {
           Operand::Numeric(num) => evaluate_instruction_expression(
             self,
             &ExpressionNode::new(Expression::Number(*num), op.span.clone()),
-            self.assemble_index,
+            addr,
             symbols,
-            false,
           ),
           Operand::Identifier(str) => evaluate_instruction_expression(
             self,
             &ExpressionNode::new(Expression::Identifier(str.clone()), op.span.clone()),
-            self.assemble_index,
+            addr,
             symbols,
-            false,
           ),
           Operand::String(str) => evaluate_instruction_expression(
             self,
             &ExpressionNode::new(Expression::String(str.clone()), op.span.clone()),
-            self.assemble_index,
+            addr,
             symbols,
-            false,
           ),
-          Operand::Expression(expr) => {
-            evaluate_instruction_expression(self, expr, self.assemble_index, symbols, false)
-          }
+          Operand::Expression(expr) => evaluate_instruction_expression(self, expr, addr, symbols),
           Operand::Register(_) => Err(AssembleError::new(
             op.span.start,
             AssembleErrorKind::InvalidOperandType,
@@ -471,316 +570,134 @@ impl Environment {
   ///
   /// If it was unable to be encoded, due to the label's address not known at
   /// the time, there will need to be a second pass at encoding.
-  pub fn encode_instruction<'a>(
+  #[allow(clippy::needless_lifetimes)]
+  pub fn encode_instruction<'instr, 'sym, 'vec>(
     &mut self,
-    assemble_index: u16,
-    instruction_node: &'a InstructionNode,
-    unassembled: &mut Vec<(&'a InstructionNode, u16)>,
-    symbols: &HashMap<&SmolStr, u16>,
+    location_counter: u16,
+    instruction_node: &'instr InstructionNode,
+    unassembled: &'vec mut Vec<(&'instr InstructionNode, u16)>,
+    symbols: &'sym Symbols<'instr>,
     is_first_pass: bool,
   ) -> AssembleResult<()> {
     use Instruction::*;
 
-    let addr = Self::INSTRUCTION_STARTING_ADDRESS + assemble_index;
-
     match (instruction_node.instruction(), instruction_node.operands()) {
       // Register, Register operands
-      (
-        MOV,
-        &[OperandNode {
+      (MOV, [op1, op2]) => {
+        let OperandNode {
           operand: Operand::Register(r1),
           ..
-        }, OperandNode {
+        } = op1
+        else {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        };
+        let OperandNode {
           operand: Operand::Register(r2),
           ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encode_mov(r1, r2));
-      }
-      (
-        MOV,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }, OperandNode {
-          operand: ref op2,
-          span: ref sp2,
-        }],
-      ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        } = op2
+        else {
           return Err(AssembleError::new(
-            sp1.start,
+            op1.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        } else if !matches!(op2, Operand::Register(_)) {
-          return Err(AssembleError::new(
-            sp2.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_mov(*r1, *r2));
       }
 
       // Register, d16 operands
-      (
-        LXI,
-        &[OperandNode {
+      (LXI, [op1, op2]) => {
+        let OperandNode {
           operand: Operand::Register(r1),
           ..
-        }, OperandNode {
-          operand: Operand::Numeric(data),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encode_lxi(r1));
-        self.assemble_u16(addr + 1, data);
-      }
-      (
-        LXI,
-        &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }, OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encode_lxi(r1));
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(label_addr) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encode_lxi(r1));
-          self.assemble_u16(addr + 1, label_addr);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encode_lxi(r1));
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
+        } = op1
+        else {
           return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        LXI,
-        &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }, OperandNode {
-          operand: Operand::String(ref str),
-          ref span,
-        }],
-      ) => {
-        if str.len() == 2 {
-          let bytes = str.as_bytes();
-          let data = (bytes[0] as u16) << 8 | bytes[1] as u16;
-
-          self.assemble_u8(addr, encode_lxi(r1));
-          self.assemble_u16(addr + 1, data);
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::ExpectedTwoByteValue,
-          ));
-        }
-      }
-      (
-        LXI,
-        &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }, OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encode_lxi(r1));
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        LXI,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }, OperandNode {
-          operand: ref op2,
-          span: ref sp2,
-        }],
-      ) => {
-        if !matches!(op1, Operand::Register(_)) {
-          return Err(AssembleError::new(
-            sp1.start,
+            op1.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        } else if !matches!(
+        };
+
+        if !matches!(
           op2,
-          Operand::Numeric(_)
-            | Operand::Identifier(_)
-            | Operand::String(_)
-            | Operand::Expression(_)
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::String(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
         ) {
           return Err(AssembleError::new(
-            sp2.start,
+            op2.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
         }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encode_lxi(*r1),
+          op2,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
       }
 
       // Register, d8 operands
-      (
-        MVI,
-        &[OperandNode {
+      (MVI, [reg_op, x]) => {
+        let OperandNode {
           operand: Operand::Register(r1),
           ..
-        }, OperandNode {
-          operand: Operand::Numeric(data),
-          ref span,
-        }],
-      ) => {
-        if data > u8::MAX as u16 {
+        } = reg_op
+        else {
           return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::ExpectedOneByteValue,
+            reg_op.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        };
+
+        if !matches!(
+          x,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::String(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            x.span.start,
+            AssembleErrorKind::InvalidOperandType,
           ));
         }
 
-        self.assemble_u8(addr, encode_mvi(r1));
-        self.assemble_u8(addr + 1, (data & 0xFF) as u8);
-      }
-      (
-        MVI,
-        &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }, OperandNode {
-          operand: Operand::String(ref data),
-          ref span,
-        }],
-      ) => {
-        if data.len() == 1 {
-          self.assemble_u8(addr, encode_mvi(r1));
-          self.assemble_u8(addr + 1, data.as_bytes()[0]);
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-      }
-      (
-        MVI,
-        &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }, OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encode_mvi(r1));
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if let Some(addr) = self.get_label_address(ident) {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encode_mvi(r1));
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if is_first_pass {
-          if let Some(val) = symbols.get(ident) {
-            if *val <= u8::MAX as u16 {
-              self.assemble_u8(addr, encode_mvi(r1));
-              self.assemble_u8(addr + 1, (*val & 0xFF) as u8);
-            } else {
-              return Err(AssembleError::new(
-                span.start,
-                AssembleErrorKind::ExpectedOneByteValue,
-              ));
-            }
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        MVI,
-        &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }, OperandNode {
-          operand: Operand::Expression(ref expr),
-          ref span,
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) if val <= u8::MAX as u16 => {
-          self.assemble_u8(addr, encode_mvi(r1));
-          self.assemble_u8(addr + 1, val as u8);
-        }
-        Ok(_) => {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ))
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        MVI,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }, OperandNode {
-          operand: ref op2,
-          span: ref sp2,
-        }],
-      ) => {
-        if !matches!(op1, Operand::Register(_)) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        } else if !matches!(
-          op2,
-          Operand::Numeric(_)
-            | Operand::Identifier(_)
-            | Operand::String(_)
-            | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp2.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
+        self.assemble_d8_instr(
+          instruction_node,
+          encode_mvi(*r1),
+          x,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
       }
 
       // Register operands
@@ -790,7 +707,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_ldax(r1)),
+      ) => self.assemble_u8(location_counter, encode_ldax(r1)),
       (
         LDAX,
         &[OperandNode {
@@ -811,7 +728,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_stax(r1)),
+      ) => self.assemble_u8(location_counter, encode_stax(r1)),
       (
         STAX,
         &[OperandNode {
@@ -832,7 +749,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_inx(r1)),
+      ) => self.assemble_u8(location_counter, encode_inx(r1)),
       (
         INX,
         &[OperandNode {
@@ -853,7 +770,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_dcx(r1)),
+      ) => self.assemble_u8(location_counter, encode_dcx(r1)),
       (
         DCX,
         &[OperandNode {
@@ -874,7 +791,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_pop(r1)),
+      ) => self.assemble_u8(location_counter, encode_pop(r1)),
       (
         POP,
         &[OperandNode {
@@ -895,7 +812,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_push(r1)),
+      ) => self.assemble_u8(location_counter, encode_push(r1)),
       (
         PUSH,
         &[OperandNode {
@@ -916,7 +833,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_dad(r1)),
+      ) => self.assemble_u8(location_counter, encode_dad(r1)),
       (
         DAD,
         &[OperandNode {
@@ -937,7 +854,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_add(r1)),
+      ) => self.assemble_u8(location_counter, encode_add(r1)),
       (
         ADD,
         &[OperandNode {
@@ -958,7 +875,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_adc(r1)),
+      ) => self.assemble_u8(location_counter, encode_adc(r1)),
       (
         ADC,
         &[OperandNode {
@@ -979,7 +896,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_sub(r1)),
+      ) => self.assemble_u8(location_counter, encode_sub(r1)),
       (
         SUB,
         &[OperandNode {
@@ -1000,7 +917,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_sbb(r1)),
+      ) => self.assemble_u8(location_counter, encode_sbb(r1)),
       (
         SBB,
         &[OperandNode {
@@ -1021,7 +938,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_ana(r1)),
+      ) => self.assemble_u8(location_counter, encode_ana(r1)),
       (
         ANA,
         &[OperandNode {
@@ -1042,7 +959,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_xra(r1)),
+      ) => self.assemble_u8(location_counter, encode_xra(r1)),
       (
         XRA,
         &[OperandNode {
@@ -1063,7 +980,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_ora(r1)),
+      ) => self.assemble_u8(location_counter, encode_ora(r1)),
       (
         ORA,
         &[OperandNode {
@@ -1084,7 +1001,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_cmp(r1)),
+      ) => self.assemble_u8(location_counter, encode_cmp(r1)),
       (
         CMP,
         &[OperandNode {
@@ -1105,7 +1022,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_inr(r1)),
+      ) => self.assemble_u8(location_counter, encode_inr(r1)),
       (
         INR,
         &[OperandNode {
@@ -1126,7 +1043,7 @@ impl Environment {
           operand: Operand::Register(r1),
           ..
         }],
-      ) => self.assemble_u8(addr, encode_dcr(r1)),
+      ) => self.assemble_u8(location_counter, encode_dcr(r1)),
       (
         DCR,
         &[OperandNode {
@@ -1143,2562 +1060,931 @@ impl Environment {
       }
 
       // a16 operands
-      (
-        JNZ,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::JNZ);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::JNZ);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::JNZ);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        JNZ,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::JNZ);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        JNZ,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::JNZ);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        JNZ,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
+      (JNZ, [op1]) => {
         if !matches!(
           op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
         ) {
           return Err(AssembleError::new(
-            sp1.start,
+            op1.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
         }
-      }
-      (
-        JNC,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::JNC);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::JNC);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::JNC);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        JNC,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::JNC);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        JNC,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        JPO,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::JPO);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::JPO);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::JPO);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        JPO,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::JPO);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        JPO,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::JPO);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        JPO,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        JP,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::JP);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::JP);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::JP);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        JP,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::JP);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        JP,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::JP);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        JP,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        JMP,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::JMP);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::JMP);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::JMP);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        JMP,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::JMP);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        JMP,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::JMP);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        JMP,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        JZ,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::JZ);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::JZ);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::JZ);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        JZ,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::JZ);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        JZ,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::JZ);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        JZ,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        JC,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::JC);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::JC);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::JC);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        JC,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::JC);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        JC,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::JC);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        JC,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        JPE,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::JPE);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::JPE);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::JPE);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        JPE,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::JPE);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        JPE,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::JPE);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        JPE,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        JM,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::JM);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::JM);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::JM);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        JM,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::JM);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        JM,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::JM);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        JM,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        CNZ,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::CNZ);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::CNZ);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::CNZ);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        CNZ,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::CNZ);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        CNZ,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::CNZ);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        CNZ,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        CNC,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::CNC);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::CNC);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::CNC);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        CNC,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::CNC);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        CNC,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::CNC);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        CNC,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        CPO,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::CPO);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::CPO);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::CPO);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        CPO,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::CPO);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        CPO,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::CPO);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        CPO,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        CP,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::CP);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::CP);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::CP);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        CP,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::CP);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        CP,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::CP);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        CP,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        CZ,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::CZ);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::CZ);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::CZ);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        CZ,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::CZ);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        CZ,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::CZ);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        CZ,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        CC,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::CC);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::CC);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::CC);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        CC,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::CC);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        CC,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::CC);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        CC,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        CPE,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::CPE);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::CPE);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::CPE);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        CPE,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::CPE);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        CPE,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::CPE);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        CPE,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        CM,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::CM);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::CM);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::CM);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        CM,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::CM);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        CM,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::CM);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        CM,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        CALL,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::CALL);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(jmp_to) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::CALL);
-          self.assemble_u16(addr + 1, jmp_to);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::CALL);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        CALL,
-        &[OperandNode {
-          operand: Operand::Numeric(num),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::CALL);
-        self.assemble_u16(addr + 1, num);
-      }
-      (
-        CALL,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::CALL);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        CALL,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        STA,
-        &[OperandNode {
-          operand: Operand::Numeric(data),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::STA);
-        self.assemble_u16(addr + 1, data);
-      }
-      (
-        STA,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::STA);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(label_addr) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::STA);
-          self.assemble_u16(addr + 1, label_addr);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::STA);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        STA,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::STA);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        STA,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp2,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp2.start,
-            AssembleErrorKind::InvalidOperandType,
-          ));
-        }
-      }
-      (
-        SHLD,
-        &[OperandNode {
-          operand: Operand::Numeric(data),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::SHLD);
-        self.assemble_u16(addr + 1, data);
-      }
 
-      (
-        SHLD,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::SHLD);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(label_addr) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::SHLD);
-          self.assemble_u16(addr + 1, label_addr);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::SHLD);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::JNZ,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
       }
-      (
-        SHLD,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::SHLD);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        SHLD,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp2,
-        }],
-      ) => {
+      (JNC, [op1]) => {
         if !matches!(
           op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
         ) {
           return Err(AssembleError::new(
-            sp2.start,
+            op1.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
         }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::JNC,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
       }
-      (
-        LDA,
-        &[OperandNode {
-          operand: Operand::Numeric(data),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::LDA);
-        self.assemble_u16(addr + 1, data);
-      }
-      (
-        LDA,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::LDA);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(label_addr) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::LDA);
-          self.assemble_u16(addr + 1, label_addr);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::LDA);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        LDA,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::LDA);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        LDA,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp2,
-        }],
-      ) => {
+      (JPO, [op1]) => {
         if !matches!(
           op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
         ) {
           return Err(AssembleError::new(
-            sp2.start,
+            op1.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
         }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::JPO,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
       }
-      (
-        LHLD,
-        &[OperandNode {
-          operand: Operand::Numeric(data),
-          ..
-        }],
-      ) => {
-        self.assemble_u8(addr, encodings::LHLD);
-        self.assemble_u16(addr + 1, data);
-      }
-      (
-        LHLD,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          self.assemble_u8(addr, encodings::LHLD);
-          self.assemble_u16(addr + 1, self.assemble_index);
-        } else if let Some(label_addr) = self.get_label_address(ident) {
-          self.assemble_u8(addr, encodings::LHLD);
-          self.assemble_u16(addr + 1, label_addr);
-        } else if is_first_pass {
-          // User defined symbols via directives must be defined before usage,
-          // so we should only check if the symbol exists on the first pass
-          if let Some(val) = symbols.get(ident) {
-            self.assemble_u8(addr, encodings::LHLD);
-            self.assemble_u16(addr + 1, *val);
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        LHLD,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ..
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) => {
-          self.assemble_u8(addr, encodings::LHLD);
-          self.assemble_u16(addr + 1, val);
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        LHLD,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp2,
-        }],
-      ) => {
+      (JP, [op1]) => {
         if !matches!(
           op1,
-          Operand::Numeric(_) | Operand::Identifier(_) | Operand::Expression(_)
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
         ) {
           return Err(AssembleError::new(
-            sp2.start,
+            op1.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
         }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::JP,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (JMP, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::JMP,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (JZ, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::JZ,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (JC, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::JC,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (JPE, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::JPE,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (JM, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::JM,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (CNZ, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::CNZ,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (CNC, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::CNC,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (CPO, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::CPO,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (CP, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::CP,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (CZ, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::CZ,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (CC, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::CC,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (CPE, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::CPE,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (CM, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::CM,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (CALL, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::CALL,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (STA, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::STA,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (SHLD, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::SHLD,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (LDA, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::LDA,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (LHLD, [op1]) => {
+        if !matches!(
+          op1,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            op1.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d16_instr(
+          instruction_node,
+          encodings::LHLD,
+          op1,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
       }
 
       // d8 operands
-      (
-        ACI,
-        &[OperandNode {
-          operand: Operand::Numeric(data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data > 0xFF {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-
-        self.assemble_u8(addr, encodings::ACI);
-        self.assemble_u8(addr + 1, (data & 0xFF) as u8);
-      }
-      (
-        ACI,
-        &[OperandNode {
-          operand: Operand::String(ref data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data.len() == 1 {
-          self.assemble_u8(addr, encodings::ACI);
-          self.assemble_u8(addr + 1, data.as_bytes()[0]);
-        } else {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-      }
-      (
-        ACI,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::ACI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if let Some(addr) = self.get_label_address(ident) {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::ACI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if is_first_pass {
-          // Only handle user defined addr, symbols, via directives, on the first pass
-          if let Some(val) = symbols.get(ident) {
-            if *val <= u8::MAX as u16 {
-              self.assemble_u8(addr, encodings::ACI);
-              self.assemble_u8(addr + 1, *val as u8);
-            } else {
-              return Err(AssembleError::new(
-                span.start,
-                AssembleErrorKind::ExpectedOneByteValue,
-              ));
-            }
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        ACI,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ref span,
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) if val <= u8::MAX as u16 => {
-          self.assemble_u8(addr, encodings::ACI);
-          self.assemble_u8(addr + 1, val as u8);
-        }
-        Ok(_) => {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ))
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        SBI,
-        &[OperandNode {
-          operand: Operand::Numeric(data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data > u8::MAX as u16 {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-
-        self.assemble_u8(addr, encodings::SBI);
-        self.assemble_u8(addr + 1, (data & 0xFF) as u8);
-      }
-      (
-        SBI,
-        &[OperandNode {
-          operand: Operand::String(ref data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data.len() == 1 {
-          self.assemble_u8(addr, encodings::SBI);
-          self.assemble_u8(addr + 1, data.as_bytes()[0]);
-        } else {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-      }
-      (
-        SBI,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::SBI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if let Some(addr) = self.get_label_address(ident) {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::SBI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if is_first_pass {
-          // Only handle user defined addr, symbols, via directives, on the first pass
-          if let Some(val) = symbols.get(ident) {
-            if *val <= u8::MAX as u16 {
-              self.assemble_u8(addr, encodings::SBI);
-              self.assemble_u8(addr + 1, *val as u8);
-            } else {
-              return Err(AssembleError::new(
-                span.start,
-                AssembleErrorKind::ExpectedOneByteValue,
-              ));
-            }
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        SBI,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ref span,
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) if val <= u8::MAX as u16 => {
-          self.assemble_u8(addr, encodings::SBI);
-          self.assemble_u8(addr + 1, val as u8);
-        }
-        Ok(_) => {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ))
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        SBI,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
+      (ACI, [x]) => {
         if !matches!(
-          op1,
-          Operand::Numeric(_)
-            | Operand::Identifier(_)
-            | Operand::String(_)
-            | Operand::Expression(_),
+          x,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::String(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
         ) {
           return Err(AssembleError::new(
-            sp1.start,
+            x.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
         }
-      }
-      (
-        XRI,
-        &[OperandNode {
-          operand: Operand::Numeric(data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data > u8::MAX as u16 {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
 
-        self.assemble_u8(addr, encodings::XRI);
-        self.assemble_u8(addr + 1, (data & 0xFF) as u8);
+        self.assemble_d8_instr(
+          instruction_node,
+          encodings::ACI,
+          x,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
       }
-      (
-        XRI,
-        &[OperandNode {
-          operand: Operand::String(ref data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data.len() == 1 {
-          self.assemble_u8(addr, encodings::XRI);
-          self.assemble_u8(addr + 1, data.as_bytes()[0]);
-        } else {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-      }
-      (
-        XRI,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::XRI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if let Some(addr) = self.get_label_address(ident) {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::XRI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if is_first_pass {
-          // Only handle user defined addr, symbols, via directives, on the first pass
-          if let Some(val) = symbols.get(ident) {
-            if *val <= u8::MAX as u16 {
-              self.assemble_u8(addr, encodings::XRI);
-              self.assemble_u8(addr + 1, *val as u8);
-            } else {
-              return Err(AssembleError::new(
-                span.start,
-                AssembleErrorKind::ExpectedOneByteValue,
-              ));
-            }
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        XRI,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ref span,
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) if val <= u8::MAX as u16 => {
-          self.assemble_u8(addr, encodings::XRI);
-          self.assemble_u8(addr + 1, val as u8);
-        }
-        Ok(_) => {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ))
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        XRI,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
+      (SBI, [x]) => {
         if !matches!(
-          op1,
-          Operand::Numeric(_)
-            | Operand::String(_)
-            | Operand::Identifier(_)
-            | Operand::Expression(_)
+          x,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::String(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
         ) {
           return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-      }
-      (
-        CPI,
-        &[OperandNode {
-          operand: Operand::Numeric(data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data > u8::MAX as u16 {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-
-        self.assemble_u8(addr, encodings::CPI);
-        self.assemble_u8(addr + 1, (data & 0xFF) as u8);
-      }
-      (
-        CPI,
-        &[OperandNode {
-          operand: Operand::String(ref data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data.len() == 1 {
-          self.assemble_u8(addr, encodings::CPI);
-          self.assemble_u8(addr + 1, data.as_bytes()[0]);
-        } else {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-      }
-      (
-        CPI,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::CPI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if let Some(addr) = self.get_label_address(ident) {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::CPI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if is_first_pass {
-          // Only handle user defined addr, symbols, via directives, on the first pass
-          if let Some(val) = symbols.get(ident) {
-            if *val <= u8::MAX as u16 {
-              self.assemble_u8(addr, encodings::CPI);
-              self.assemble_u8(addr + 1, *val as u8);
-            } else {
-              return Err(AssembleError::new(
-                span.start,
-                AssembleErrorKind::ExpectedOneByteValue,
-              ));
-            }
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        CPI,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ref span,
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) if val <= u8::MAX as u16 => {
-          self.assemble_u8(addr, encodings::CPI);
-          self.assemble_u8(addr + 1, val as u8);
-        }
-        Ok(_) => {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ))
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        CPI,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
-        if !matches!(
-          op1,
-          Operand::Numeric(_)
-            | Operand::Identifier(_)
-            | Operand::String(_)
-            | Operand::Expression(_)
-        ) {
-          return Err(AssembleError::new(
-            sp1.start,
+            x.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
         }
-      }
-      (
-        ADI,
-        &[OperandNode {
-          operand: Operand::Numeric(data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data > u8::MAX as u16 {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
 
-        self.assemble_u8(addr, encodings::ADI);
-        self.assemble_u8(addr + 1, (data & 0xFF) as u8);
+        self.assemble_d8_instr(
+          instruction_node,
+          encodings::SBI,
+          x,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
       }
-      (
-        ADI,
-        &[OperandNode {
-          operand: Operand::String(ref data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data.len() == 1 {
-          self.assemble_u8(addr, encodings::ADI);
-          self.assemble_u8(addr + 1, data.as_bytes()[0]);
-        } else {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-      }
-      (
-        ADI,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::ADI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if let Some(addr) = self.get_label_address(ident) {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::ADI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if is_first_pass {
-          // Only handle user defined addr, symbols, via directives, on the first pass
-          if let Some(val) = symbols.get(ident) {
-            if *val <= u8::MAX as u16 {
-              self.assemble_u8(addr, encodings::ADI);
-              self.assemble_u8(addr + 1, *val as u8);
-            } else {
-              return Err(AssembleError::new(
-                span.start,
-                AssembleErrorKind::ExpectedOneByteValue,
-              ));
-            }
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        ADI,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ref span,
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) if val <= u8::MAX as u16 => {
-          self.assemble_u8(addr, encodings::ADI);
-          self.assemble_u8(addr + 1, val as u8);
-        }
-        Ok(_) => {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ))
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        ADI,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
+      (XRI, [x]) => {
         if !matches!(
-          op1,
-          Operand::Numeric(_)
-            | Operand::Identifier(_)
-            | Operand::String(_)
-            | Operand::Expression(_)
+          x,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::String(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
         ) {
           return Err(AssembleError::new(
-            sp1.start,
+            x.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
         }
-      }
-      (
-        SUI,
-        &[OperandNode {
-          operand: Operand::Numeric(data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data > u8::MAX as u16 {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
 
-        self.assemble_u8(addr, encodings::SUI);
-        self.assemble_u8(addr + 1, (data & 0xFF) as u8);
+        self.assemble_d8_instr(
+          instruction_node,
+          encodings::XRI,
+          x,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
       }
-      (
-        SUI,
-        &[OperandNode {
-          operand: Operand::String(ref data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data.len() == 1 {
-          self.assemble_u8(addr, encodings::SUI);
-          self.assemble_u8(addr + 1, data.as_bytes()[0]);
-        } else {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-      }
-      (
-        SUI,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::SUI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if let Some(addr) = self.get_label_address(ident) {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::SUI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if is_first_pass {
-          // Only handle user defined addr, symbols, via directives, on the first pass
-          if let Some(val) = symbols.get(ident) {
-            if *val <= u8::MAX as u16 {
-              self.assemble_u8(addr, encodings::SUI);
-              self.assemble_u8(addr + 1, *val as u8);
-            } else {
-              return Err(AssembleError::new(
-                span.start,
-                AssembleErrorKind::ExpectedOneByteValue,
-              ));
-            }
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        SUI,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ref span,
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) if val <= u8::MAX as u16 => {
-          self.assemble_u8(addr, encodings::SUI);
-          self.assemble_u8(addr + 1, val as u8);
-        }
-        Ok(_) => {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ))
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        SUI,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
+      (CPI, [x]) => {
         if !matches!(
-          op1,
-          Operand::Numeric(_)
-            | Operand::Identifier(_)
-            | Operand::String(_)
-            | Operand::Expression(_)
+          x,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::String(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
         ) {
           return Err(AssembleError::new(
-            sp1.start,
+            x.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
         }
-      }
-      (
-        ANI,
-        &[OperandNode {
-          operand: Operand::Numeric(data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data > u8::MAX as u16 {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
 
-        self.assemble_u8(addr, encodings::ANI);
-        self.assemble_u8(addr + 1, (data & 0xFF) as u8);
+        self.assemble_d8_instr(
+          instruction_node,
+          encodings::CPI,
+          x,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
       }
-      (
-        ANI,
-        &[OperandNode {
-          operand: Operand::String(ref data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data.len() == 1 {
-          self.assemble_u8(addr, encodings::ANI);
-          self.assemble_u8(addr + 1, data.as_bytes()[0]);
-        } else {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-      }
-      (
-        ANI,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::ANI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if let Some(addr) = self.get_label_address(ident) {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::ANI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if is_first_pass {
-          // Only handle user defined addr, symbols, via directives, on the first pass
-          if let Some(val) = symbols.get(ident) {
-            if *val <= u8::MAX as u16 {
-              self.assemble_u8(addr, encodings::ANI);
-              self.assemble_u8(addr + 1, *val as u8);
-            } else {
-              return Err(AssembleError::new(
-                span.start,
-                AssembleErrorKind::ExpectedOneByteValue,
-              ));
-            }
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        ANI,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ref span,
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) if val <= u8::MAX as u16 => {
-          self.assemble_u8(addr, encodings::ANI);
-          self.assemble_u8(addr + 1, val as u8);
-        }
-        Ok(_) => {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ))
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        ANI,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
+      (ADI, [x]) => {
         if !matches!(
-          op1,
-          Operand::Numeric(_)
-            | Operand::Identifier(_)
-            | Operand::String(_)
-            | Operand::Expression(_)
+          x,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::String(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
         ) {
           return Err(AssembleError::new(
-            sp1.start,
+            x.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
         }
-      }
-      (
-        ORI,
-        &[OperandNode {
-          operand: Operand::Numeric(data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data > u8::MAX as u16 {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
 
-        self.assemble_u8(addr, encodings::ORI);
-        self.assemble_u8(addr + 1, (data & 0xFF) as u8);
+        self.assemble_d8_instr(
+          instruction_node,
+          encodings::ADI,
+          x,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
       }
-      (
-        ORI,
-        &[OperandNode {
-          operand: Operand::String(ref data),
-          span: ref sp1,
-        }],
-      ) => {
-        if data.len() == 1 {
-          self.assemble_u8(addr, encodings::ORI);
-          self.assemble_u8(addr + 1, data.as_bytes()[0]);
-        } else {
-          return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-      }
-      (
-        ORI,
-        &[OperandNode {
-          operand: Operand::Identifier(ref ident),
-          ref span,
-        }],
-      ) => {
-        if ident == "$" {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::ORI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if let Some(addr) = self.get_label_address(ident) {
-          if addr <= u8::MAX as u16 {
-            self.assemble_u8(addr, encodings::ORI);
-            self.assemble_u8(addr + 1, addr as u8);
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::ExpectedOneByteValue,
-            ));
-          }
-        } else if is_first_pass {
-          // Only handle user defined addr, symbols, via directives, on the first pass
-          if let Some(val) = symbols.get(ident) {
-            if *val <= u8::MAX as u16 {
-              self.assemble_u8(addr, encodings::ORI);
-              self.assemble_u8(addr + 1, *val as u8);
-            } else {
-              return Err(AssembleError::new(
-                span.start,
-                AssembleErrorKind::ExpectedOneByteValue,
-              ));
-            }
-          } else {
-            unassembled.push((instruction_node, addr));
-          }
-        } else {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ));
-        }
-      }
-      (
-        ORI,
-        &[OperandNode {
-          operand: Operand::Expression(ref expr),
-          ref span,
-        }],
-      ) => match evaluate_instruction_expression(self, expr, addr, symbols, is_first_pass) {
-        Ok(val) if val <= u8::MAX as u16 => {
-          self.assemble_u8(addr, encodings::ORI);
-          self.assemble_u8(addr + 1, val as u8);
-        }
-        Ok(_) => {
-          return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ))
-        }
-        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
-          unassembled.push((instruction_node, addr));
-        }
-        Err(e) => return Err(e),
-      },
-      (
-        ORI,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
-        }],
-      ) => {
+      (SUI, [x]) => {
         if !matches!(
-          op1,
-          Operand::Numeric(_)
-            | Operand::Identifier(_)
-            | Operand::String(_)
-            | Operand::Expression(_)
+          x,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::String(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
         ) {
           return Err(AssembleError::new(
-            sp1.start,
+            x.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
         }
+
+        self.assemble_d8_instr(
+          instruction_node,
+          encodings::SUI,
+          x,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (ANI, [x]) => {
+        if !matches!(
+          x,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::String(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            x.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d8_instr(
+          instruction_node,
+          encodings::ANI,
+          x,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
+      }
+      (ORI, [x]) => {
+        if !matches!(
+          x,
+          OperandNode {
+            operand: Operand::Numeric(_),
+            ..
+          } | OperandNode {
+            operand: Operand::String(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Identifier(_),
+            ..
+          } | OperandNode {
+            operand: Operand::Expression(_),
+            ..
+          }
+        ) {
+          return Err(AssembleError::new(
+            x.span.start,
+            AssembleErrorKind::InvalidOperandType,
+          ));
+        }
+
+        self.assemble_d8_instr(
+          instruction_node,
+          encodings::ORI,
+          x,
+          location_counter,
+          is_first_pass,
+          symbols,
+          unassembled,
+        )?;
       }
 
       // Special d8 operand that only takes a value between 0-8
@@ -3716,40 +2002,235 @@ impl Environment {
           ));
         }
 
-        self.assemble_u8(addr, encode_rst(num as u8));
+        self.assemble_u8(location_counter, encode_rst(num as u8));
       }
 
       // No operands
-      (RP, &[]) => self.assemble_u8(addr, encodings::RP),
-      (RZ, &[]) => self.assemble_u8(addr, encodings::RZ),
-      (RC, &[]) => self.assemble_u8(addr, encodings::RC),
-      (RM, &[]) => self.assemble_u8(addr, encodings::RM),
-      (RNZ, &[]) => self.assemble_u8(addr, encodings::RNZ),
-      (RNC, &[]) => self.assemble_u8(addr, encodings::RNC),
-      (RPO, &[]) => self.assemble_u8(addr, encodings::RPO),
-      (RPE, &[]) => self.assemble_u8(addr, encodings::RPE),
-      (RET, &[]) => self.assemble_u8(addr, encodings::RET),
-      (RAL, &[]) => self.assemble_u8(addr, encodings::RAL),
-      (RLC, &[]) => self.assemble_u8(addr, encodings::RLC),
-      (RRC, &[]) => self.assemble_u8(addr, encodings::RRC),
-      (RAR, &[]) => self.assemble_u8(addr, encodings::RAR),
-      (CMA, &[]) => self.assemble_u8(addr, encodings::CMA),
-      (CMC, &[]) => self.assemble_u8(addr, encodings::CMC),
-      (SPHL, &[]) => self.assemble_u8(addr, encodings::SPHL),
-      (PCHL, &[]) => self.assemble_u8(addr, encodings::PCHL),
-      (XCHG, &[]) => self.assemble_u8(addr, encodings::XCHG),
-      (XTHL, &[]) => self.assemble_u8(addr, encodings::XTHL),
-      (STC, &[]) => self.assemble_u8(addr, encodings::STC),
-      (DAA, &[]) => self.assemble_u8(addr, encodings::DAA),
-      (NOP, &[]) => self.assemble_u8(addr, encodings::NOP),
-      (HLT, &[]) => self.assemble_u8(addr, encodings::HLT),
+      (RP, &[]) => self.assemble_u8(location_counter, encodings::RP),
+      (RZ, &[]) => self.assemble_u8(location_counter, encodings::RZ),
+      (RC, &[]) => self.assemble_u8(location_counter, encodings::RC),
+      (RM, &[]) => self.assemble_u8(location_counter, encodings::RM),
+      (RNZ, &[]) => self.assemble_u8(location_counter, encodings::RNZ),
+      (RNC, &[]) => self.assemble_u8(location_counter, encodings::RNC),
+      (RPO, &[]) => self.assemble_u8(location_counter, encodings::RPO),
+      (RPE, &[]) => self.assemble_u8(location_counter, encodings::RPE),
+      (RET, &[]) => self.assemble_u8(location_counter, encodings::RET),
+      (RAL, &[]) => self.assemble_u8(location_counter, encodings::RAL),
+      (RLC, &[]) => self.assemble_u8(location_counter, encodings::RLC),
+      (RRC, &[]) => self.assemble_u8(location_counter, encodings::RRC),
+      (RAR, &[]) => self.assemble_u8(location_counter, encodings::RAR),
+      (CMA, &[]) => self.assemble_u8(location_counter, encodings::CMA),
+      (CMC, &[]) => self.assemble_u8(location_counter, encodings::CMC),
+      (SPHL, &[]) => self.assemble_u8(location_counter, encodings::SPHL),
+      (PCHL, &[]) => self.assemble_u8(location_counter, encodings::PCHL),
+      (XCHG, &[]) => self.assemble_u8(location_counter, encodings::XCHG),
+      (XTHL, &[]) => self.assemble_u8(location_counter, encodings::XTHL),
+      (STC, &[]) => self.assemble_u8(location_counter, encodings::STC),
+      (DAA, &[]) => self.assemble_u8(location_counter, encodings::DAA),
+      (NOP, &[]) => self.assemble_u8(location_counter, encodings::NOP),
+      (HLT, &[]) => self.assemble_u8(location_counter, encodings::HLT),
 
       (instruction, _) => panic!("missing case when assembling {instruction}"),
     }
 
-    self.assemble_index += instruction_bytes_occupied(instruction_node.instruction()) as u16;
-
     Ok(())
+  }
+
+  #[allow(clippy::too_many_arguments, clippy::needless_lifetimes)]
+  fn assemble_d8_instr<'instr, 'sym, 'vec>(
+    &mut self,
+    instruction_node: &'instr InstructionNode,
+    encoded_instruction: u8,
+    d8_operand: &'instr OperandNode,
+    location_counter: u16,
+    is_first_pass: bool,
+    symbols: &'sym Symbols<'instr>,
+    unassembled: &'vec mut Vec<(&'instr InstructionNode, u16)>,
+  ) -> AssembleResult<()> {
+    match d8_operand {
+      OperandNode {
+        operand: Operand::Numeric(data),
+        ref span,
+      } => {
+        if *data <= u8::MAX as u16 {
+          self.assemble_u8(location_counter, encoded_instruction);
+          self.assemble_u8(location_counter + 1, (data & 0xFF) as u8);
+          Ok(())
+        } else {
+          Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ))
+        }
+      }
+      OperandNode {
+        operand: Operand::String(ref str),
+        ref span,
+      } => {
+        if str.len() == 1 {
+          self.assemble_u8(location_counter, encoded_instruction);
+          self.assemble_u8(location_counter + 1, str.as_bytes()[0]);
+          Ok(())
+        } else {
+          Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ))
+        }
+      }
+      OperandNode {
+        operand: Operand::Identifier(ref ident),
+        ref span,
+      } => {
+        if ident == "$" {
+          if location_counter <= u8::MAX as u16 {
+            self.assemble_u8(location_counter, encoded_instruction);
+            self.assemble_u8(location_counter + 1, location_counter as u8);
+            Ok(())
+          } else {
+            Err(AssembleError::new(
+              span.start,
+              AssembleErrorKind::ExpectedOneByteValue,
+            ))
+          }
+        } else if let Some(location_counter) = self.get_label_address(ident) {
+          if location_counter <= u8::MAX as u16 {
+            self.assemble_u8(location_counter, encoded_instruction);
+            self.assemble_u8(location_counter + 1, location_counter as u8);
+            Ok(())
+          } else {
+            Err(AssembleError::new(
+              span.start,
+              AssembleErrorKind::ExpectedOneByteValue,
+            ))
+          }
+        } else if let Some(val) = symbols.get_defined_value(ident, location_counter) {
+          if val <= u8::MAX as u16 {
+            self.assemble_u8(location_counter, encoded_instruction);
+            self.assemble_u8(location_counter + 1, (val & 0xFF) as u8);
+            Ok(())
+          } else {
+            return Err(AssembleError::new(
+              span.start,
+              AssembleErrorKind::ExpectedOneByteValue,
+            ));
+          }
+        } else if is_first_pass {
+          unassembled.push((instruction_node, location_counter));
+          Ok(())
+        } else {
+          Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
+      }
+      OperandNode {
+        operand: Operand::Expression(ref expr),
+        ref span,
+      } => match evaluate_instruction_expression(self, expr, location_counter, symbols) {
+        Ok(val) if val <= u8::MAX as u16 => {
+          self.assemble_u8(location_counter, encoded_instruction);
+          self.assemble_u8(location_counter + 1, val as u8);
+          Ok(())
+        }
+        Ok(_) => Err(AssembleError::new(
+          span.start,
+          AssembleErrorKind::ExpectedOneByteValue,
+        )),
+        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
+          unassembled.push((instruction_node, location_counter));
+          Ok(())
+        }
+        Err(e) => Err(e),
+      },
+      _ => unreachable!(),
+    }
+  }
+
+  #[allow(clippy::too_many_arguments, clippy::needless_lifetimes)]
+  pub fn assemble_d16_instr<'instr, 'sym, 'vec>(
+    &mut self,
+    instruction_node: &'instr InstructionNode,
+    encoded_instruction: u8,
+    d16_operand: &'instr OperandNode,
+    location_counter: u16,
+    is_first_pass: bool,
+    symbols: &'sym Symbols<'instr>,
+    unassembled: &'vec mut Vec<(&'instr InstructionNode, u16)>,
+  ) -> AssembleResult<()> {
+    match d16_operand {
+      OperandNode {
+        operand: Operand::Numeric(data),
+        ..
+      } => {
+        self.assemble_u8(location_counter, encoded_instruction);
+        self.assemble_u16(location_counter + 1, *data);
+        Ok(())
+      }
+      // NOTE: Only LXI supports having strings. The other addressable 16 bit operand
+      // instructions need to have a guard against this in each of their arms.
+      OperandNode {
+        operand: Operand::String(ref str),
+        ref span,
+      } => {
+        if str.len() == 2 {
+          let bytes = str.as_bytes();
+          let data = (bytes[0] as u16) << 8 | bytes[1] as u16;
+
+          self.assemble_u8(location_counter, encoded_instruction);
+          self.assemble_u16(location_counter + 1, data);
+          Ok(())
+        } else {
+          Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedTwoByteValue,
+          ))
+        }
+      }
+      OperandNode {
+        operand: Operand::Identifier(ref ident),
+        ref span,
+      } => {
+        if ident == "$" {
+          self.assemble_u8(location_counter, encoded_instruction);
+          self.assemble_u16(location_counter + 1, location_counter);
+          Ok(())
+        } else if let Some(label_addr) = self.get_label_address(ident) {
+          self.assemble_u8(location_counter, encoded_instruction);
+          self.assemble_u16(location_counter + 1, label_addr);
+          Ok(())
+        } else if let Some(val) = symbols.get_defined_value(ident, location_counter) {
+          self.assemble_u8(location_counter, encoded_instruction);
+          self.assemble_u16(location_counter + 1, val);
+          Ok(())
+        } else if is_first_pass {
+          unassembled.push((instruction_node, location_counter));
+          Ok(())
+        } else {
+          Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ))
+        }
+      }
+      OperandNode {
+        operand: Operand::Expression(ref expr),
+        ..
+      } => match evaluate_instruction_expression(self, expr, location_counter, symbols) {
+        Ok(val) => {
+          self.assemble_u8(location_counter, encoded_instruction);
+          self.assemble_u16(location_counter + 1, val);
+          Ok(())
+        }
+        Err(e) if is_first_pass && matches!(e.kind, AssembleErrorKind::IdentifierNotDefined) => {
+          unassembled.push((instruction_node, location_counter));
+          Ok(())
+        }
+        Err(e) => Err(e),
+      },
+      _ => unreachable!(),
+    }
   }
 }
 
@@ -3770,9 +2251,8 @@ impl Default for Environment {
 fn evaluate_instruction_expression(
   env: &Environment,
   expr: &ExpressionNode,
-  assemble_index: u16,
-  symbols: &HashMap<&SmolStr, u16>,
-  is_first_pass: bool,
+  location_counter: u16,
+  symbols: &Symbols,
 ) -> AssembleResult<u16> {
   match expr.value() {
     Expression::Number(num) => Ok(*num),
@@ -3790,18 +2270,11 @@ fn evaluate_instruction_expression(
     }
     Expression::Identifier(ref label) => {
       if label == "$" {
-        Ok(assemble_index)
+        Ok(location_counter)
       } else if let Some(addr) = env.get_label_address(label) {
         Ok(addr)
-      } else if is_first_pass {
-        if let Some(val) = symbols.get(label) {
-          Ok(*val)
-        } else {
-          Err(AssembleError::new(
-            expr.span.start,
-            AssembleErrorKind::IdentifierNotDefined,
-          ))
-        }
+      } else if let Some(value) = symbols.get_defined_value(label, location_counter) {
+        Ok(value)
       } else {
         Err(AssembleError::new(
           expr.span.start,
@@ -3810,148 +2283,112 @@ fn evaluate_instruction_expression(
       }
     }
     Expression::Paren(child_expr) => {
-      evaluate_instruction_expression(env, child_expr, assemble_index, symbols, is_first_pass)
+      evaluate_instruction_expression(env, child_expr, location_counter, symbols)
     }
     Expression::Unary {
       op,
       expr: child_expr,
     } => match op {
       Operator::Addition => {
-        evaluate_instruction_expression(env, child_expr, assemble_index, symbols, is_first_pass)
+        evaluate_instruction_expression(env, child_expr, location_counter, symbols)
       }
       // Handle unary subtraction via wraparound
       Operator::Subtraction => Ok(0_u16.wrapping_sub(evaluate_instruction_expression(
         env,
         child_expr,
-        assemble_index,
+        location_counter,
         symbols,
-        is_first_pass,
       )?)),
-      Operator::High => Ok(
-        evaluate_instruction_expression(env, child_expr, assemble_index, symbols, is_first_pass)?
-          >> 8,
-      ),
-      Operator::Low => Ok(
-        evaluate_instruction_expression(env, child_expr, assemble_index, symbols, is_first_pass)?
-          & 0xFF,
-      ),
+      Operator::High => {
+        Ok(evaluate_instruction_expression(env, child_expr, location_counter, symbols)? >> 8)
+      }
+      Operator::Low => {
+        Ok(evaluate_instruction_expression(env, child_expr, location_counter, symbols)? & 0xFF)
+      }
       Operator::Not => Ok(!evaluate_instruction_expression(
         env,
         child_expr,
-        assemble_index,
+        location_counter,
         symbols,
-        is_first_pass,
       )?),
       _ => unreachable!(),
     },
     Expression::Binary { op, left, right } => match op {
       Operator::Addition => Ok(
-        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          .wrapping_add(evaluate_instruction_expression(
-            env,
-            right,
-            assemble_index,
-            symbols,
-            is_first_pass,
-          )?),
+        evaluate_instruction_expression(env, left, location_counter, symbols)?.wrapping_add(
+          evaluate_instruction_expression(env, right, location_counter, symbols)?,
+        ),
       ),
       Operator::Subtraction => Ok(
-        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          .wrapping_sub(evaluate_instruction_expression(
-            env,
-            right,
-            assemble_index,
-            symbols,
-            is_first_pass,
-          )?),
+        evaluate_instruction_expression(env, left, location_counter, symbols)?.wrapping_sub(
+          evaluate_instruction_expression(env, right, location_counter, symbols)?,
+        ),
       ),
       Operator::Division => Ok(
-        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          .wrapping_div(evaluate_instruction_expression(
-            env,
-            right,
-            assemble_index,
-            symbols,
-            is_first_pass,
-          )?),
+        evaluate_instruction_expression(env, left, location_counter, symbols)?.wrapping_div(
+          evaluate_instruction_expression(env, right, location_counter, symbols)?,
+        ),
       ),
       Operator::Multiplication => Ok(
-        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          .wrapping_mul(evaluate_instruction_expression(
-            env,
-            right,
-            assemble_index,
-            symbols,
-            is_first_pass,
-          )?),
+        evaluate_instruction_expression(env, left, location_counter, symbols)?.wrapping_mul(
+          evaluate_instruction_expression(env, right, location_counter, symbols)?,
+        ),
       ),
 
       Operator::Modulo => Ok(
-        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          % evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?,
+        evaluate_instruction_expression(env, left, location_counter, symbols)?
+          % evaluate_instruction_expression(env, right, location_counter, symbols)?,
       ),
       Operator::ShiftLeft => Ok(
-        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          .wrapping_shl(evaluate_instruction_expression(
-            env,
-            right,
-            assemble_index,
-            symbols,
-            is_first_pass,
-          )? as u32),
+        evaluate_instruction_expression(env, left, location_counter, symbols)?.wrapping_shl(
+          evaluate_instruction_expression(env, right, location_counter, symbols)? as u32,
+        ),
       ),
       Operator::ShiftRight => Ok(
-        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          .wrapping_shr(evaluate_instruction_expression(
-            env,
-            right,
-            assemble_index,
-            symbols,
-            is_first_pass,
-          )? as u32),
+        evaluate_instruction_expression(env, left, location_counter, symbols)?.wrapping_shr(
+          evaluate_instruction_expression(env, right, location_counter, symbols)? as u32,
+        ),
       ),
       Operator::And => Ok(
-        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          & evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?,
+        evaluate_instruction_expression(env, left, location_counter, symbols)?
+          & evaluate_instruction_expression(env, right, location_counter, symbols)?,
       ),
       Operator::Or => Ok(
-        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          | evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?,
+        evaluate_instruction_expression(env, left, location_counter, symbols)?
+          | evaluate_instruction_expression(env, right, location_counter, symbols)?,
       ),
       Operator::Xor => Ok(
-        evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          ^ evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?,
+        evaluate_instruction_expression(env, left, location_counter, symbols)?
+          ^ evaluate_instruction_expression(env, right, location_counter, symbols)?,
       ),
 
       Operator::Eq => Ok(
-        (evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          == evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?)
+        (evaluate_instruction_expression(env, left, location_counter, symbols)?
+          == evaluate_instruction_expression(env, right, location_counter, symbols)?)
           as u16,
       ),
       Operator::Ne => Ok(
-        (evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          != evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?)
+        (evaluate_instruction_expression(env, left, location_counter, symbols)?
+          != evaluate_instruction_expression(env, right, location_counter, symbols)?)
           as u16,
       ),
       // NOTE: Relational comparisons compare the bits, not the values
       Operator::Lt => Ok(
-        (evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          < evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?)
-          as u16,
+        (evaluate_instruction_expression(env, left, location_counter, symbols)?
+          < evaluate_instruction_expression(env, right, location_counter, symbols)?) as u16,
       ),
       Operator::Le => Ok(
-        (evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          <= evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?)
+        (evaluate_instruction_expression(env, left, location_counter, symbols)?
+          <= evaluate_instruction_expression(env, right, location_counter, symbols)?)
           as u16,
       ),
       Operator::Gt => Ok(
-        (evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          > evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?)
-          as u16,
+        (evaluate_instruction_expression(env, left, location_counter, symbols)?
+          > evaluate_instruction_expression(env, right, location_counter, symbols)?) as u16,
       ),
       Operator::Ge => Ok(
-        (evaluate_instruction_expression(env, left, assemble_index, symbols, is_first_pass)?
-          >= evaluate_instruction_expression(env, right, assemble_index, symbols, is_first_pass)?)
+        (evaluate_instruction_expression(env, left, location_counter, symbols)?
+          >= evaluate_instruction_expression(env, right, location_counter, symbols)?)
           as u16,
       ),
       // `NOT`, `HIGH`, `LOW `are handled in the unary section
@@ -3966,12 +2403,14 @@ fn evaluate_instruction_expression(
 fn evaluate_directive_expression(
   env: &mut Environment,
   expr: &ExpressionNode,
-  symbols: &HashMap<&SmolStr, u16>,
+  mut location_counter: u16,
+  symbols: &Symbols,
   operand_type: OperandType,
 ) -> AssembleResult<Option<u16>> {
   let arithmetic_string_handler = |node: &ExpressionNode| -> AssembleResult<()> {
     // Arithmetic operators aren't that well defined for strings
     match operand_type {
+      // TODO: Add spans to operators as well
       OperandType::Byte if matches!(node.value(), Expression::String(s) if s.len() > 1) => Err(
         AssembleError::new(expr.span.start, AssembleErrorKind::InvalidOperator),
       ),
@@ -4004,7 +2443,10 @@ fn evaluate_directive_expression(
       match operand_type {
         OperandType::Byte => {
           for &byte in str.as_bytes() {
-            env.assemble_u8(env.assemble_index, byte);
+            // TODO: Need to figure out some way to advance the location_counter,
+            // but still work for the second pass
+            env.assemble_u8(location_counter, byte);
+            location_counter += 1;
             env.assemble_index += 1;
           }
 
@@ -4027,23 +2469,14 @@ fn evaluate_directive_expression(
     }
     Expression::Identifier(ref ident) => {
       if ident == "$" {
-        if matches!(operand_type, OperandType::Byte) && env.assemble_index > u8::MAX as u16 {
+        if matches!(operand_type, OperandType::Byte) && location_counter > u8::MAX as u16 {
           return Err(AssembleError::new(
             expr.span.start,
             AssembleErrorKind::ExpectedOneByteValue,
           ));
         }
 
-        Ok(Some(env.assemble_index))
-      } else if let Some(symbol) = symbols.get(&ident) {
-        if matches!(operand_type, OperandType::Byte) && *symbol > u8::MAX as u16 {
-          return Err(AssembleError::new(
-            expr.span.start,
-            AssembleErrorKind::ExpectedOneByteValue,
-          ));
-        }
-
-        Ok(Some(*symbol))
+        Ok(Some(location_counter))
       } else if let Some(addr) = env.get_label_address(ident) {
         if matches!(operand_type, OperandType::Byte) && addr > u8::MAX as u16 {
           return Err(AssembleError::new(
@@ -4053,6 +2486,15 @@ fn evaluate_directive_expression(
         }
 
         Ok(Some(addr))
+      } else if let Some(value) = symbols.get_defined_value(ident, location_counter) {
+        if matches!(operand_type, OperandType::Byte) && value > u8::MAX as u16 {
+          return Err(AssembleError::new(
+            expr.span.start,
+            AssembleErrorKind::ExpectedOneByteValue,
+          ));
+        }
+
+        Ok(Some(value))
       } else {
         Err(AssembleError::new(
           expr.span.start,
@@ -4061,7 +2503,7 @@ fn evaluate_directive_expression(
       }
     }
     Expression::Paren(child_expr) => {
-      evaluate_directive_expression(env, child_expr, symbols, operand_type)
+      evaluate_directive_expression(env, child_expr, location_counter, symbols, operand_type)
     }
     Expression::Unary {
       op,
@@ -4070,31 +2512,31 @@ fn evaluate_directive_expression(
       Operator::Addition => {
         arithmetic_string_handler(expr)?;
 
-        evaluate_directive_expression(env, child_expr, symbols, operand_type)
+        evaluate_directive_expression(env, child_expr, location_counter, symbols, operand_type)
       }
       // Handle unary subtraction via wraparound
       Operator::Subtraction => {
         arithmetic_string_handler(expr)?;
 
-        evaluate_directive_expression(env, child_expr, symbols, operand_type)
+        evaluate_directive_expression(env, child_expr, location_counter, symbols, operand_type)
           .map(|x| x.map(|num| 0_u16.wrapping_sub(num)))
       }
       Operator::High => {
         arithmetic_string_handler(expr)?;
 
-        evaluate_directive_expression(env, child_expr, symbols, operand_type)
+        evaluate_directive_expression(env, child_expr, location_counter, symbols, operand_type)
           .map(|x| x.map(|num| num >> 8))
       }
       Operator::Low => {
         arithmetic_string_handler(expr)?;
 
-        evaluate_directive_expression(env, child_expr, symbols, operand_type)
+        evaluate_directive_expression(env, child_expr, location_counter, symbols, operand_type)
           .map(|x| x.map(|num| num & 0xFF))
       }
       Operator::Not => {
         arithmetic_string_handler(expr)?;
 
-        evaluate_directive_expression(env, child_expr, symbols, operand_type)
+        evaluate_directive_expression(env, child_expr, location_counter, symbols, operand_type)
           .map(|x| x.map(|num| !num))
       }
       _ => unreachable!(),
@@ -4106,8 +2548,8 @@ fn evaluate_directive_expression(
       let mut do_arithmetic =
         |left: &ExpressionNode, right: &ExpressionNode| -> AssembleResult<Option<(u16, u16)>> {
           match (
-            evaluate_directive_expression(env, left, symbols, operand_type),
-            evaluate_directive_expression(env, right, symbols, operand_type),
+            evaluate_directive_expression(env, left, location_counter, symbols, operand_type),
+            evaluate_directive_expression(env, right, location_counter, symbols, operand_type),
           ) {
             (Ok(Some(x)), Ok(Some(y))) => Ok(Some((x, y))),
             (Ok(None), _) | (_, Ok(None)) => Ok(None),
@@ -4327,7 +2769,7 @@ const fn encode_stax(r1: Register) -> u8 {
 }
 
 /// Returns the number of bytes this instruction occupies in memory.
-fn instruction_bytes_occupied(ins: Instruction) -> u8 {
+pub fn instruction_bytes_occupied(ins: Instruction) -> u8 {
   match ins {
     // 0 operand instructions
     Instruction::NOP => 1,

@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-
-use crate::{encodings, instructions, Environment};
+use crate::{
+  encodings, environment::instruction_bytes_occupied, instructions, Environment, Symbols,
+};
 use parser::nodes::{Node, ProgramNode};
 use types::{AssembleError, AssembleErrorKind};
 
@@ -20,61 +20,64 @@ impl Interpreter {
 
   /// Assmebles the assembly, encoding the instructions into memory.
   pub fn assemble(&mut self) -> types::AssembleResult<()> {
-    let mut symbols = HashMap::new();
+    let mut symbols = Symbols::new();
     let mut unassembled = Vec::new();
+    let mut unassembled_directives = Vec::new();
 
     for node in self.node.children() {
       match node {
         Node::Instruction(insn) => {
-          self.env.encode_instruction(
-            self.env.assemble_index,
-            insn,
-            &mut unassembled,
-            &symbols,
-            true,
-          )?;
+          let addr = Environment::INSTRUCTION_STARTING_ADDRESS + self.env.assemble_index;
+
+          self
+            .env
+            .encode_instruction(addr, insn, &mut unassembled, &symbols, true)?;
+
+          self.env.assemble_index += instruction_bytes_occupied(insn.instruction()) as u16;
         }
         Node::Label(label) => {
           let label_name = label.label_name();
 
-          if self.env.labels.contains_key(&label_name) || symbols.contains_key(&label_name) {
+          if self.env.labels.contains_key(&label_name) || symbols.contains(&label_name) {
             return Err(AssembleError::new(
               label.span().start,
               AssembleErrorKind::IdentifierAlreadyDefined,
             ));
           }
 
-          // The label is to be inserted at the current address will be the address to go to
-          let lower = (self.env.assemble_index & 0xFF) as u8;
-          let upper = (self.env.assemble_index >> 8) as u8;
-
           let addr = Environment::INSTRUCTION_STARTING_ADDRESS + self.env.assemble_index;
 
-          self.env.assemble_u8(addr, lower);
-          self.env.assemble_u8(addr + 1, upper);
-          // Make this index (and the next) as a label index
+          self.env.assemble_u16(addr, addr);
+          // Mark the start of the label so that it doesn't get misinterpreted as an instruction
           self.env.label_indices.insert(addr, label_name.clone());
-
           self.env.assemble_index += 2;
 
           // Point this label to the instruction's that should be executed
           self.env.add_label(label_name, self.env.assemble_index);
         }
         Node::Directive(directive) => {
-          self.env.encode_directive(directive, &mut symbols)?;
+          self.env.encode_directive(
+            self.env.assemble_index,
+            directive,
+            &mut unassembled_directives,
+            &mut symbols,
+            true,
+          )?;
         }
       }
     }
 
     // Everything should be assembled after this second pass
-    let mut new_unassembled = vec![];
+    for elem in unassembled_directives.iter() {
+      self
+        .env
+        .encode_directive(elem.1, elem.0, &mut vec![], &mut symbols, false)?;
+    }
 
-    if !unassembled.is_empty() {
-      for elem in unassembled.iter() {
-        self
-          .env
-          .encode_instruction(elem.1, elem.0, &mut new_unassembled, &symbols, false)?;
-      }
+    for elem in unassembled.iter() {
+      self
+        .env
+        .encode_instruction(elem.1, elem.0, &mut vec![], &symbols, false)?;
     }
 
     for n in 0..30 {
@@ -547,6 +550,18 @@ mod tests {
       run_asm!(
         "MVI A, TEST + 3\nTEST EQU 2",
         |_| false,
+        "using later defined custom identifier expr as operand"
+      ),
+      Err(AssembleError::new(
+        7,
+        AssembleErrorKind::IdentifierNotDefined
+      ))
+    );
+
+    assert_eq!(
+      run_asm!(
+        "MVI A, TEST\nTEST EQU 2",
+        |_| false,
         "using later defined custom identifier as operand"
       ),
       Err(AssembleError::new(
@@ -584,7 +599,26 @@ mod tests {
       |int: &mut Interpreter| int.env.registers.a == 20,
       "expr with later defined label as operand"
     )
-    .unwrap()
+    .unwrap();
+
+    run_asm!(
+      "X EQU Y\nY EQU 6\nMVI A, X",
+      |int: &mut Interpreter| int.env.registers.a == 6,
+      "2 pass equ directive"
+    )
+    .unwrap();
+
+    assert_eq!(
+      run_asm!(
+        "X EQU Y\nY EQU Z\nZ EQU 5\nMVI A, 5",
+        |_| false,
+        "3 pass equ directive"
+      ),
+      Err(AssembleError::new(
+        6,
+        AssembleErrorKind::IdentifierNotDefined
+      ))
+    )
   }
 
   #[test]
