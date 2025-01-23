@@ -2037,6 +2037,7 @@ impl Environment {
   }
 
   #[allow(clippy::too_many_arguments, clippy::needless_lifetimes)]
+  #[inline]
   fn assemble_d8_instr<'instr, 'sym, 'vec>(
     &mut self,
     instruction_node: &'instr InstructionNode,
@@ -2149,6 +2150,7 @@ impl Environment {
   }
 
   #[allow(clippy::too_many_arguments, clippy::needless_lifetimes)]
+  #[inline]
   pub fn assemble_d16_instr<'instr, 'sym, 'vec>(
     &mut self,
     instruction_node: &'instr InstructionNode,
