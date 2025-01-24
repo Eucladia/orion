@@ -521,6 +521,11 @@ impl Environment {
             directive_node.span().start,
             AssembleErrorKind::DirectiveRequiresOperands,
           ));
+        } else if ops.len() > parser::nodes::MAX_DIRECTIVE_OPERAND_SIZE {
+          return Err(AssembleError::new(
+            directive_node.span().start,
+            AssembleErrorKind::DirectiveHasTooManyOperands,
+          ));
         }
 
         for op in ops {
@@ -569,6 +574,11 @@ impl Environment {
           return Err(AssembleError::new(
             directive_node.span().start,
             AssembleErrorKind::DirectiveRequiresOperands,
+          ));
+        } else if ops.len() > parser::nodes::MAX_DIRECTIVE_OPERAND_SIZE {
+          return Err(AssembleError::new(
+            directive_node.span().start,
+            AssembleErrorKind::DirectiveHasTooManyOperands,
           ));
         }
 
