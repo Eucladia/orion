@@ -1,6 +1,7 @@
 use crate::{
   encodings, environment::instruction_bytes_occupied, instructions, Environment, Symbols,
 };
+use lexer::directive::Directive;
 use parser::nodes::{Node, ProgramNode};
 use types::{AssembleError, AssembleErrorKind};
 
@@ -55,14 +56,18 @@ impl Interpreter {
           // Point this label to the instruction's that should be executed
           self.env.add_label(label_name, self.env.assemble_index);
         }
-        Node::Directive(directive) => {
+        Node::Directive(directive_node) => {
           self.env.encode_directive(
             self.env.assemble_index,
-            directive,
+            directive_node,
             &mut unassembled_directives,
             &mut symbols,
             true,
           )?;
+
+          if matches!(directive_node.directive(), Directive::END) {
+            return Ok(());
+          }
         }
       }
     }
@@ -547,6 +552,13 @@ mod tests {
         && int.env.registers.a == 0x3
         && int.env.registers.d == 0xF7,
       "using EQU/SET as operands"
+    )
+    .unwrap();
+
+    run_asm!(
+      "END\nMVI A, 10",
+      |int: &mut Interpreter| int.env.registers.a == 0x0,
+      "using END"
     )
     .unwrap();
 

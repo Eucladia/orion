@@ -717,11 +717,13 @@ impl Environment {
 
         self.assemble_index = value;
       }
-      (Directive::ORG, _) => {
-        return Err(AssembleError::new(
-          directive_node.span().start,
-          AssembleErrorKind::ExpectedTwoByteValue,
-        ));
+      (Directive::END, ops) => {
+        if !ops.is_empty() {
+          return Err(AssembleError::new(
+            directive_node.span().start,
+            AssembleErrorKind::DirectiveHasTooManyOperands,
+          ));
+        }
       }
       _ => unreachable!(),
     }
