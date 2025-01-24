@@ -109,7 +109,19 @@ impl<'a> Parser<'a> {
         }
       }
 
-      TokenKind::Directive => Some(self.parse_directive(token, None).map(Node::Directive)),
+      TokenKind::Directive => {
+        if matches!(
+          self.peek_token().as_ref().map(Token::kind),
+          Some(TokenKind::Colon)
+        ) {
+          return Some(Err(ParseError::new(
+            token.span().start,
+            ParseErrorKind::ReservedIdentifier,
+          )));
+        }
+
+        Some(self.parse_directive(token, None).map(Node::Directive))
+      }
 
       TokenKind::Instruction => Some(self.parse_instruction(token).map(Node::Instruction)),
 
