@@ -266,6 +266,8 @@ impl Interpreter {
 
 #[cfg(test)]
 mod tests {
+  use crate::encodings;
+
   use super::Interpreter;
   use lexer::Flags;
   use types::{AssembleError, AssembleErrorKind, AssembleResult};
@@ -545,6 +547,15 @@ mod tests {
         && int.env.registers.a == 0x3
         && int.env.registers.d == 0xF7,
       "using EQU/SET as operands"
+    )
+    .unwrap();
+
+    run_asm!(
+      "ORG 0FFH\nMOV A, A\nORG 5\nMOV A, B\nORG $ + 10\nMOV A, C",
+      |int: &mut Interpreter| int.env.memory_at(0xFF) == encodings::MOV_A_A
+        && int.env.memory_at(5) == encodings::MOV_A_B
+        && int.env.memory_at(16) == encodings::MOV_A_C,
+      "using ORG directive"
     )
     .unwrap();
 

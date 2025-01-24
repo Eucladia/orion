@@ -657,6 +657,72 @@ impl Environment {
           AssembleErrorKind::ExpectedTwoByteValue,
         ));
       }
+      (
+        Directive::ORG,
+        &[OperandNode {
+          operand: Operand::Numeric(data),
+          ..
+        }],
+      ) => {
+        self.assemble_index = data;
+      }
+      (
+        Directive::ORG,
+        &[OperandNode {
+          operand: Operand::String(ref str),
+          ref span,
+        }],
+      ) => {
+        if str.is_empty() {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::ExpectedTwoByteValue,
+          ));
+        }
+
+        let bytes = str.as_bytes();
+        let data = (bytes[0] as u16) << 8 | bytes.get(1).copied().unwrap_or(0) as u16;
+
+        self.assemble_index = data;
+      }
+      (
+        Directive::ORG,
+        &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ref span,
+        }],
+      ) => {
+        if ident == "$" {
+          // Useless to even do, but lets just leave it here for overall support
+          self.assemble_index = self.assemble_index;
+        } else if let Some(value) = self.get_label_address(ident) {
+          self.assemble_index = value;
+        } else if let Some(value) = symbols.get_value(ident) {
+          self.assemble_index = value
+        } else {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::IdentifierNotDefined,
+          ));
+        }
+      }
+      (
+        Directive::ORG,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ..
+        }],
+      ) => {
+        let value = evaluate_instruction_expression(self, expr, addr, symbols)?;
+
+        self.assemble_index = value;
+      }
+      (Directive::ORG, _) => {
+        return Err(AssembleError::new(
+          directive_node.span().start,
+          AssembleErrorKind::ExpectedTwoByteValue,
+        ));
+      }
       _ => unreachable!(),
     }
 
