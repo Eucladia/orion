@@ -272,6 +272,7 @@ impl Environment {
     is_first_pass: bool,
   ) -> AssembleResult<()> {
     match (directive_node.directive(), directive_node.operands()) {
+      // NOTE: `EQU` and `SET` can require 2 passes to fully resolve everything
       (
         Directive::EQU,
         &[OperandNode {
@@ -376,9 +377,9 @@ impl Environment {
             ));
           }
 
-          let value = evaluate_directive_expression(self, expr, addr, symbols, OperandType::Byte)?;
+          let value = evaluate_instruction_expression(self, expr, addr, symbols)?;
 
-          symbols.add_symbol(name, value.unwrap(), addr);
+          symbols.add_symbol(name, value, addr);
         } else {
           return Err(AssembleError::new(
             span.start,
