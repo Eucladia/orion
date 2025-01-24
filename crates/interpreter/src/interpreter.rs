@@ -538,11 +538,13 @@ mod tests {
     );
 
     run_asm!(
-      "TEST1 EQU 0FFH\nMVI B, TEST1 - 1\nTEST2 SET 1\nMVI C, TEST2\nTEST2 SET 3\nADI TEST2",
+      "TEST1 EQU 0FFH\nMVI B, TEST1 - 1\nTEST2 SET 1\nMVI C, TEST2\nTEST2 SET 3\nADI TEST2\
+\nTEST3 SET TEST1 - TEST2 - 5\nMVI D, TEST3",
       |int: &mut Interpreter| int.env.registers.b == 0xFE
         && int.env.registers.c == 0x1
-        && int.env.registers.a == 0x3,
-      "using custom identifier as operand"
+        && int.env.registers.a == 0x3
+        && int.env.registers.d == 0xF7,
+      "using EQU/SET as operands"
     )
     .unwrap();
 
@@ -550,7 +552,19 @@ mod tests {
       run_asm!(
         "MVI A, TEST + 3\nTEST EQU 2",
         |_| false,
-        "using later defined custom identifier expr as operand"
+        "using later defined EQU expr as operand"
+      ),
+      Err(AssembleError::new(
+        7,
+        AssembleErrorKind::IdentifierNotDefined
+      ))
+    );
+
+    assert_eq!(
+      run_asm!(
+        "MVI A, TEST + 3\nTEST EQU 2",
+        |_| false,
+        "using later defined EQU expr as operand"
       ),
       Err(AssembleError::new(
         7,
@@ -562,7 +576,7 @@ mod tests {
       run_asm!(
         "MVI A, TEST\nTEST EQU 2",
         |_| false,
-        "using later defined custom identifier as operand"
+        "using later defined EQU identifier as operand"
       ),
       Err(AssembleError::new(
         7,

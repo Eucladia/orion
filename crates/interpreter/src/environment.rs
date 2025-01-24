@@ -416,14 +416,99 @@ impl Environment {
           ));
         }
       }
-      (Directive::SET, ops) => {
-        if ops.is_empty() {
+      (
+        Directive::SET,
+        &[OperandNode {
+          operand: Operand::String(ref str),
+          ref span,
+        }],
+      ) => {
+        if str.is_empty() {
           return Err(AssembleError::new(
-            directive_node.span().start,
-            AssembleErrorKind::DirectiveRequiresOperands,
+            span.start,
+            AssembleErrorKind::ExpectedTwoByteValue,
+          ));
+        } else if let Some(name) = directive_node.identifier() {
+          if self.labels.contains_key(name) {
+            return Err(AssembleError::new(
+              directive_node.span().start,
+              AssembleErrorKind::IdentifierAlreadyDefined,
+            ));
+          }
+
+          let bytes = str.as_bytes();
+          let data = (bytes[0] as u16) << 8 | bytes.get(1).copied().unwrap_or(0) as u16;
+
+          symbols.add_symbol(name, data, addr);
+        } else {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::DirectiveRequiresName,
           ));
         }
+      }
+      (
+        Directive::SET,
+        &[OperandNode {
+          operand: Operand::Identifier(ref ident),
+          ref span,
+        }],
+      ) => {
+        if let Some(name) = directive_node.identifier() {
+          if self.labels.contains_key(name) {
+            return Err(AssembleError::new(
+              directive_node.span().start,
+              AssembleErrorKind::IdentifierAlreadyDefined,
+            ));
+          }
 
+          if ident == "$" {
+            symbols.add_symbol(name, addr, addr);
+          } else if let Some(val) = self.get_label_address(ident) {
+            symbols.add_symbol(name, val, addr);
+          } else if let Some(value) = symbols.get_value(ident) {
+            symbols.add_symbol(name, value, addr);
+          } else if is_first_pass {
+            unassembled.push((directive_node, addr));
+          } else {
+            return Err(AssembleError::new(
+              span.start,
+              AssembleErrorKind::IdentifierNotDefined,
+            ));
+          }
+        } else {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::DirectiveRequiresName,
+          ));
+        }
+      }
+      (
+        Directive::SET,
+        &[OperandNode {
+          operand: Operand::Expression(ref expr),
+          ref span,
+        }],
+      ) => {
+        if let Some(name) = directive_node.identifier() {
+          if self.labels.contains_key(name) {
+            return Err(AssembleError::new(
+              directive_node.span().start,
+              AssembleErrorKind::IdentifierAlreadyDefined,
+            ));
+          }
+
+          let value = evaluate_instruction_expression(self, expr, addr, symbols)?;
+
+          symbols.add_symbol(name, value, addr);
+        } else {
+          return Err(AssembleError::new(
+            span.start,
+            AssembleErrorKind::DirectiveRequiresName,
+          ));
+        }
+      }
+      (Directive::SET, _) => {
         return Err(AssembleError::new(
           directive_node.span().start,
           AssembleErrorKind::ExpectedTwoByteValue,
