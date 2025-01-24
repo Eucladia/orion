@@ -1,6 +1,6 @@
 use crate::nodes::{
   DirectiveNode, Expression, ExpressionNode, InstructionNode, LabelNode, Node, Operand,
-  OperandNode, Operator, ProgramNode, MAX_DIRECTIVE_OPERAND_SIZE,
+  OperandNode, Operator, OperatorNode, ProgramNode, MAX_DIRECTIVE_OPERAND_SIZE,
 };
 use crate::unwrap;
 
@@ -672,7 +672,7 @@ impl<'a> Parser<'a> {
       lhs = ExpressionNode::new(
         Expression::Binary {
           left: Box::new(lhs),
-          op: op.unwrap(),
+          operator: OperatorNode::new(op.unwrap(), tok.span().clone()),
           right: Box::new(rhs),
         },
         start_span..self.previous_token().unwrap().span().end,
@@ -704,7 +704,7 @@ impl<'a> Parser<'a> {
       lhs = ExpressionNode::new(
         Expression::Binary {
           left: Box::new(lhs),
-          op: op.unwrap(),
+          operator: OperatorNode::new(op.unwrap(), tok.span().clone()),
           right: Box::new(rhs),
         },
         start_span..self.previous_token().unwrap().span().end,
@@ -741,7 +741,7 @@ impl<'a> Parser<'a> {
       lhs = ExpressionNode::new(
         Expression::Binary {
           left: Box::new(lhs),
-          op: op.unwrap(),
+          operator: OperatorNode::new(op.unwrap(), tok.span().clone()),
           right: Box::new(rhs),
         },
         start_span..self.previous_token().unwrap().span().end,
@@ -773,7 +773,7 @@ impl<'a> Parser<'a> {
       lhs = ExpressionNode::new(
         Expression::Binary {
           left: Box::new(lhs),
-          op: op.unwrap(),
+          operator: OperatorNode::new(op.unwrap(), tok.span().clone()),
           right: Box::new(rhs),
         },
         start_span..self.previous_token().unwrap().span().end,
@@ -805,7 +805,7 @@ impl<'a> Parser<'a> {
       lhs = ExpressionNode::new(
         Expression::Binary {
           left: Box::new(lhs),
-          op: op.unwrap(),
+          operator: OperatorNode::new(op.unwrap(), tok.span().clone()),
           right: Box::new(rhs),
         },
         start_span..self.previous_token().unwrap().span().end,
@@ -838,7 +838,7 @@ impl<'a> Parser<'a> {
 
       Ok(ExpressionNode::new(
         Expression::Unary {
-          op: op.unwrap(),
+          operator: OperatorNode::new(op.unwrap(), tok.span().clone()),
           expr: Box::new(expr),
         },
         tok.span().start..self.previous_token().unwrap().span().end,

@@ -93,15 +93,22 @@ pub enum Expression {
   ///
   /// The unary operators are `+`, `-`, `NOT`, `HIGH`, and `LOW`.
   Unary {
-    op: Operator,
+    operator: OperatorNode,
     expr: Box<ExpressionNode>,
   },
   /// A binary expression.
   Binary {
-    op: Operator,
+    operator: OperatorNode,
     left: Box<ExpressionNode>,
     right: Box<ExpressionNode>,
   },
+}
+
+/// An operator node.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OperatorNode {
+  pub op: Operator,
+  pub span: Range<usize>,
 }
 
 /// Possible operators that can be applied.
@@ -180,6 +187,13 @@ impl OperandNode {
   /// Creates a new [`OperandNode`].
   pub fn new(op: Operand, span: Range<usize>) -> Self {
     Self { operand: op, span }
+  }
+}
+
+impl OperatorNode {
+  /// Creates a new [`OperatorNode`].
+  pub fn new(op: Operator, span: Range<usize>) -> Self {
+    Self { op, span }
   }
 }
 
@@ -370,6 +384,12 @@ impl std::fmt::Display for DirectiveNode {
   }
 }
 
+impl std::fmt::Display for OperatorNode {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}", self.op)
+  }
+}
+
 impl std::fmt::Display for Operand {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {
@@ -388,8 +408,12 @@ impl std::fmt::Display for Expression {
       Expression::Number(num) => write!(f, "{}", num),
       Expression::Identifier(s) => write!(f, "{}", s),
       Expression::String(s) => write!(f, "'{}'", s),
-      Expression::Unary { op, expr } => write!(f, "{}{}", op, expr),
-      Expression::Binary { op, left, right } => write!(f, "{} {} {}", left, op, right),
+      Expression::Unary { operator: op, expr } => write!(f, "{}{}", op, expr),
+      Expression::Binary {
+        operator: op,
+        left,
+        right,
+      } => write!(f, "{} {} {}", left, op, right),
       Expression::Paren(inner) => write!(f, "({})", inner),
     }
   }

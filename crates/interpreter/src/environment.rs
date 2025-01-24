@@ -5,6 +5,7 @@ use lexer::directive::Directive;
 use lexer::{instruction::Instruction, Flags, Register};
 use parser::nodes::{
   DirectiveNode, Expression, ExpressionNode, InstructionNode, Operand, OperandNode, Operator,
+  OperatorNode,
 };
 use smol_str::SmolStr;
 use types::{AssembleError, AssembleErrorKind, AssembleResult};
@@ -2384,7 +2385,7 @@ fn evaluate_instruction_expression(
       evaluate_instruction_expression(env, child_expr, location_counter, symbols)
     }
     Expression::Unary {
-      op,
+      operator: OperatorNode { op, .. },
       expr: child_expr,
     } => match op {
       Operator::Addition => {
@@ -2411,7 +2412,11 @@ fn evaluate_instruction_expression(
       )?),
       _ => unreachable!(),
     },
-    Expression::Binary { op, left, right } => match op {
+    Expression::Binary {
+      operator: OperatorNode { op, .. },
+      left,
+      right,
+    } => match op {
       Operator::Addition => Ok(
         evaluate_instruction_expression(env, left, location_counter, symbols)?.wrapping_add(
           evaluate_instruction_expression(env, right, location_counter, symbols)?,
@@ -2505,19 +2510,19 @@ fn evaluate_directive_expression(
   symbols: &Symbols,
   operand_type: OperandType,
 ) -> AssembleResult<Option<u16>> {
-  let arithmetic_string_handler = |node: &ExpressionNode| -> AssembleResult<()> {
-    // Arithmetic operators aren't that well defined for strings
-    match operand_type {
-      // TODO: Add spans to operators as well
-      OperandType::Byte if matches!(node.value(), Expression::String(s) if s.len() > 1) => Err(
-        AssembleError::new(expr.span.start, AssembleErrorKind::InvalidOperator),
-      ),
-      OperandType::Word if matches!(node.value(), Expression::String(s) if s.len() > 2) => Err(
-        AssembleError::new(expr.span.start, AssembleErrorKind::InvalidOperator),
-      ),
-      _ => Ok(()),
-    }
-  };
+  let arithmetic_string_handler =
+    |node: &ExpressionNode, operator_start_pos: usize| -> AssembleResult<()> {
+      // Arithmetic operators aren't that well defined for strings
+      match operand_type {
+        OperandType::Byte if matches!(node.value(), Expression::String(s) if s.len() > 1) => Err(
+          AssembleError::new(operator_start_pos, AssembleErrorKind::InvalidOperator),
+        ),
+        OperandType::Word if matches!(node.value(), Expression::String(s) if s.len() > 2) => Err(
+          AssembleError::new(operator_start_pos, AssembleErrorKind::InvalidOperator),
+        ),
+        _ => Ok(()),
+      }
+    };
 
   match expr.value() {
     Expression::Number(num) => {
@@ -2604,44 +2609,48 @@ fn evaluate_directive_expression(
       evaluate_directive_expression(env, child_expr, location_counter, symbols, operand_type)
     }
     Expression::Unary {
-      op,
+      operator: OperatorNode { op, ref span },
       expr: child_expr,
     } => match op {
       Operator::Addition => {
-        arithmetic_string_handler(expr)?;
+        arithmetic_string_handler(expr, span.start)?;
 
         evaluate_directive_expression(env, child_expr, location_counter, symbols, operand_type)
       }
       // Handle unary subtraction via wraparound
       Operator::Subtraction => {
-        arithmetic_string_handler(expr)?;
+        arithmetic_string_handler(expr, span.start)?;
 
         evaluate_directive_expression(env, child_expr, location_counter, symbols, operand_type)
           .map(|x| x.map(|num| 0_u16.wrapping_sub(num)))
       }
       Operator::High => {
-        arithmetic_string_handler(expr)?;
+        arithmetic_string_handler(expr, span.start)?;
 
         evaluate_directive_expression(env, child_expr, location_counter, symbols, operand_type)
           .map(|x| x.map(|num| num >> 8))
       }
       Operator::Low => {
-        arithmetic_string_handler(expr)?;
+        arithmetic_string_handler(expr, span.start)?;
 
         evaluate_directive_expression(env, child_expr, location_counter, symbols, operand_type)
           .map(|x| x.map(|num| num & 0xFF))
       }
       Operator::Not => {
-        arithmetic_string_handler(expr)?;
+        arithmetic_string_handler(expr, span.start)?;
 
         evaluate_directive_expression(env, child_expr, location_counter, symbols, operand_type)
           .map(|x| x.map(|num| !num))
       }
       _ => unreachable!(),
     },
-    Expression::Binary { op, left, right } => {
-      arithmetic_string_handler(left)?;
-      arithmetic_string_handler(right)?;
+    Expression::Binary {
+      operator: OperatorNode { op, ref span },
+      left,
+      right,
+    } => {
+      arithmetic_string_handler(left, span.start)?;
+      arithmetic_string_handler(right, span.start)?;
 
       let mut do_arithmetic =
         |left: &ExpressionNode, right: &ExpressionNode| -> AssembleResult<Option<(u16, u16)>> {
