@@ -693,8 +693,7 @@ impl Environment {
         }],
       ) => {
         if ident == "$" {
-          // Useless to even do, but lets just leave it here for overall support
-          self.assemble_index = self.assemble_index;
+          // No-op this, since it'd set the location counter to itself
         } else if let Some(value) = self.get_label_address(ident) {
           self.assemble_index = value;
         } else if let Some(value) = symbols.get_value(ident) {
