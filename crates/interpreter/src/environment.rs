@@ -869,359 +869,274 @@ impl Environment {
       (
         LDAX,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_ldax(r1)),
-      (
-        LDAX,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_ldax(*r1));
       }
       (
         STAX,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_stax(r1)),
-      (
-        STAX,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_stax(*r1));
       }
       (
         INX,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_inx(r1)),
-      (
-        INX,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_inx(*r1));
       }
       (
         DCX,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_dcx(r1)),
-      (
-        DCX,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_dcx(*r1));
       }
       (
         POP,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_pop(r1)),
-      (
-        POP,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_pop(*r1));
       }
       (
         PUSH,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_push(r1)),
-      (
-        PUSH,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_push(*r1));
       }
       (
         DAD,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_dad(r1)),
-      (
-        DAD,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_dad(*r1));
       }
       (
         ADD,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_add(r1)),
-      (
-        ADD,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_add(*r1));
       }
       (
         ADC,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_adc(r1)),
-      (
-        ADC,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_adc(*r1));
       }
       (
         SUB,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_sub(r1)),
-      (
-        SUB,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_sub(*r1));
       }
       (
         SBB,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_sbb(r1)),
-      (
-        SBB,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_sbb(*r1));
       }
       (
         ANA,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_ana(r1)),
-      (
-        ANA,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_ana(*r1));
       }
       (
         XRA,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_xra(r1)),
-      (
-        XRA,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_xra(*r1));
       }
       (
         ORA,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_ora(r1)),
-      (
-        ORA,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
-            AssembleErrorKind::InvalidOperandType,
+            span.start,
+            AssembleErrorKind::InvalidOperandValue,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_ora(*r1));
       }
       (
         CMP,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_cmp(r1)),
-      (
-        CMP,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_cmp(*r1));
       }
       (
         INR,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_inr(r1)),
-      (
-        INR,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_inr(*r1));
       }
       (
         DCR,
         &[OperandNode {
-          operand: Operand::Register(r1),
-          ..
-        }],
-      ) => self.assemble_u8(location_counter, encode_dcr(r1)),
-      (
-        DCR,
-        &[OperandNode {
-          operand: ref op1,
-          span: ref sp1,
+          ref operand,
+          ref span,
         }],
       ) => {
-        if !matches!(op1, Operand::Register(_)) {
+        let Operand::Register(r1) = operand else {
           return Err(AssembleError::new(
-            sp1.start,
+            span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
-        }
+        };
+
+        self.assemble_u8(location_counter, encode_dcr(*r1));
       }
 
       // a16 operands
