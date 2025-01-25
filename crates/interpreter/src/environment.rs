@@ -765,7 +765,7 @@ impl Environment {
         } = op2
         else {
           return Err(AssembleError::new(
-            op1.span.start,
+            op2.span.start,
             AssembleErrorKind::InvalidOperandType,
           ));
         };
