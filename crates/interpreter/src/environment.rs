@@ -216,7 +216,7 @@ impl Environment {
   ///
   /// If the register is [`Register::M`], then the value at the memory address
   /// of register pair H-L is returned.
-  pub fn get_register_value(&mut self, reg: Register) -> Option<u8> {
+  pub fn get_register_value(&self, reg: Register) -> Option<u8> {
     Some(match reg {
       Register::A => self.registers.a,
       Register::B => self.registers.b,
