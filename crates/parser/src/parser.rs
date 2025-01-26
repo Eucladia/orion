@@ -96,11 +96,26 @@ impl<'a> Parser<'a> {
 
             Some(Ok(Node::Label(LabelNode::new(ident, token.span()))))
           }
-          Some(next_token) if matches!(next_token.kind(), TokenKind::Directive) => Some(
-            self
-              .parse_directive(next_token, Some(&token))
-              .map(Node::Directive),
-          ),
+          Some(next_token) if matches!(next_token.kind(), TokenKind::Directive) => {
+            let directive = self
+              .source
+              .get(next_token.span())
+              .and_then(Directive::from_string)
+              .unwrap();
+
+            if !matches!(directive, Directive::EQU | Directive::SET) {
+              return Some(Err(ParseError::new(
+                next_token.span().start,
+                ParseErrorKind::DirectiveRequiresNoIdentifier,
+              )));
+            }
+
+            Some(
+              self
+                .parse_directive(directive, next_token.span(), Some(&token))
+                .map(Node::Directive),
+            )
+          }
 
           _ => Some(Err(ParseError::new(
             token.span().start,
@@ -120,7 +135,24 @@ impl<'a> Parser<'a> {
           )));
         }
 
-        Some(self.parse_directive(token, None).map(Node::Directive))
+        let directive = self
+          .source
+          .get(token.span())
+          .and_then(Directive::from_string)
+          .unwrap();
+
+        if matches!(directive, Directive::EQU | Directive::SET) {
+          return Some(Err(ParseError::new(
+            token.span().start,
+            ParseErrorKind::DirectiveRequiresIdentifier,
+          )));
+        }
+
+        Some(
+          self
+            .parse_directive(directive, token.span(), None)
+            .map(Node::Directive),
+        )
       }
 
       TokenKind::Instruction => Some(self.parse_instruction(token).map(Node::Instruction)),
@@ -134,13 +166,10 @@ impl<'a> Parser<'a> {
 
   fn parse_directive(
     &mut self,
-    directive_token: Token,
+    directive: Directive,
+    directive_span: Range<usize>,
     identifier_token: Option<&Token>,
   ) -> ParseResult<DirectiveNode> {
-    let directive = unwrap!(Directive::from_string(
-      self.source.get(directive_token.span()).unwrap()
-    ));
-
     let mut operands = SmallVec::with_capacity(MAX_DIRECTIVE_OPERAND_SIZE);
     let mut last_token_operand = false;
 
@@ -325,8 +354,7 @@ impl<'a> Parser<'a> {
       ));
     }
 
-    let start_span =
-      identifier_token.map_or_else(|| directive_token.span().start, |tok| tok.span().start);
+    let start_span = identifier_token.map_or_else(|| directive_span.start, |tok| tok.span().start);
 
     Ok(DirectiveNode::from_operands(
       identifier_token.and_then(|x| self.source.get(x.span()).map(SmolStr::new)),

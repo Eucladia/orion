@@ -278,24 +278,20 @@ impl Environment {
         Directive::EQU,
         &[OperandNode {
           operand: Operand::Numeric(data),
-          ref span,
+          ..
         }],
       ) => {
-        if let Some(name) = directive_node.identifier() {
-          if symbols.contains(name) || self.labels.contains_key(name) {
-            return Err(AssembleError::new(
-              directive_node.span().start,
-              AssembleErrorKind::IdentifierAlreadyDefined,
-            ));
-          }
+        // The parser ensures that we're given a name
+        let name = directive_node.identifier().unwrap();
 
-          symbols.add_symbol(name, data, addr);
-        } else {
+        if symbols.contains(name) || self.labels.contains_key(name) {
           return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::DirectiveRequiresName,
+            directive_node.span().start,
+            AssembleErrorKind::IdentifierAlreadyDefined,
           ));
         }
+
+        symbols.add_symbol(name, data, addr);
       }
       (
         Directive::EQU,
@@ -309,23 +305,21 @@ impl Environment {
             span.start,
             AssembleErrorKind::ExpectedTwoByteValue,
           ));
-        } else if let Some(name) = directive_node.identifier() {
-          if symbols.contains(name) || self.labels.contains_key(name) {
-            return Err(AssembleError::new(
-              directive_node.span().start,
-              AssembleErrorKind::IdentifierAlreadyDefined,
-            ));
-          }
-          let bytes = str.as_bytes();
-          let data = (bytes[0] as u16) << 8 | bytes.get(1).copied().unwrap_or(0) as u16;
+        }
 
-          symbols.add_symbol(name, data, addr);
-        } else {
+        // The parser ensures that we're given a name
+        let name = directive_node.identifier().unwrap();
+
+        if symbols.contains(name) || self.labels.contains_key(name) {
           return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::DirectiveRequiresName,
+            directive_node.span().start,
+            AssembleErrorKind::IdentifierAlreadyDefined,
           ));
         }
+        let bytes = str.as_bytes();
+        let data = (bytes[0] as u16) << 8 | bytes.get(1).copied().unwrap_or(0) as u16;
+
+        symbols.add_symbol(name, data, addr);
       }
       (
         Directive::EQU,
@@ -334,32 +328,28 @@ impl Environment {
           ref span,
         }],
       ) => {
-        if let Some(name) = directive_node.identifier() {
-          if symbols.contains(name) || self.labels.contains_key(name) {
-            return Err(AssembleError::new(
-              directive_node.span().start,
-              AssembleErrorKind::IdentifierAlreadyDefined,
-            ));
-          }
+        // The parser ensures that we're given a name
+        let name = directive_node.identifier().unwrap();
 
-          if ident == "$" {
-            symbols.add_symbol(name, addr, addr);
-          } else if let Some(val) = self.get_label_address(ident) {
-            symbols.add_symbol(name, val, addr);
-          } else if let Some(value) = symbols.get_value(ident) {
-            symbols.add_symbol(name, value, addr);
-          } else if is_first_pass {
-            unassembled.push((directive_node, addr));
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::IdentifierNotDefined,
-            ));
-          }
+        if symbols.contains(name) || self.labels.contains_key(name) {
+          return Err(AssembleError::new(
+            directive_node.span().start,
+            AssembleErrorKind::IdentifierAlreadyDefined,
+          ));
+        }
+
+        if ident == "$" {
+          symbols.add_symbol(name, addr, addr);
+        } else if let Some(val) = self.get_label_address(ident) {
+          symbols.add_symbol(name, val, addr);
+        } else if let Some(value) = symbols.get_value(ident) {
+          symbols.add_symbol(name, value, addr);
+        } else if is_first_pass {
+          unassembled.push((directive_node, addr));
         } else {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::DirectiveRequiresName,
+            AssembleErrorKind::IdentifierNotDefined,
           ));
         }
       }
@@ -367,26 +357,22 @@ impl Environment {
         Directive::EQU,
         &[OperandNode {
           operand: Operand::Expression(ref expr),
-          ref span,
+          ..
         }],
       ) => {
-        if let Some(name) = directive_node.identifier() {
-          if symbols.contains(name) || self.labels.contains_key(name) {
-            return Err(AssembleError::new(
-              directive_node.span().start,
-              AssembleErrorKind::IdentifierAlreadyDefined,
-            ));
-          }
+        // The parser ensures that we're given a name
+        let name = directive_node.identifier().unwrap();
 
-          let value = evaluate_instruction_expression(self, expr, addr, symbols)?;
-
-          symbols.add_symbol(name, value, addr);
-        } else {
+        if symbols.contains(name) || self.labels.contains_key(name) {
           return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::DirectiveRequiresName,
+            directive_node.span().start,
+            AssembleErrorKind::IdentifierAlreadyDefined,
           ));
         }
+
+        let value = evaluate_instruction_expression(self, expr, addr, symbols)?;
+
+        symbols.add_symbol(name, value, addr);
       }
       (Directive::EQU, _) => {
         return Err(AssembleError::new(
@@ -398,24 +384,20 @@ impl Environment {
         Directive::SET,
         &[OperandNode {
           operand: Operand::Numeric(data),
-          ref span,
+          ..
         }],
       ) => {
-        if let Some(name) = directive_node.identifier() {
-          if self.labels.contains_key(name) {
-            return Err(AssembleError::new(
-              directive_node.span().start,
-              AssembleErrorKind::IdentifierAlreadyDefined,
-            ));
-          }
+        // The parser ensures that we're given a name
+        let name = directive_node.identifier().unwrap();
 
-          symbols.insert_or_update(name, data, addr);
-        } else {
+        if self.labels.contains_key(name) {
           return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::DirectiveRequiresName,
+            directive_node.span().start,
+            AssembleErrorKind::IdentifierAlreadyDefined,
           ));
         }
+
+        symbols.insert_or_update(name, data, addr);
       }
       (
         Directive::SET,
@@ -429,24 +411,22 @@ impl Environment {
             span.start,
             AssembleErrorKind::ExpectedTwoByteValue,
           ));
-        } else if let Some(name) = directive_node.identifier() {
-          if self.labels.contains_key(name) {
-            return Err(AssembleError::new(
-              directive_node.span().start,
-              AssembleErrorKind::IdentifierAlreadyDefined,
-            ));
-          }
+        }
 
-          let bytes = str.as_bytes();
-          let data = (bytes[0] as u16) << 8 | bytes.get(1).copied().unwrap_or(0) as u16;
+        // The parser ensures that we're given a name
+        let name = directive_node.identifier().unwrap();
 
-          symbols.add_symbol(name, data, addr);
-        } else {
+        if self.labels.contains_key(name) {
           return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::DirectiveRequiresName,
+            directive_node.span().start,
+            AssembleErrorKind::IdentifierAlreadyDefined,
           ));
         }
+
+        let bytes = str.as_bytes();
+        let data = (bytes[0] as u16) << 8 | bytes.get(1).copied().unwrap_or(0) as u16;
+
+        symbols.add_symbol(name, data, addr);
       }
       (
         Directive::SET,
@@ -455,32 +435,28 @@ impl Environment {
           ref span,
         }],
       ) => {
-        if let Some(name) = directive_node.identifier() {
-          if self.labels.contains_key(name) {
-            return Err(AssembleError::new(
-              directive_node.span().start,
-              AssembleErrorKind::IdentifierAlreadyDefined,
-            ));
-          }
+        // The parser ensures that we're given a name
+        let name = directive_node.identifier().unwrap();
 
-          if ident == "$" {
-            symbols.add_symbol(name, addr, addr);
-          } else if let Some(val) = self.get_label_address(ident) {
-            symbols.add_symbol(name, val, addr);
-          } else if let Some(value) = symbols.get_value(ident) {
-            symbols.add_symbol(name, value, addr);
-          } else if is_first_pass {
-            unassembled.push((directive_node, addr));
-          } else {
-            return Err(AssembleError::new(
-              span.start,
-              AssembleErrorKind::IdentifierNotDefined,
-            ));
-          }
+        if self.labels.contains_key(name) {
+          return Err(AssembleError::new(
+            directive_node.span().start,
+            AssembleErrorKind::IdentifierAlreadyDefined,
+          ));
+        }
+
+        if ident == "$" {
+          symbols.add_symbol(name, addr, addr);
+        } else if let Some(val) = self.get_label_address(ident) {
+          symbols.add_symbol(name, val, addr);
+        } else if let Some(value) = symbols.get_value(ident) {
+          symbols.add_symbol(name, value, addr);
+        } else if is_first_pass {
+          unassembled.push((directive_node, addr));
         } else {
           return Err(AssembleError::new(
             span.start,
-            AssembleErrorKind::DirectiveRequiresName,
+            AssembleErrorKind::IdentifierNotDefined,
           ));
         }
       }
@@ -488,26 +464,22 @@ impl Environment {
         Directive::SET,
         &[OperandNode {
           operand: Operand::Expression(ref expr),
-          ref span,
+          ..
         }],
       ) => {
-        if let Some(name) = directive_node.identifier() {
-          if self.labels.contains_key(name) {
-            return Err(AssembleError::new(
-              directive_node.span().start,
-              AssembleErrorKind::IdentifierAlreadyDefined,
-            ));
-          }
+        // The parser ensures that we're given a name
+        let name = directive_node.identifier().unwrap();
 
-          let value = evaluate_instruction_expression(self, expr, addr, symbols)?;
-
-          symbols.add_symbol(name, value, addr);
-        } else {
+        if self.labels.contains_key(name) {
           return Err(AssembleError::new(
-            span.start,
-            AssembleErrorKind::DirectiveRequiresName,
+            directive_node.span().start,
+            AssembleErrorKind::IdentifierAlreadyDefined,
           ));
         }
+
+        let value = evaluate_instruction_expression(self, expr, addr, symbols)?;
+
+        symbols.add_symbol(name, value, addr);
       }
       (Directive::SET, _) => {
         return Err(AssembleError::new(

@@ -51,6 +51,12 @@ pub enum ParseErrorKind {
   #[error("the symbol is reserved")]
   ReservedIdentifier,
 
+  #[error("the directive requires no identifier")]
+  DirectiveRequiresNoIdentifier,
+
+  #[error("the directive requires an identifier")]
+  DirectiveRequiresIdentifier,
+
   #[error("the length of the label name is invalid")]
   InvalidLabelLength,
 
@@ -112,9 +118,6 @@ pub enum AssembleErrorKind {
 
   #[error("the identifier was not defined yet")]
   IdentifierNotDefined,
-
-  #[error("this directive requires a identifier")]
-  DirectiveRequiresName,
 
   #[error("the directive requires operands")]
   DirectiveRequiresOperands,
