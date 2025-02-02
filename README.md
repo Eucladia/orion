@@ -1,5 +1,5 @@
 <div align="center">
-  <hi><code>Orion</code></h1>
+  <h1><code>Orion</code></h1>
 
   <p><b>An <a href="https://en.wikipedia.org/wiki/Intel_8085">Intel 8085</a> simulator.</b></p>
 
