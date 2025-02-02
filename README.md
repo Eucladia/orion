@@ -1,9 +1,9 @@
 <div align="center">
-  <hi>Orion</h1>
+  <hi><code>Orion</code></h1>
 
-  <p>An <a href="https://en.wikipedia.org/wiki/Intel_8085">Intel 8085</a> simulator</p>
+  <p><b>An <a href="https://en.wikipedia.org/wiki/Intel_8085">Intel 8085</a> simulator.</b></p>
 
-  <strong>⚠️ Orion is still in development, there may be expect bugs! 🐛</strong>
+  <strong>⚠️ Orion is still in development, there may be bugs! 🐛</strong>
 </div>
 
 ## Supported Features
