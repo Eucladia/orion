@@ -1,4 +1,4 @@
-use lexer::{lex, token::TokenKind, Token};
+use orion_lexer::{lex, token::TokenKind, Token};
 
 macro_rules! tokens_equal {
   ($src:literal, $($token:tt),*) => {

@@ -1,0 +1,11 @@
+[package]
+name = "orion_interpreter"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[dependencies]
+orion_lexer = { path = "../orion_lexer/", version = "0.1.0" }
+orion_parser = { path = "../orion_parser/", version = "0.1.0" }
+orion_types = { path = "../orion_types/", version = "0.1.0" }
+smol_str = { version = "0.3.2" }

@@ -1,4 +1,4 @@
-use lexer::{directive::Directive, instruction::Instruction, Register};
+use orion_lexer::{directive::Directive, instruction::Instruction, Register};
 use smallvec::SmallVec;
 use smol_str::SmolStr;
 use std::ops::Range;

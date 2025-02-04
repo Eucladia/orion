@@ -1,9 +1,9 @@
 use crate::{
   encodings, environment::instruction_bytes_occupied, instructions, Environment, Symbols,
 };
-use lexer::directive::Directive;
-use parser::nodes::{Node, ProgramNode};
-use types::{AssembleError, AssembleErrorKind};
+use orion_lexer::directive::Directive;
+use orion_parser::nodes::{Node, ProgramNode};
+use orion_types::{AssembleError, AssembleErrorKind};
 
 #[derive(Debug)]
 pub struct Interpreter {
@@ -20,7 +20,7 @@ impl Interpreter {
   }
 
   /// Assmebles the assembly, encoding the instructions into memory.
-  pub fn assemble(&mut self) -> types::AssembleResult<()> {
+  pub fn assemble(&mut self) -> orion_types::AssembleResult<()> {
     let mut symbols = Symbols::new();
     let mut unassembled = Vec::new();
     let mut unassembled_directives = Vec::new();
@@ -274,8 +274,8 @@ mod tests {
   use crate::encodings;
 
   use super::Interpreter;
-  use lexer::Flags;
-  use types::{AssembleError, AssembleErrorKind, AssembleResult};
+  use orion_lexer::Flags;
+  use orion_types::{AssembleError, AssembleErrorKind, AssembleResult};
 
   /// Runs an assembly file, making sure that the expected memory values are set.
   macro_rules! run_file {
@@ -287,7 +287,7 @@ mod tests {
         {
           let r: AssembleResult<Interpreter> = {
             let src = include_str!(concat!("../../../test_files/", $src, ".asm"));
-            let mut int = Interpreter::new(parser::parse(src).unwrap());
+            let mut int = Interpreter::new(orion_parser::parse(src).unwrap());
 
             if let Err(e) = int.assemble() {
                Err(e)
@@ -332,7 +332,7 @@ mod tests {
   macro_rules! run_asm {
     ($src:literal, $func:expr, $err:literal) => {{
       let r: AssembleResult<()> = {
-        let mut int = Interpreter::new(parser::parse($src).unwrap());
+        let mut int = Interpreter::new(orion_parser::parse($src).unwrap());
 
         if let Err(e) = int.assemble() {
           Err(e)
@@ -527,8 +527,9 @@ mod tests {
 
   #[test]
   fn directives() {
-    let mut int =
-      Interpreter::new(parser::parse("STR: DB 'TIME'\nHERE: DB 0A3H\nWORD1: DB -03H,5*2").unwrap());
+    let mut int = Interpreter::new(
+      orion_parser::parse("STR: DB 'TIME'\nHERE: DB 0A3H\nWORD1: DB -03H,5*2").unwrap(),
+    );
 
     int.assemble().unwrap();
 

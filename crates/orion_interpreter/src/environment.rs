@@ -1,14 +1,14 @@
 use crate::registers::Registers;
 use crate::Symbols;
 use crate::{encodings, registers::RegisterPair};
-use lexer::directive::Directive;
-use lexer::{instruction::Instruction, Flags, Register};
-use parser::nodes::{
+use orion_lexer::directive::Directive;
+use orion_lexer::{instruction::Instruction, Flags, Register};
+use orion_parser::nodes::{
   DirectiveNode, Expression, ExpressionNode, InstructionNode, Operand, OperandNode, Operator,
   OperatorNode,
 };
+use orion_types::{AssembleError, AssembleErrorKind, AssembleResult};
 use smol_str::SmolStr;
-use types::{AssembleError, AssembleErrorKind, AssembleResult};
 
 use std::collections::HashMap;
 
@@ -494,7 +494,7 @@ impl Environment {
             directive_node.span().start,
             AssembleErrorKind::DirectiveRequiresOperands,
           ));
-        } else if ops.len() > parser::nodes::MAX_DIRECTIVE_OPERAND_SIZE {
+        } else if ops.len() > orion_parser::nodes::MAX_DIRECTIVE_OPERAND_SIZE {
           return Err(AssembleError::new(
             directive_node.span().start,
             AssembleErrorKind::DirectiveHasTooManyOperands,
@@ -548,7 +548,7 @@ impl Environment {
             directive_node.span().start,
             AssembleErrorKind::DirectiveRequiresOperands,
           ));
-        } else if ops.len() > parser::nodes::MAX_DIRECTIVE_OPERAND_SIZE {
+        } else if ops.len() > orion_parser::nodes::MAX_DIRECTIVE_OPERAND_SIZE {
           return Err(AssembleError::new(
             directive_node.span().start,
             AssembleErrorKind::DirectiveHasTooManyOperands,

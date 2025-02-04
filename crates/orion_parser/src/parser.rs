@@ -4,12 +4,12 @@ use crate::nodes::{
 };
 use crate::unwrap;
 
-use lexer::directive::Directive;
-use lexer::instruction::Instruction;
-use lexer::token::{Token, TokenKind};
-use lexer::Register;
+use orion_lexer::directive::Directive;
+use orion_lexer::instruction::Instruction;
+use orion_lexer::token::{Token, TokenKind};
+use orion_lexer::Register;
+use orion_types::{LexResult, ParseError, ParseErrorKind, ParseResult};
 use smallvec::SmallVec;
-use types::{LexResult, ParseError, ParseErrorKind, ParseResult};
 
 use smol_str::{SmolStr, SmolStrBuilder};
 
@@ -42,7 +42,7 @@ impl<'a> Parser<'a> {
 
   /// Creates a new [`Parser`] from a source string.
   pub fn from_source(source: &'a str) -> LexResult<Self> {
-    let mut tokens = lexer::lex(source)?;
+    let mut tokens = orion_lexer::lex(source)?;
 
     // Get rid of the EOF token
     tokens.pop();
@@ -1036,7 +1036,7 @@ fn parse_number(src: &str, token: &Token) -> ParseResult<u16> {
 
 #[cfg(test)]
 mod tests {
-  use types::{ParseError, ParseErrorKind};
+  use orion_types::{ParseError, ParseErrorKind};
 
   #[test]
   fn numeric_literals() {
@@ -1060,7 +1060,7 @@ mod tests {
 
     assert_eq!(
       crate::parse(&format!("LXI H, '{}'", "A".repeat(129))),
-      Err(types::Error::Parser(ParseError::new(
+      Err(orion_types::Error::Parser(ParseError::new(
         7,
         ParseErrorKind::InvalidStringLength
       )))
@@ -1071,7 +1071,7 @@ mod tests {
   fn not_enough_operands() {
     assert_eq!(
       crate::parse("MVI").unwrap_err(),
-      types::Error::Parser(ParseError::new(3, ParseErrorKind::ExpectedOperand))
+      orion_types::Error::Parser(ParseError::new(3, ParseErrorKind::ExpectedOperand))
     );
   }
 
@@ -1121,13 +1121,13 @@ mod tests {
   fn linebreak() {
     assert_eq!(
       crate::parse("MVI A, 01H MVI B, 02H").unwrap_err(),
-      types::Error::Parser(ParseError::new(10, ParseErrorKind::ExpectedLinebreak,)),
+      orion_types::Error::Parser(ParseError::new(10, ParseErrorKind::ExpectedLinebreak,)),
       "expected linebreak between MVIs"
     );
 
     assert_eq!(
       crate::parse("MVI A, 01H\nMVI B, 02H HLT").unwrap_err(),
-      types::Error::Parser(ParseError::new(21, ParseErrorKind::ExpectedLinebreak,)),
+      orion_types::Error::Parser(ParseError::new(21, ParseErrorKind::ExpectedLinebreak,)),
       "expected linebreak before HLT"
     );
 

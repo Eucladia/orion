@@ -11,6 +11,6 @@ pub use register::Register;
 pub use token::*;
 
 /// Lexes the input source into a group of tokens.
-pub fn lex(src: &str) -> types::LexResult<Vec<Token>> {
+pub fn lex(src: &str) -> orion_types::LexResult<Vec<Token>> {
   Lexer::from_string(src).collect()
 }

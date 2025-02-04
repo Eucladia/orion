@@ -1,4 +1,4 @@
-use parser::parse;
+use orion_parser::parse;
 use pico_args::Arguments;
 use std::{
   fs,
@@ -13,7 +13,7 @@ fn main() -> anyhow::Result<()> {
     "parser" => write_parser_output()?,
     _ => eprintln!(
       "Invalid usage:\n\ncargo xtask <SUBCOMMAND>\
-\n\nSUBCOMMANDS:\n\tparse"
+\n\nSUBCOMMANDS:\n\tparser"
     ),
   }
 

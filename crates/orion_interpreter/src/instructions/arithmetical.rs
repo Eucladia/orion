@@ -4,7 +4,7 @@ use crate::{
   registers::{self, RegisterPair},
   Environment,
 };
-use lexer::{Flags, Register};
+use orion_lexer::{Flags, Register};
 
 pub fn execute_add(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;

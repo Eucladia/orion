@@ -1,8 +1,8 @@
 pub mod nodes;
 pub mod parser;
 
-use lexer::Token;
 use nodes::ProgramNode;
+use orion_lexer::Token;
 
 pub use parser::Parser;
 
@@ -21,11 +21,11 @@ macro_rules! unwrap {
 }
 
 /// Parses a program from the given source and tokens.
-pub fn parse_tokens(src: &str, tokens: Vec<Token>) -> types::ParseResult<ProgramNode> {
+pub fn parse_tokens(src: &str, tokens: Vec<Token>) -> orion_types::ParseResult<ProgramNode> {
   Parser::new(src, tokens).parse()
 }
 
 /// Parses a program from the given source.
-pub fn parse(src: &str) -> types::Result<ProgramNode> {
-  Ok(parse_tokens(src, lexer::lex(src)?)?)
+pub fn parse(src: &str) -> orion_types::Result<ProgramNode> {
+  Ok(parse_tokens(src, orion_lexer::lex(src)?)?)
 }

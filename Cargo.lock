@@ -24,30 +24,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
-name = "interpreter"
+name = "orion_interpreter"
 version = "0.1.0"
 dependencies = [
- "lexer",
- "parser",
+ "orion_lexer",
+ "orion_parser",
+ "orion_types",
  "smol_str",
- "types",
 ]
 
 [[package]]
-name = "lexer"
+name = "orion_lexer"
 version = "0.1.0"
 dependencies = [
- "types",
+ "orion_types",
 ]
 
 [[package]]
-name = "parser"
+name = "orion_parser"
 version = "0.1.0"
 dependencies = [
- "lexer",
+ "orion_lexer",
+ "orion_types",
  "smallvec",
  "smol_str",
- "types",
+]
+
+[[package]]
+name = "orion_types"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]
@@ -142,13 +149,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "types"
-version = "0.1.0"
-dependencies = [
- "thiserror",
-]
-
-[[package]]
 name = "unicode-ident"
 version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -159,6 +159,6 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "parser",
+ "orion_parser",
  "pico-args",
 ]

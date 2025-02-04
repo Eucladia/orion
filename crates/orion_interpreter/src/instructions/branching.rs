@@ -1,6 +1,6 @@
 //! Branching instructions
 use crate::{registers, Environment};
-use lexer::{Flags, Register};
+use orion_lexer::{Flags, Register};
 
 pub fn execute_cmp(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;

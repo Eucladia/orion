@@ -1,9 +1,9 @@
 [package]
-name = "lexer"
+name = "orion_lexer"
 version = "0.1.0"
 edition = "2021"
 resolver = "2"
 
 [dependencies]
-types = { path = "../types/" }
+orion_types = { path = "../orion_types/" }
 

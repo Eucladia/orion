@@ -1,6 +1,6 @@
 //! Manipulation related instructions
 use crate::{encodings, registers::RegisterPair, Environment};
-use lexer::Flags;
+use orion_lexer::Flags;
 
 pub fn execute_push(env: &mut Environment, instruction_byte: u8) {
   env.registers.ir = instruction_byte;

@@ -1,4 +1,4 @@
-pub use lexer::Register;
+pub use orion_lexer::Register;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Registers {

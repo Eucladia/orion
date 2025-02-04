@@ -1,6 +1,6 @@
 //! Logical instructions
 use crate::{registers, Environment};
-use lexer::{Flags, Register};
+use orion_lexer::{Flags, Register};
 
 // The first three bits are the register for these instructions
 pub fn execute_ora(env: &mut Environment, instruction_byte: u8) {

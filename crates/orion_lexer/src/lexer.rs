@@ -1,7 +1,7 @@
 use crate::{
   create_token, directive::Directive, instruction::Instruction, register::Register, token::Token,
 };
-use types::{LexError, LexResult};
+use orion_types::{LexError, LexResult};
 
 // A lexer used to lex a source program into tokens.
 pub struct Lexer<'a> {
